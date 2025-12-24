@@ -1,0 +1,24 @@
+{
+  "name": "line-tcm-bot",
+  "version": "1.0.0",
+  "description": "LINE Bot for TCM Course using OpenAI Assistant API",
+  "main": "api/webhook.js",
+  "scripts": {
+    "start": "node api/webhook.js",
+    "dev": "node api/webhook.js"
+  },
+  "keywords": [
+    "line-bot",
+    "openai",
+    "tcm",
+    "vercel"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@line/bot-sdk": "^9.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "openai": "^4.47.1"
+  }
+}
