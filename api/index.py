@@ -8,9 +8,26 @@ from upstash_redis import Redis
 from openai import OpenAI
 
 app = Flask(__name__)
-app.debug = True # 選配：方便看更多詳細錯誤
-app = app
+# 確保這個變數存在，且不要叫 handler
 line_webhook_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
+
+@app.route("/", methods=['POST'])
+@app.route("/callback", methods=['POST'])
+def callback():
+    signature = request.headers.get('X-Line-Signature')
+    body = request.get_data(as_text=True)
+    
+    # 除錯用：這行可以在 Vercel Logs 看到訊號進來了沒
+    print(f"Request body: {body}")
+    
+    try:
+        line_webhook_handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    return 'OK', 200 # 明確回傳 200
+
+# 重要：確保這行在全域位置
+app = app
 
 # 1. 初始化所有連線資訊 (金鑰會自動從 Vercel 環境變數讀取)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
@@ -54,16 +71,19 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = event.message.text
     
-    # A. 取得模式 (單純為了在回覆中顯示)
+    # A. 取得模式 (從 Redis 讀取)
     mode_val = redis.get(f"user_mode:{user_id}")
-    # 如果已經是字串就直接用，如果是 bytes 才 decode
-mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
+    
+    # 【修正縮排】這行必須縮進，並確保正確處理 None 或不同格式
+    mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
+    
     mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
+    mode_name = mode_map.get(mode, "🩺 中醫問答")
 
     # B. 立即回覆，防止 LINE Webhook 超時
     line_bot_api.reply_message(
         event.reply_token, 
-        TextSendMessage(text=f"已收到您的訊息，正在以【{mode_map.get(mode, '中醫專家')}】模式分析中...")
+        TextSendMessage(text=f"已收到您的訊息，正在以【{mode_name}】模式分析中...")
     )
     
     # C. 呼叫後台 AI 處理 (內部會用 push_message 回傳答案)
