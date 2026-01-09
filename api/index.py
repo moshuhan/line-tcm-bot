@@ -259,6 +259,3 @@ def process_ai_request(event, user_id, text, is_voice=False):
 
 
 
-        git add . 
-        git commit -m "fix: robust message handling" 
-        git push
