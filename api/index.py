@@ -10,7 +10,7 @@ from openai import OpenAI
 app = Flask(__name__)
 app.debug = True # 選配：方便看更多詳細錯誤
 # 新增這行，明確指定給 Vercel
-handler_app = app
+app = app
 
 # 1. 初始化所有連線資訊 (金鑰會自動從 Vercel 環境變數讀取)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
