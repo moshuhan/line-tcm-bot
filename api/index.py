@@ -44,7 +44,7 @@ def process_ai_request(event, user_id, text, is_voice=False):
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
-            content=f"【目前模式：{tag}】使用者的話：{text}"
+            content=f"【目前模式：{tag}】\n(提醒：請務必在回答末尾提供參考資料出處)\n使用者的話：{text}"
         )
         
         run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
