@@ -107,6 +107,20 @@ def handle_message(event):
 @line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
     user_id = event.source.user_id
+    # 修正點：確保這裡是 line_bot_api
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🎙️ 正在轉換語音..."))
     
-    message_content = line_bot
+    # 修正點：確保這裡是 line_bot_api
+    message_content = line_bot_api.get_message_content(event.message.id)
+    temp_path = f"/tmp/{event.message.id}.m4a"
+    with open(temp_path, 'wb') as f:
+        for chunk in message_content.iter_content(): f.write(chunk)
+    
+    try:
+        with open(temp_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
+        os.remove(temp_path)
+        line_bot_api.push_message(user_id, TextSendMessage(text=f"🎤 辨識內容：「{transcript.text}」"))
+        process_ai_request(event, user_id, transcript.text, is_voice=True)
+    except Exception as e:
+        line_bot_api.push_message(user_id, TextSendMessage(text="❌ 語音辨識失敗"))
