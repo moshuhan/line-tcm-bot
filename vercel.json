@@ -1,8 +1,9 @@
 {
-  "rewriteConfigs": [
-    { "source": "/(.*)", "destination": "main.py" }
-  ],
-  "routes": [
-    { "src": "/callback", "dest": "main.py" }
-  ]
+    "version": 2,
+    "rewrites": [
+        {
+            "source": "/(.*)",
+            "destination": "/api/index.py"
+        }
+    ]
 }
