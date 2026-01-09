@@ -46,6 +46,7 @@ def handle_postback(event):
 def handle_message(event):
     user_id = event.source.user_id
     user_text = event.message.text
+    process_ai_request(event, user_id, user_text)
     
     # 從 Redis 讀取該使用者目前的模式 (預設為 tcm)
     mode = redis.get(f"user_mode:{user_id}") or "tcm"
@@ -64,6 +65,80 @@ def handle_message(event):
         event.reply_token, 
         TextSendMessage(text=f"（模式：{mode}）正在處理您的請求...")
     )
+# 5. 新增：處理語音訊息
+@handler.add(MessageEvent, message=AudioMessage)
+def handle_audio(event):
+    user_id = event.source.user_id
+    message_id = event.message.id
+    
+    # 從 LINE 伺服器下載語音檔案
+    message_content = line_bot_api.get_message_content(message_id)
+    temp_path = f"/tmp/{message_id}.m4a"
+    with open(temp_path, 'wb') as f:
+        for chunk in message_content.iter_content():
+            f.write(chunk)
+    
+    # 呼叫 OpenAI Whisper 將語音轉文字
+    with open(temp_path, "rb") as audio_file:
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1", 
+            file=audio_file
+        )
+    
+    # 刪除暫存檔
+    os.remove(temp_path)
+    
+    # 轉出的文字內容
+    user_voice_text = transcript.text
+    
+    # 告訴使用者聽到了什麼，並開始處理
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=f"🎤 我聽到您說：\n「{user_voice_text}」\n正在分析中...")
+    )
+    
+    # 接下來同樣丟給 AI 邏輯處理 (帶入標籤)
+    process_ai_request(event, user_id, user_voice_text, is_voice=True)
+
+# 6. 整合 AI 處理邏輯 (統一處理文字與語音轉出的文字)
+def process_ai_request(event, user_id, text, is_voice=False):
+    mode = redis.get(f"user_mode:{user_id}") or "tcm"
+    
+    # 根據模式決定標籤
+    tag = "[中醫專家模式]"
+    if mode == "speaking": tag = "[口說教練模式]"
+    elif mode == "writing": tag = "[寫作顧問模式]"
+    
+    # 1. 建立 Thread (為了簡化，每次都建新的或抓舊的，這裡先示範建新的)
+    thread = client.beta.threads.create()
+    
+    # 2. 傳送訊息
+    client.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=f"{tag} {text}"
+    )
+    
+    # 3. 執行 Run
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id,
+        assistant_id=assistant_id
+    )
+    
+    # 4. 等待結果 (Vercel 有時間限制，這裡用簡單的輪詢)
+    while run.status in ['queued', 'in_progress']:
+        time.sleep(1)
+        run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+    
+    # 5. 取得回答並回傳
+    if run.status == 'completed':
+        messages = client.beta.threads.messages.list(thread_id=thread.id)
+        ai_reply = messages.data[0].content[0].text.value
+        line_bot_api.push_message(user_id, TextSendMessage(text=ai_reply))
 
 if __name__ == "__main__":
     app.run()
+
+
+
+   
