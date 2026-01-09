@@ -10,14 +10,16 @@ from openai import OpenAI
 app = Flask(__name__)
 app.debug = True # 選配：方便看更多詳細錯誤
 app = app
-
 line_webhook_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
+
 # 1. 初始化所有連線資訊 (金鑰會自動從 Vercel 環境變數讀取)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 
 redis = Redis(url=os.getenv("KV_REST_API_URL"), token=os.getenv("KV_REST_API_TOKEN"))
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
+# 測試用：直接 print 出來（部署後在 Log 看有沒有印出 asst_...）
+print(f"DEBUG: Current Assistant ID is {assistant_id}")
 
 # 2. LINE Webhook 進入點
 @app.route("/callback", methods=['POST'])
@@ -106,57 +108,39 @@ def handle_audio(event):
         line_bot_api.push_message(user_id, TextSendMessage(text="❌ 語音辨識失敗，請確認錄音品質後再試一次。"))
 
 # 6. 整合 AI 處理邏輯 (統一處理文字與語音轉出的文字)
-def process_ai_request(event, user_id, text, is_voice=False):
-    # --- A. 決定模式標籤 ---
-    # 從 Redis 讀取模式，記得將 bytes 轉為 string
-    mode_raw = redis.get(f"user_mode:{user_id}")
-    mode = mode_raw.decode('utf-8') if mode_raw else "tcm"
+# 3. 傳送訊息
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=f"【請切換至：{tag}】學生的話：{text}"
+        )
+        
+        # 4. 執行 Run (這是最耗時的地方)
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=assistant_id
+        )
+        
+        # 輪詢狀態
+        start_time = time.time()
+        while run.status in ['queued', 'in_progress']:
+            # 如果跑超過 8 秒，手動停止避免 Vercel 崩潰，這能讓你看到錯誤
+            if time.time() - start_time > 8:
+                print("⚠️ AI 思考太久，可能觸發 Vercel 10s 限制")
+                break
+            time.sleep(1)
+            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+        
+        if run.status == 'completed':
+            messages = client.beta.threads.messages.list(thread_id=thread_id)
+            ai_reply = messages.data[0].content[0].text.value
+            line_bot_api.push_message(user_id, TextSendMessage(text=ai_reply))
+        else:
+            line_bot_api.push_message(user_id, TextSendMessage(text="⏳ AI 還在思考中，請稍後再問我一次，我就能把剛才的答案給你！"))
 
-    tag = "[中醫專家模式]"
-    if mode == "speaking": tag = "[口說教練模式]"
-    elif mode == "writing": tag = "[寫作顧問模式]"
-
-    # --- B. 管理 Thread ID (對話記憶) ---
-    # 從 Redis 讀取該使用者的專屬 Thread ID
-    thread_id_raw = redis.get(f"user_thread:{user_id}")
-    thread_id = thread_id_raw.decode('utf-8') if thread_id_raw else None
-    
-    if not thread_id:
-        # 如果是新朋友，建立新 Thread 並存入 Redis
-        thread = client.beta.threads.create()
-        thread_id = thread.id
-        redis.set(f"user_thread:{user_id}", thread_id)
-    
-    # --- C. 傳送訊息給 OpenAI Assistant ---
-    # 組合內容：強制命令 AI 切換身分 + 使用者訊息
-    full_content = f"【請切換至以下身分：{tag}】\n\n學生的訊息內容如下：{text}"
-    
-    client.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content=full_content
-    )
-    
-    # --- D. 執行 Run 並等待回覆 ---
-    run = client.beta.threads.runs.create(
-        thread_id=thread_id,
-        assistant_id=assistant_id
-    )
-    
-    # 輪詢檢查狀態
-    while run.status in ['queued', 'in_progress']:
-        time.sleep(1)
-        run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-    
-    # 取得結果並回傳
-    if run.status == 'completed':
-        messages = client.beta.threads.messages.list(thread_id=thread_id)
-        ai_reply = messages.data[0].content[0].text.value
-        # 使用 push_message 避免 LINE Webhook 超時
-        line_bot_api.push_message(user_id, TextSendMessage(text=ai_reply))
-    else:
-        line_bot_api.push_message(user_id, TextSendMessage(text="抱歉，AI 思考太久了，請再試一次！"))
-    
+    except Exception as e:
+        print(f"❌ AI 處理發生崩潰: {str(e)}")
+        line_bot_api.push_message(user_id, TextSendMessage(text=f"❌ 系統錯誤: {str(e)[:50]}"))
     # 根據模式決定標籤
     tag = "[中醫專家模式]"
     if mode == "speaking": tag = "[口說教練模式]"
@@ -188,3 +172,55 @@ def process_ai_request(event, user_id, text, is_voice=False):
         messages = client.beta.threads.messages.list(thread_id=thread.id)
         ai_reply = messages.data[0].content[0].text.value
         line_bot_api.push_message(user_id, TextSendMessage(text=ai_reply))
+
+# --- AI 處理核心函數 ---
+def process_ai_request(event, user_id, text, is_voice=False):
+    try:
+        # 1. 取得模式 (從 Redis 讀取)
+        mode_val = redis.get(f"user_mode:{user_id}")
+        mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
+
+        # 2. 取得或建立 OpenAI Thread ID
+        t_id = redis.get(f"user_thread:{user_id}")
+        thread_id = t_id.decode('utf-8') if hasattr(t_id, 'decode') else (str(t_id) if t_id and t_id != "None" else None)
+        
+        if not thread_id:
+            new_thread = client.beta.threads.create()
+            thread_id = new_thread.id
+            redis.set(f"user_thread:{user_id}", thread_id)
+        
+        # 3. 將使用者的話傳送給 OpenAI Assistant
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=text
+        )
+        
+        # 4. 啟動 AI 回答 (Run)
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=assistant_id
+        )
+        
+        # 5. 等待 AI 回答完畢 (輪詢)
+        start_time = time.time()
+        while run.status in ['queued', 'in_progress']:
+            # Vercel 免費版 10 秒限制：若跑 8.5 秒還沒好就先結束，避免系統直接崩潰
+            if time.time() - start_time > 8.5:
+                break
+            time.sleep(1)
+            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+        
+        if run.status == 'completed':
+            messages = client.beta.threads.messages.list(thread_id=thread_id)
+            ai_reply = messages.data[0].content[0].text.value
+            # 使用 push_message 回傳真正的答案
+            line_bot_api.push_message(user_id, TextSendMessage(text=ai_reply))
+        else:
+            line_bot_api.push_message(user_id, TextSendMessage(text="⏳ AI 仍在處理中，請稍候 5 秒再傳送任何文字，我就能顯示剛才的分析結果！"))
+
+    except Exception as e:
+        import traceback
+        print(f"CRITICAL ERROR: {traceback.format_exc()}")
+        # 萬一出錯，至少讓你知道是什麼原因
+        line_bot_api.push_message(user_id, TextSendMessage(text=f"❌ 處理失敗：{str(e)[:50]}"))
