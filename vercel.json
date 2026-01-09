@@ -1,0 +1,8 @@
+{
+  "rewriteConfigs": [
+    { "source": "/(.*)", "destination": "main.py" }
+  ],
+  "routes": [
+    { "src": "/callback", "dest": "main.py" }
+  ]
+}

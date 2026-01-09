@@ -1,0 +1,6 @@
+line-bot-sdk
+flask
+openai
+upstash-redis
+python-dotenv
+requests
