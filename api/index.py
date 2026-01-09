@@ -11,20 +11,22 @@ app = Flask(__name__)
 # 確保這個變數存在，且不要叫 handler
 line_webhook_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
 
-@app.route("/", methods=['POST'])
-@app.route("/callback", methods=['POST'])
+@app.route("/", methods=['GET', 'POST']) # 同時支援 GET 和 POST
+@app.route("/callback", methods=['GET', 'POST'])
 def callback():
+    if request.method == 'GET':
+        return 'Line Bot Server is running!', 200 # 瀏覽器打開會看到這行
+        
+    # LINE 的 POST 訊號處理
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
     
-    # 除錯用：這行可以在 Vercel Logs 看到訊號進來了沒
-    print(f"Request body: {body}")
-    
     try:
         line_webhook_handler.handle(body, signature)
-    except InvalidSignatureError:
+    except Exception as e:
+        print(f"Webhook Error: {e}")
         abort(400)
-    return 'OK', 200 # 明確回傳 200
+    return 'OK', 200
 
 # 重要：確保這行在全域位置
 app = app
