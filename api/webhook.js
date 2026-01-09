@@ -8,6 +8,7 @@
 const express = require('express');
 const lineService = require('../services/line');
 const openaiService = require('../services/openai');
+const state = require('../services/state');
 
 const app = express();
 
@@ -22,8 +23,8 @@ app.post('/api/webhook', lineService.line.middleware(lineService.config), async 
 
         // Process all events asynchronously
         const results = await Promise.all(events.map(async (event) => {
-            // Only handle text messages
-            if (event.type === 'message' && event.message.type === 'text') {
+            // Handle text messages and postbacks
+            if ((event.type === 'message' && event.message.type === 'text') || event.type === 'postback') {
                 return handleEvent(event);
             }
             return Promise.resolve(null);
@@ -46,22 +47,36 @@ app.post('/api/webhook', lineService.line.middleware(lineService.config), async 
 async function handleEvent(event) {
     const userId = event.source.userId;
     const replyToken = event.replyToken;
-    const userMessage = event.message.text;
 
     try {
-        // 1. Get answer from OpenAI
-        // We send a "thinking" message or just wait? 
-        // LINE requires a reply within a few seconds, but OpenAI might take longer.
-        // Ideally, we should use the "loading" animation feature of LINE or push messages later.
-        // For simplicity in this MVP, we wait. If it times out, LINE will show error to user, 
-        // but our backend might still finish.
+        if (event.type === 'postback') {
+            const data = event.postback.data; // e.g., "mode=speaking"
+            const params = new URLSearchParams(data);
+            const mode = params.get('mode');
 
-        // Note: LINE Reply Token is valid for ~30 seconds.
+            if (mode) {
+                await state.saveUserMode(userId, mode);
+                let modeName = '中醫問答';
+                if (mode === 'speaking') modeName = '口說練習';
+                if (mode === 'writing') modeName = '寫作修改';
 
-        const aiResponse = await openaiService.handleMessage(userId, userMessage);
+                await lineService.replyMessage(replyToken, `已切換至「${modeName}」模式。`);
+            }
+            return;
+        }
 
-        // 2. Reply to user
-        await lineService.replyMessage(replyToken, aiResponse);
+        if (event.type === 'message' && event.message.type === 'text') {
+            const userMessage = event.message.text;
+
+            // 1. Get user mode
+            const mode = await state.getUserMode(userId);
+
+            // 2. Get answer from OpenAI
+            const aiResponse = await openaiService.handleMessage(userId, userMessage, mode);
+
+            // 3. Reply to user
+            await lineService.replyMessage(replyToken, aiResponse);
+        }
 
     } catch (error) {
         console.error(`[Event] Error handling event for user ${userId}:`, error);

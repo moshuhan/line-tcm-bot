@@ -23,9 +23,10 @@ const ASSISTANT_ID = process.env.OPENAI_ASSISTANT_ID;
  * 
  * @param {string} userId - The LINE User ID.
  * @param {string} userMessage - The text message from the user.
+ * @param {string} mode - The current user mode ('tcm', 'speaking', 'writing').
  * @returns {Promise<string>} - The Assistant's response text.
  */
-async function handleMessage(userId, userMessage) {
+async function handleMessage(userId, userMessage, mode = 'tcm') {
     try {
         // 1. Get or Create Thread
         let threadId = await state.getThreadId(userId);
@@ -39,14 +40,20 @@ async function handleMessage(userId, userMessage) {
             console.log(`[OpenAI] Using existing thread ${threadId} for user ${userId}`);
         }
 
+        // Adjust prompt based on mode
+        let finalMessage = userMessage;
+        if (mode === 'speaking') {
+            finalMessage = `你現在是口說助教，請分析以下逐字稿並給予發音與專業術語建議：\n\n${userMessage}`;
+        }
+
         // 2. Add Message to Thread
         await openai.beta.threads.messages.create(threadId, {
             role: 'user',
-            content: userMessage,
+            content: finalMessage,
         });
 
         // 3. Run Assistant
-        console.log(`[OpenAI] Starting run for thread ${threadId}`);
+        console.log(`[OpenAI] Starting run for thread ${threadId} in mode ${mode}`);
         const run = await openai.beta.threads.runs.create(threadId, {
             assistant_id: ASSISTANT_ID,
             instructions: "你是中醫學院的助教。請用專業、親切且富有耐心的語氣回答同學的問題。多使用「同學你好」、「根據課程內容」等字眼。請根據知識庫內容回答。",
@@ -69,6 +76,7 @@ async function handleMessage(userId, userMessage) {
             }
 
             if (runStatus.status === 'failed' || runStatus.status === 'cancelled') {
+                console.error('Run failed:', runStatus.last_error);
                 throw new Error(`OpenAI Run failed with status: ${runStatus.status}`);
             }
 

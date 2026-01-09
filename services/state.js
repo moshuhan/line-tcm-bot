@@ -13,6 +13,7 @@
 
 // In-memory mock database
 const db = new Map();
+const userModes = new Map(); // Store user modes: 'tcm' (default), 'speaking', 'writing'
 
 /**
  * Retrieves the OpenAI Thread ID for a given LINE User ID.
@@ -21,7 +22,6 @@ const db = new Map();
  */
 async function getThreadId(userId) {
   // TODO: Replace with database lookup
-  // Example: return await redis.get(`thread:${userId}`);
   return db.get(userId) || null;
 }
 
@@ -33,12 +33,35 @@ async function getThreadId(userId) {
  */
 async function saveThreadId(userId, threadId) {
   // TODO: Replace with database save
-  // Example: await redis.set(`thread:${userId}`, threadId);
   db.set(userId, threadId);
   console.log(`[State] Saved Thread ID ${threadId} for User ${userId}`);
 }
 
+/**
+ * Retrieves the current mode for a given LINE User ID.
+ * @param {string} userId - The LINE User ID.
+ * @returns {Promise<string>} - The user's mode, defaults to 'tcm'.
+ */
+async function getUserMode(userId) {
+  // TODO: Replace with database lookup
+  return userModes.get(userId) || 'tcm';
+}
+
+/**
+ * Saves the mode for a given LINE User ID.
+ * @param {string} userId - The LINE User ID.
+ * @param {string} mode - The mode to save ('tcm', 'speaking', 'writing').
+ * @returns {Promise<void>}
+ */
+async function saveUserMode(userId, mode) {
+  // TODO: Replace with database save
+  userModes.set(userId, mode);
+  console.log(`[State] Saved Mode ${mode} for User ${userId}`);
+}
+
 module.exports = {
   getThreadId,
-  saveThreadId
+  saveThreadId,
+  getUserMode,
+  saveUserMode
 };
