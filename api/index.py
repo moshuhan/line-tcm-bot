@@ -7,9 +7,31 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage, PostbackE
 from upstash_redis import Redis
 from openai import OpenAI
 
+# 1. 初始化 Flask 與 LINE 處理器
 app = Flask(__name__)
-# 確保這個變數存在，且不要叫 handler
+
+# 注意：變數名稱已改為 line_webhook_handler 避開 Vercel 衝突
+line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 line_webhook_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
+
+# 2. 初始化 OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
+print(f"DEBUG: Current Assistant ID is {assistant_id}")
+
+# 3. 初始化 Redis (防崩潰安全寫法)
+kv_url = os.getenv("KV_REST_API_URL")
+kv_token = os.getenv("KV_REST_API_TOKEN")
+
+if kv_url and kv_token:
+    # 確保只有這裡初始化一次
+    redis = Redis(url=kv_url, token=kv_token)
+else:
+    print("❌ 錯誤：找不到 Redis 環境變數！")
+    redis = None
+
+# --- 確保 Vercel 能抓到這個 app ---
+app = app
 
 @app.route("/", methods=['GET', 'POST']) # 同時支援 GET 和 POST
 @app.route("/callback", methods=['GET', 'POST'])
@@ -27,18 +49,6 @@ def callback():
         print(f"Webhook Error: {e}")
         abort(400)
     return 'OK', 200
-
-# 重要：確保這行在全域位置
-app = app
-
-# 1. 初始化所有連線資訊 (金鑰會自動從 Vercel 環境變數讀取)
-line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
-
-redis = Redis(url=os.getenv("KV_REST_API_URL"), token=os.getenv("KV_REST_API_TOKEN"))
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
-# 測試用：直接 print 出來（部署後在 Log 看有沒有印出 asst_...）
-print(f"DEBUG: Current Assistant ID is {assistant_id}")
 
 # 2. LINE Webhook 進入點
 @app.route("/callback", methods=['POST'])
@@ -246,3 +256,9 @@ def process_ai_request(event, user_id, text, is_voice=False):
         print(f"CRITICAL ERROR: {traceback.format_exc()}")
         # 萬一出錯，至少讓你知道是什麼原因
         line_bot_api.push_message(user_id, TextSendMessage(text=f"❌ 處理失敗：{str(e)[:50]}"))
+
+
+
+        git add . 
+        git commit -m "fix: robust message handling" 
+        git push
