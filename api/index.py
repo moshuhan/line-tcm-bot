@@ -1,8 +1,9 @@
 import os
+import time
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, PostbackEvent
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, PostbackEvent, AudioMessage
 from upstash_redis import Redis
 from openai import OpenAI
 
@@ -192,6 +193,3 @@ if __name__ == "__main__":
    
 
 
-   git add .
-git commit -m "feat: implement Redis thread management and mode switching"
-git push origin main
