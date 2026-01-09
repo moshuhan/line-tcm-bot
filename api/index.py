@@ -22,13 +22,16 @@ assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 # 2. LINE Webhook 進入點
 @app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers['X-Line-Signature']
+    signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
+    
+    # 在這裡只做最基本的驗證，然後快速回傳 OK
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
-    return 'OK'
+    
+    return 'OK', 200 # 務必確保這裡快速回傳 200
 
 # 3. 處理模式切換 (Postback)
 @handler.add(PostbackEvent)
@@ -45,64 +48,64 @@ def handle_postback(event):
     reply_msg = f"已切換至【{mode_map.get(mode, '未知')}】模式，請開始輸入！"
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_msg))
 
-# 4. 處理文字訊息 (依據模式呼叫 AI)
+# 4. 處理文字訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
     user_text = event.message.text
-    process_ai_request(event, user_id, user_text)
     
-    # 從 Redis 讀取該使用者目前的模式 (預設為 tcm)
-    mode = redis.get(f"user_mode:{user_id}") or "tcm"
-    
-    # 根據模式決定傳給 AI 的指令前綴 (System Instruction)
-    prompts = {
-        "tcm": "你是中醫專家，請針對以下問題提供專業建議：",
-        "speaking": "你是 EMI 英文口說教練，請分析以下句子的發音重點與醫學術語：",
-        "writing": "你是學術寫作顧問，請針對以下段落提供 Grammar, Terminology, Logic 三方面的修訂建議："
-    }
-    system_prefix = prompts.get(mode, prompts["tcm"])
+    # A. 取得模式 (單純為了在回覆中顯示)
+    mode_raw = redis.get(f"user_mode:{user_id}")
+    mode = mode_raw.decode('utf-8') if mode_raw else "tcm"
+    mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
 
-    # 這裡請接上你原本的 OpenAI Assistant 呼叫邏輯 (例如建立 Thread 並送出訊息)
-    # 範例回覆：
+    # B. 立即回覆，防止 LINE Webhook 超時
     line_bot_api.reply_message(
         event.reply_token, 
-        TextSendMessage(text=f"（模式：{mode}）正在處理您的請求...")
+        TextSendMessage(text=f"已收到您的訊息，正在以【{mode_map.get(mode, '中醫專家')}】模式分析中...")
     )
-# 5. 新增：處理語音訊息
+    
+    # C. 呼叫後台 AI 處理 (內部會用 push_message 回傳答案)
+    process_ai_request(event, user_id, user_text)
+
+# 5. 處理語音訊息
 @handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
     user_id = event.source.user_id
     message_id = event.message.id
     
-    # 從 LINE 伺服器下載語音檔案
+    # A. 立即回覆，防止 LINE Webhook 超時
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text="🎙️ 收到語音！正在轉換並分析中，請稍候...")
+    )
+    
+    # B. 下載語音檔到 Vercel 的暫存空間
     message_content = line_bot_api.get_message_content(message_id)
     temp_path = f"/tmp/{message_id}.m4a"
     with open(temp_path, 'wb') as f:
         for chunk in message_content.iter_content():
             f.write(chunk)
     
-    # 呼叫 OpenAI Whisper 將語音轉文字
-    with open(temp_path, "rb") as audio_file:
-        transcript = client.audio.transcriptions.create(
-            model="whisper-1", 
-            file=audio_file
-        )
-    
-    # 刪除暫存檔
-    os.remove(temp_path)
-    
-    # 轉出的文字內容
-    user_voice_text = transcript.text
-    
-    # 告訴使用者聽到了什麼，並開始處理
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=f"🎤 我聽到您說：\n「{user_voice_text}」\n正在分析中...")
-    )
-    
-    # 接下來同樣丟給 AI 邏輯處理 (帶入標籤)
-    process_ai_request(event, user_id, user_voice_text, is_voice=True)
+    try:
+        # C. 語音轉文字
+        with open(temp_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1", 
+                file=audio_file
+            )
+        user_voice_text = transcript.text
+        os.remove(temp_path) # 刪除暫存
+        
+        # D. 告知辨識結果 (用 push)
+        line_bot_api.push_message(user_id, TextSendMessage(text=f"🎤 辨識內容：\n「{user_voice_text}」"))
+        
+        # E. 串接 AI 處理 (用 push)
+        process_ai_request(event, user_id, user_voice_text, is_voice=True)
+
+    except Exception as e:
+        print(f"語音處理出錯: {e}")
+        line_bot_api.push_message(user_id, TextSendMessage(text="❌ 語音辨識失敗，請確認錄音品質後再試一次。"))
 
 # 6. 整合 AI 處理邏輯 (統一處理文字與語音轉出的文字)
 def process_ai_request(event, user_id, text, is_voice=False):
