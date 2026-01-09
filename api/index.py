@@ -55,8 +55,9 @@ def handle_message(event):
     user_text = event.message.text
     
     # A. 取得模式 (單純為了在回覆中顯示)
-    mode_raw = redis.get(f"user_mode:{user_id}")
-    mode = mode_raw.decode('utf-8') if mode_raw else "tcm"
+    mode_val = redis.get(f"user_mode:{user_id}")
+    # 如果已經是字串就直接用，如果是 bytes 才 decode
+mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
     mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
 
     # B. 立即回覆，防止 LINE Webhook 超時
@@ -176,14 +177,13 @@ def handle_audio(event):
 # --- AI 處理核心函數 ---
 def process_ai_request(event, user_id, text, is_voice=False):
     try:
-        # 1. 取得模式 (從 Redis 讀取)
+        # 模式讀取
         mode_val = redis.get(f"user_mode:{user_id}")
         mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
 
-        # 2. 取得或建立 OpenAI Thread ID
+        # Thread ID 讀取
         t_id = redis.get(f"user_thread:{user_id}")
         thread_id = t_id.decode('utf-8') if hasattr(t_id, 'decode') else (str(t_id) if t_id and t_id != "None" else None)
-        
         if not thread_id:
             new_thread = client.beta.threads.create()
             thread_id = new_thread.id
