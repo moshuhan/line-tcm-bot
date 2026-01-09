@@ -9,11 +9,12 @@ from openai import OpenAI
 
 app = Flask(__name__)
 app.debug = True # 選配：方便看更多詳細錯誤
-handler = app
+app = app
 
+line_webhook_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
 # 1. 初始化所有連線資訊 (金鑰會自動從 Vercel 環境變數讀取)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
-line_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
+
 redis = Redis(url=os.getenv("KV_REST_API_URL"), token=os.getenv("KV_REST_API_TOKEN"))
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
@@ -25,13 +26,13 @@ def callback():
     body = request.get_data(as_text=True)
     try:
         # 修改這裡
-        line_handler.handle(body, signature)
+        line_webhook_handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
     return 'OK'
 
 # 3. 處理模式切換 (Postback)
-@line_handler.add(PostbackEvent)
+@line_webhook_handler.add(PostbackEvent)
 def handle_postback(event):
     user_id = event.source.user_id
     # 取得 data (例如 'mode=speaking')
@@ -46,7 +47,7 @@ def handle_postback(event):
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_msg))
 
 # 4. 處理文字訊息
-@line_handler.add(MessageEvent, message=TextMessage)
+@line_webhook_handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
     user_text = event.message.text
@@ -66,7 +67,7 @@ def handle_message(event):
     process_ai_request(event, user_id, user_text)
 
 # 5. 處理語音訊息
-@line_handler.add(MessageEvent, message=AudioMessage)
+@line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
     user_id = event.source.user_id
     message_id = event.message.id
