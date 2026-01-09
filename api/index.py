@@ -102,7 +102,55 @@ def handle_audio(event):
 
 # 6. 整合 AI 處理邏輯 (統一處理文字與語音轉出的文字)
 def process_ai_request(event, user_id, text, is_voice=False):
-    mode = redis.get(f"user_mode:{user_id}") or "tcm"
+    # --- A. 決定模式標籤 ---
+    # 從 Redis 讀取模式，記得將 bytes 轉為 string
+    mode_raw = redis.get(f"user_mode:{user_id}")
+    mode = mode_raw.decode('utf-8') if mode_raw else "tcm"
+
+    tag = "[中醫專家模式]"
+    if mode == "speaking": tag = "[口說教練模式]"
+    elif mode == "writing": tag = "[寫作顧問模式]"
+
+    # --- B. 管理 Thread ID (對話記憶) ---
+    # 從 Redis 讀取該使用者的專屬 Thread ID
+    thread_id_raw = redis.get(f"user_thread:{user_id}")
+    thread_id = thread_id_raw.decode('utf-8') if thread_id_raw else None
+    
+    if not thread_id:
+        # 如果是新朋友，建立新 Thread 並存入 Redis
+        thread = client.beta.threads.create()
+        thread_id = thread.id
+        redis.set(f"user_thread:{user_id}", thread_id)
+    
+    # --- C. 傳送訊息給 OpenAI Assistant ---
+    # 組合內容：強制命令 AI 切換身分 + 使用者訊息
+    full_content = f"【請切換至以下身分：{tag}】\n\n學生的訊息內容如下：{text}"
+    
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=full_content
+    )
+    
+    # --- D. 執行 Run 並等待回覆 ---
+    run = client.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=assistant_id
+    )
+    
+    # 輪詢檢查狀態
+    while run.status in ['queued', 'in_progress']:
+        time.sleep(1)
+        run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+    
+    # 取得結果並回傳
+    if run.status == 'completed':
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+        ai_reply = messages.data[0].content[0].text.value
+        # 使用 push_message 避免 LINE Webhook 超時
+        line_bot_api.push_message(user_id, TextSendMessage(text=ai_reply))
+    else:
+        line_bot_api.push_message(user_id, TextSendMessage(text="抱歉，AI 思考太久了，請再試一次！"))
     
     # 根據模式決定標籤
     tag = "[中醫專家模式]"
@@ -114,10 +162,10 @@ def process_ai_request(event, user_id, text, is_voice=False):
     
     # 2. 傳送訊息
     client.beta.threads.messages.create(
-        thread_id=thread.id,
-        role="user",
-        content=f"{tag} {text}"
-    )
+    thread_id=thread.id,
+    role="user",
+    content=f"【請切換至以下身分：{tag}】\n\n學生的訊息內容如下：{text}"
+)
     
     # 3. 執行 Run
     run = client.beta.threads.runs.create(
@@ -142,3 +190,8 @@ if __name__ == "__main__":
 
 
    
+
+
+   git add .
+git commit -m "feat: implement Redis thread management and mode switching"
+git push origin main
