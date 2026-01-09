@@ -23,14 +23,12 @@ assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 def callback():
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
-    
-    # 在這裡只做最基本的驗證，然後快速回傳 OK
     try:
+        # 修改這裡
         line_handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
-    
-    return 'OK', 200 # 務必確保這裡快速回傳 200
+    return 'OK'
 
 # 3. 處理模式切換 (Postback)
 @line_handler.add(PostbackEvent)
