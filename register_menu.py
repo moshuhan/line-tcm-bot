@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 from linebot import LineBotApi
+from linebot.models.actions import PostbackAction
+from linebot.models.rich_menu import RichMenu, RichMenuSize, RichMenuArea, RichMenuBounds
 import requests
 
 # 1. 讀取 .env 檔案
@@ -17,7 +19,7 @@ TOKEN = TOKEN.strip()
 line_bot_api = LineBotApi(TOKEN)
 
 
-# 1. 定義選單結構 (請確保圖片尺寸符合 height=843)
+# 定義選單結構：五個選項（2500 / 5 = 500 寬 each），圖片需為 2500x843
 rich_menu_to_create = RichMenu(
     size=RichMenuSize(width=2500, height=843),
     selected=True,
@@ -25,17 +27,25 @@ rich_menu_to_create = RichMenu(
     chat_bar_text="點我切換學習模式",
     areas=[
         RichMenuArea(
-            bounds=RichMenuBounds(x=0, y=0, width=833, height=843),
-            action=PostbackAction(label='中醫問答', data='mode=tcm')
+            bounds=RichMenuBounds(x=0, y=0, width=500, height=843),
+            action=PostbackAction(label='中醫問答', data='mode=tcm'),
         ),
         RichMenuArea(
-            bounds=RichMenuBounds(x=833, y=0, width=833, height=843),
-            action=PostbackAction(label='口說練習', data='mode=speaking')
+            bounds=RichMenuBounds(x=500, y=0, width=500, height=843),
+            action=PostbackAction(label='口說練習', data='mode=speaking'),
         ),
         RichMenuArea(
-            bounds=RichMenuBounds(x=1666, y=0, width=834, height=843),
-            action=PostbackAction(label='寫作修訂', data='mode=writing')
-        )
+            bounds=RichMenuBounds(x=1000, y=0, width=500, height=843),
+            action=PostbackAction(label='寫作修訂', data='mode=writing'),
+        ),
+        RichMenuArea(
+            bounds=RichMenuBounds(x=1500, y=0, width=500, height=843),
+            action=PostbackAction(label='課務查詢', data='action=course'),
+        ),
+        RichMenuArea(
+            bounds=RichMenuBounds(x=2000, y=0, width=500, height=843),
+            action=PostbackAction(label='本週重點', data='action=weekly'),
+        ),
     ]
 )
 
@@ -51,6 +61,7 @@ try:
         'Content-Type': 'image/jpeg' # 如果你的圖是 jpg，請改為 image/jpeg
     }
     
+    # 選單改為 5 格，請使用 2500x843 圖片並依序排：中醫問答｜口說練習｜寫作修訂｜課務查詢｜本週重點
     image_path = "assets/rich_menu_background.jpg"
     with open(image_path, 'rb') as f:
         img_data = f.read()

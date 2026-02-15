@@ -53,17 +53,23 @@ npm run dev
 伺服器將啟動於 `http://localhost:3000`。
 您可以使用 ngrok 將本地端口暴露到公網，以便在 LINE Developers Console 中設定 Webhook URL (例如: `https://xxxx.ngrok.io/api/webhook`)。
 
-## Vercel 佈署步驟
+## Vercel 佈署步驟（手機端測試）
 
-1.  將此專案上傳至 **GitHub**。
-2.  登入 **Vercel** 並選擇 "Add New Project"。
-3.  匯入您的 GitHub Repository。
-4.  在 **Environment Variables** 設定中，填入 `.env` 中的四個變數。
-5.  點擊 **Deploy**。
-6.  佈署完成後，複製 Vercel 提供的 Domain (例如 `https://your-project.vercel.app`)。
-7.  回到 **LINE Developers Console**，將 Webhook URL 設定為：
-    `https://your-project.vercel.app/api/webhook`
-8.  開啟 "Use webhook" 選項。
+1. 程式已推送至 **GitHub**（本專案使用 Python + `api/index.py` 作為 Vercel 入口）。
+2. 登入 [Vercel](https://vercel.com) → **Add New Project** → 匯入 **GitHub** 上的 `line-tcm-bot` 倉庫。
+3. **Environment Variables** 請設定：
+   - `LINE_CHANNEL_ACCESS_TOKEN`
+   - `LINE_CHANNEL_SECRET`
+   - `OPENAI_API_KEY`
+   - `OPENAI_ASSISTANT_ID`
+   - `KV_REST_API_URL`（Upstash Redis）
+   - `KV_REST_API_TOKEN`（Upstash Redis）
+4. 點擊 **Deploy**，等待佈署完成。
+5. 複製 Vercel 提供的網域，例如：`https://your-project.vercel.app`。
+6. 到 **LINE Developers Console** → 您的 Channel → Messaging API：
+   - **Webhook URL** 設為：`https://your-project.vercel.app/callback`
+   - 開啟 **Use webhook**。
+7. 用手機加入 Bot 為好友並傳送訊息，即可確認執行結果。
 
 ## 重要注意事項
 

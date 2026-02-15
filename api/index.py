@@ -5,6 +5,7 @@ import time
 import difflib
 import tempfile
 import traceback
+import threading
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -65,6 +66,16 @@ def get_course_info(message_text):
             "作業與繳交期限依教師當週公告為準；期末專題格式與說明將於期中後公布。"
         )
     return None
+
+def get_course_overview():
+    """課務總覽（選單「課務查詢」用）。"""
+    return (
+        "📋 課務總覽\n\n"
+        "・評分標準：期末專題 30%、課堂參與 30%、出席 40%\n"
+        "・課表：以學校當學期課表為準，詳見選課系統\n"
+        "・作業：依教師當週公告；期末專題說明期中後公布\n\n"
+        "如有疑問請洽課程助教。"
+    )
 
 # --- Shadowing：比對辨識結果與教材，產出回饋報告 ---
 def build_shadowing_report(transcript, reference_text, tcm_terms):
@@ -189,49 +200,74 @@ def callback():
         line_webhook_handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
+    except Exception as e:
+        traceback.print_exc()
+        # 仍回傳 200，避免 LINE 重試造成重複觸發
     return 'OK', 200
 
 # --- 事件處理 ---
 @line_webhook_handler.add(PostbackEvent)
 def handle_postback(event):
+    data = (event.postback.data or "").strip()
     user_id = event.source.user_id
-    mode = event.postback.data.split('=')[1] if '=' in event.postback.data else "tcm"
-    if redis:
-        redis.set(f"user_mode:{user_id}", mode)
-    mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
-    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"已切換至【{mode_map.get(mode)}】模式"))
+    try:
+        if data == "action=course":
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(get_course_overview()))
+            return
+        if data == "action=weekly":
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(WEEKLY_FOCUS))
+            return
+        # mode=tcm / mode=speaking / mode=writing
+        mode = data.split("=")[1] if "=" in data else "tcm"
+        if redis:
+            redis.set(f"user_mode:{user_id}", mode)
+        mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
+        line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"已切換至【{mode_map.get(mode, mode)}】模式"))
+    except Exception as e:
+        traceback.print_exc()
+        try:
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("選單處理發生錯誤，請再試一次。"))
+        except Exception:
+            pass
 
 @line_webhook_handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
+    try:
+        course_info = get_course_info(user_text)
+        if course_info is not None:
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(course_info))
+            return
 
-    course_info = get_course_info(user_text)
-    if course_info is not None:
-        line_bot_api.reply_message(event.reply_token, text_with_quick_reply(course_info))
-        return
+        if user_text == "本週重點":
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(WEEKLY_FOCUS))
+            return
 
-    if user_text == "本週重點":
-        line_bot_api.reply_message(event.reply_token, text_with_quick_reply(WEEKLY_FOCUS))
-        return
+        if user_text == "口說練習":
+            if redis:
+                redis.set(f"user_mode:{user_id}", "speaking")
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
+            return
+        if user_text == "寫作修改":
+            if redis:
+                redis.set(f"user_mode:{user_id}", "writing")
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"))
+            return
 
-    if user_text == "口說練習":
-        if redis:
-            redis.set(f"user_mode:{user_id}", "speaking")
-        line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
-        return
-    if user_text == "寫作修改":
-        if redis:
-            redis.set(f"user_mode:{user_id}", "writing")
-        line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"))
-        return
+        mode_val = redis.get(f"user_mode:{user_id}") if redis else None
+        mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
+        mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
 
-    mode_val = redis.get(f"user_mode:{user_id}") if redis else None
-    mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
-    mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
-
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
-    process_ai_request(event, user_id, user_text, is_voice=False)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
+        # 背景執行 AI 請求，避免 Vercel 逾時導致已讀不回
+        threading.Thread(target=process_ai_request, args=(event, user_id, user_text, False), daemon=True).start()
+    except Exception as e:
+        traceback.print_exc()
+        try:
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"處理訊息時發生錯誤，請再試一次。"))
+        except Exception:
+            line_bot_api.push_message(user_id, text_with_quick_reply("處理訊息時發生錯誤，請再試一次。"))
 
 @line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
