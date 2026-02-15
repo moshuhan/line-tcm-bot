@@ -5,7 +5,6 @@ import time
 import difflib
 import tempfile
 import traceback
-import threading
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -141,25 +140,49 @@ def quick_reply_items():
 def text_with_quick_reply(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_items())
 
+def _safe_get_mode(user_id):
+    """安全取得使用者模式，Redis 失敗時回傳 tcm。"""
+    try:
+        if not redis:
+            return "tcm"
+        mode_val = redis.get(f"user_mode:{user_id}")
+        if mode_val is None:
+            return "tcm"
+        if hasattr(mode_val, "decode"):
+            return mode_val.decode("utf-8").strip() or "tcm"
+        return str(mode_val).strip() or "tcm"
+    except Exception:
+        return "tcm"
+
 # --- AI 核心函數 ---
 def process_ai_request(event, user_id, text, is_voice=False):
     try:
-        mode_val = redis.get(f"user_mode:{user_id}") if redis else None
-        mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
+        mode = _safe_get_mode(user_id)
         tag = "🩺 中醫問答"
         if mode == "speaking":
             tag = "🗣️ 口說練習"
         elif mode == "writing":
             tag = "✍️ 寫作修訂"
 
-        t_id = redis.get(f"user_thread:{user_id}") if redis else None
-        thread_id = t_id.decode('utf-8') if hasattr(t_id, 'decode') else (str(t_id) if t_id and t_id != "None" else None)
+        thread_id = None
+        try:
+            if redis:
+                t_id = redis.get(f"user_thread:{user_id}")
+                if t_id is not None:
+                    thread_id = t_id.decode("utf-8") if hasattr(t_id, "decode") else str(t_id)
+                    if thread_id == "None" or not thread_id.strip():
+                        thread_id = None
+        except Exception:
+            pass
 
         if not thread_id:
             new_thread = client.beta.threads.create()
             thread_id = new_thread.id
-            if redis:
-                redis.set(f"user_thread:{user_id}", thread_id)
+            try:
+                if redis:
+                    redis.set(f"user_thread:{user_id}", thread_id)
+            except Exception:
+                pass
 
         client.beta.threads.messages.create(
             thread_id=thread_id,
@@ -219,8 +242,11 @@ def handle_postback(event):
             return
         # mode=tcm / mode=speaking / mode=writing
         mode = data.split("=")[1] if "=" in data else "tcm"
-        if redis:
-            redis.set(f"user_mode:{user_id}", mode)
+        try:
+            if redis:
+                redis.set(f"user_mode:{user_id}", mode)
+        except Exception:
+            pass
         mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
         line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"已切換至【{mode_map.get(mode, mode)}】模式"))
     except Exception as e:
@@ -245,29 +271,38 @@ def handle_message(event):
             return
 
         if user_text == "口說練習":
-            if redis:
-                redis.set(f"user_mode:{user_id}", "speaking")
+            try:
+                if redis:
+                    redis.set(f"user_mode:{user_id}", "speaking")
+            except Exception:
+                pass
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
             return
         if user_text == "寫作修改":
-            if redis:
-                redis.set(f"user_mode:{user_id}", "writing")
+            try:
+                if redis:
+                    redis.set(f"user_mode:{user_id}", "writing")
+            except Exception:
+                pass
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"))
             return
 
-        mode_val = redis.get(f"user_mode:{user_id}") if redis else None
-        mode = mode_val.decode('utf-8') if hasattr(mode_val, 'decode') else str(mode_val or "tcm")
+        mode = _safe_get_mode(user_id)
         mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
 
+        # 先回覆「正在分析」，再同步執行 AI（Vercel 背景執行緒可能被終止，改回同步以確保有回覆）
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
-        # 背景執行 AI 請求，避免 Vercel 逾時導致已讀不回
-        threading.Thread(target=process_ai_request, args=(event, user_id, user_text, False), daemon=True).start()
+        process_ai_request(event, user_id, user_text, is_voice=False)
     except Exception as e:
         traceback.print_exc()
+        err_msg = str(e).strip()[:100]
         try:
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"處理訊息時發生錯誤，請再試一次。"))
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"處理訊息時發生錯誤，請再試一次。（{err_msg}）"))
         except Exception:
-            line_bot_api.push_message(user_id, text_with_quick_reply("處理訊息時發生錯誤，請再試一次。"))
+            try:
+                line_bot_api.push_message(user_id, text_with_quick_reply(f"處理訊息時發生錯誤，請再試一次。（{err_msg}）"))
+            except Exception:
+                pass
 
 @line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
