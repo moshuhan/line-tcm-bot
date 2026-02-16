@@ -71,6 +71,44 @@ npm run dev
    - 開啟 **Use webhook**。
 7. 用手機加入 Bot 為好友並傳送訊息，即可確認執行結果。
 
+## 如何測試 Shadowing 功能
+
+Shadowing 會把**語音辨識結果**與**教材文本**比對，產出正確率、需改進單字與發音建議。
+
+### 在 LINE 手機 App 測試（建議）
+
+1. **開啟與 Bot 的聊天**，在輸入框旁找到 **麥克風圖示**（或長按輸入框選「語音訊息」）。
+2. **錄一段英文**，內容盡量貼近目前教材（程式內建的參考句如下），以便看出比對效果：
+   - *"Traditional Chinese Medicine (TCM) emphasizes the balance of qi and the flow of energy through meridians. Acupuncture and herbal medicine are used to restore this balance."*
+3. **送出語音訊息**後，Bot 會依序回覆：
+   - 「🎙️ 正在轉換語音...」
+   - 「🎤 辨識內容：「…」」（Whisper 辨識結果）
+   - **📊 Shadowing 回饋報告**（正確率、需改進單字、發音建議）
+   - 依目前模式的 AI 回覆（若為口說練習會再給建議）
+
+### 測試情境建議
+
+| 情境 | 預期 |
+|------|------|
+| 完整跟讀上述教材句 | 正確率應偏高，需改進單字較少 |
+| 故意漏唸幾個字（如 qi、meridian） | 需改進單字會列出漏掉的術語 |
+| 唸錯或發音不清 | 辨識可能與教材不同，相似度與正確率會下降 |
+
+### 本機快速測試比對邏輯（不發送語音）
+
+若只想確認「教材 vs 辨識文字」的比對與報告內容，可在**專案根目錄**執行：
+
+```bash
+python -c "
+from api.index import build_shadowing_report, SHADOWING_REFERENCE, TCM_TERMS
+# 模擬學生辨識結果：漏了 qi、meridian
+student = 'Traditional Chinese Medicine emphasizes the balance of and the flow of energy through . Acupuncture and herbal medicine are used to restore this balance.'
+print(build_shadowing_report(student, SHADOWING_REFERENCE, TCM_TERMS))
+"
+```
+
+即可在終端機看到 Shadowing 報告文字，不需透過 LINE 與 Whisper。
+
 ## 重要注意事項
 
 ### 對話記憶 (Thread Persistence)

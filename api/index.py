@@ -2,16 +2,19 @@
 import os
 import re
 import time
+import base64
+import secrets
 import difflib
 import tempfile
 import traceback
-from flask import Flask, request, abort
+from flask import Flask, request, abort, Response
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, PostbackEvent, AudioMessage,
     QuickReply, QuickReplyButton, MessageAction,
 )
+from linebot.models.send_messages import AudioSendMessage
 from upstash_redis import Redis
 from openai import OpenAI
 
@@ -39,6 +42,131 @@ TCM_TERMS = [
     "Traditional Chinese Medicine", "TCM", "energy",
 ]
 WEEKLY_FOCUS = "本週重點：TCM 基礎—氣 (qi)、經絡 (meridians)、針灸 (acupuncture) 與中藥的平衡觀念。"
+
+# 口說練習 Shadowing 用句庫（可依週次擴充）
+TCM_EMI_SENTENCES = [
+    "Traditional Chinese Medicine (TCM) emphasizes the balance of qi and the flow of energy through meridians.",
+    "Acupuncture and herbal medicine are used to restore this balance.",
+    "TCM views the body as an integrated whole, with organs and meridians connected.",
+    "The concept of yin and yang is fundamental to understanding TCM.",
+    "Herbal prescriptions are often combined to enhance therapeutic effects.",
+]
+
+# --- 口說練習：新句/重複判斷、評分、TTS ---
+def _norm_text(s):
+    return re.sub(r"[^a-z\s]", " ", (s or "").strip().lower()).strip()
+
+def _get_shadowing_sentence(user_id):
+    """取得目前練習句（Redis）。"""
+    try:
+        if not redis:
+            return None
+        val = redis.get(f"shadowing_sentence:{user_id}")
+        if val is None:
+            return None
+        return val.decode("utf-8") if hasattr(val, "decode") else str(val)
+    except Exception:
+        return None
+
+def _set_shadowing_sentence(user_id, sentence):
+    try:
+        if redis:
+            redis.set(f"shadowing_sentence:{user_id}", sentence)
+    except Exception:
+        pass
+
+def _clear_shadowing_sentence(user_id):
+    try:
+        if redis:
+            redis.delete(f"shadowing_sentence:{user_id}")
+    except Exception:
+        pass
+
+def _shadowing_similarity(a, b):
+    """0~1，愈高愈像。"""
+    an, bn = _norm_text(a), _norm_text(b)
+    if not an or not bn:
+        return 0.0
+    return difflib.SequenceMatcher(None, an, bn).ratio()
+
+def _is_repeat_practice(transcript, stored_sentence):
+    """是否為「重複練習上一句」而非新句子。"""
+    if not stored_sentence or not (transcript or "").strip():
+        return False
+    return _shadowing_similarity(transcript, stored_sentence) >= 0.5
+
+def _score_shadowing(transcript, reference):
+    """依與參考句相似度給 0~100 分。"""
+    r = _shadowing_similarity(transcript, reference)
+    return min(100, round(r * 100))
+
+def _build_speaking_feedback(transcript, reference, score):
+    """評分 + 需改進單字 + 發音建議。"""
+    ref_lower = reference.strip().lower()
+    terms_in_ref = [t for t in TCM_TERMS if t.lower() in ref_lower]
+    transcript_lower = (transcript or "").strip().lower()
+    transcript_norm = _norm_text(transcript)
+    ref_norm = _norm_text(reference)
+    words_to_improve = []
+    for term in terms_in_ref:
+        t_lower = term.lower()
+        if t_lower in transcript_lower:
+            continue
+        if difflib.get_close_matches(t_lower, transcript_norm.split(), n=1, cutoff=0.6):
+            continue
+        words_to_improve.append(term)
+    tip = "發音與關鍵術語掌握良好。" if not words_to_improve else "建議多聽並跟讀以下術語：" + "、".join(words_to_improve[:8]) + "。"
+    return (
+        f"📊 口說練習回饋\n"
+        f"・評分：{score} 分\n"
+        f"・需改進單字：{', '.join(words_to_improve) if words_to_improve else '無'}\n"
+        f"・建議：{tip}"
+    )
+
+def _get_next_speaking_sentence(user_id):
+    """輪流取下一句練習句。"""
+    try:
+        if redis:
+            idx_val = redis.get(f"shadowing_index:{user_id}")
+            idx = 0
+            if idx_val is not None:
+                idx = int(idx_val.decode("utf-8") if hasattr(idx_val, "decode") else idx_val)
+            sentence = TCM_EMI_SENTENCES[idx % len(TCM_EMI_SENTENCES)]
+            redis.set(f"shadowing_index:{user_id}", str((idx + 1) % len(TCM_EMI_SENTENCES)))
+            return sentence
+    except Exception:
+        pass
+    return TCM_EMI_SENTENCES[0]
+
+def _generate_tts_and_store(sentence):
+    """OpenAI TTS 產生語音，存 Redis，回傳 (url, duration_ms)。"""
+    token = secrets.token_urlsafe(12)
+    base_url = (os.getenv("VERCEL_URL") and f"https://{os.getenv('VERCEL_URL').rstrip('/')}") or request.host_url.rstrip("/")
+    try:
+        resp = client.audio.speech.create(
+            model="tts-1",
+            voice="nova",
+            input=sentence[:4096],
+        )
+        path = tempfile.mktemp(suffix=".mp3")
+        resp.stream_to_file(path)
+        with open(path, "rb") as f:
+            audio_bytes = f.read()
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        duration_ms = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+        b64 = base64.b64encode(audio_bytes).decode("ascii")
+        try:
+            if redis:
+                redis.set(f"tts_audio:{token}", b64, ex=600)
+        except Exception:
+            pass
+        return (f"{base_url}/audio/{token}", duration_ms)
+    except Exception as e:
+        traceback.print_exc()
+        return (None, 0)
 
 # --- 課務助教模組 (Course Ops) ---
 def get_course_info(message_text):
@@ -215,6 +343,21 @@ def process_ai_request(event, user_id, text, is_voice=False):
 def home():
     return 'Line Bot Server is running!', 200
 
+@app.route("/audio/<token>", methods=['GET'])
+def serve_audio(token):
+    """提供 TTS 音檔給 LINE 播放（Redis 暫存，TTL 約 10 分鐘）。"""
+    try:
+        if not redis:
+            return "Not Found", 404
+        b64 = redis.get(f"tts_audio:{token}")
+        if not b64:
+            return "Not Found", 404
+        s = b64.decode("ascii") if hasattr(b64, "decode") else b64
+        data = base64.b64decode(s)
+        return Response(data, mimetype="audio/mpeg", direct_passthrough=True)
+    except Exception:
+        return "Not Found", 404
+
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers.get('X-Line-Signature')
@@ -334,9 +477,54 @@ def handle_audio(event):
         transcript_text = (transcript.text or "").strip()
         line_bot_api.push_message(user_id, TextSendMessage(text=f"🎤 辨識內容：「{transcript_text}」"))
 
-        report = build_shadowing_report(transcript_text, SHADOWING_REFERENCE, TCM_TERMS)
-        line_bot_api.push_message(user_id, text_with_quick_reply(report))
+        mode = _safe_get_mode(user_id)
 
-        process_ai_request(event, user_id, transcript_text, is_voice=True)
+        if mode == "speaking":
+            # 口說練習：新句 vs 重複練習 → 評分與意見 → 未滿 100 分才送 Shadowing 語音
+            stored = _get_shadowing_sentence(user_id)
+            is_repeat = _is_repeat_practice(transcript_text, stored)
+
+            if not is_repeat:
+                # 新句子：給一句練習句 + TTS 供 Shadowing
+                sentence = _get_next_speaking_sentence(user_id)
+                _set_shadowing_sentence(user_id, sentence)
+                line_bot_api.push_message(
+                    user_id,
+                    text_with_quick_reply(f"🆕 新的練習句，請跟著唸：\n\n「{sentence}」"),
+                )
+                audio_url, duration_ms = _generate_tts_and_store(sentence)
+                if audio_url and duration_ms:
+                    line_bot_api.push_message(
+                        user_id,
+                        AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
+                    )
+            else:
+                # 重複練習上一句：評分、回饋
+                score = _score_shadowing(transcript_text, stored)
+                feedback = _build_speaking_feedback(transcript_text, stored, score)
+                line_bot_api.push_message(user_id, text_with_quick_reply(feedback))
+
+                if score >= 100:
+                    _clear_shadowing_sentence(user_id)
+                    line_bot_api.push_message(
+                        user_id,
+                        text_with_quick_reply(
+                            "🎉 恭喜達標！100 分。不會再播放 Shadowing 語音，傳送下一則語音即可開始下一句練習。"
+                        ),
+                    )
+                else:
+                    # 未滿 100：再送一次同一句 TTS 供繼續跟讀
+                    audio_url, duration_ms = _generate_tts_and_store(stored)
+                    if audio_url and duration_ms:
+                        line_bot_api.push_message(
+                            user_id,
+                            AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
+                        )
+        else:
+            # 非口說模式：沿用原本 Shadowing 報告 + AI
+            report = build_shadowing_report(transcript_text, SHADOWING_REFERENCE, TCM_TERMS)
+            line_bot_api.push_message(user_id, text_with_quick_reply(report))
+            process_ai_request(event, user_id, transcript_text, is_voice=True)
     except Exception as e:
+        traceback.print_exc()
         line_bot_api.push_message(user_id, text_with_quick_reply("❌ 語音辨識失敗，請再試一次。"))
