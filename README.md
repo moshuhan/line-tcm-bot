@@ -9,6 +9,7 @@
 - **角色設定**：預設為「中醫學院助教」，語氣專業親切。
 - **Serverless Ready**：專為 Vercel 佈署設計。
 - **安全性**：包含 LINE 簽章驗證 (X-Line-Signature)。
+- **時間感知檢索與課綱鎖定**：依當前日期限制檢索範圍；未來課程主題會引導「到時候再講解」；非學業用途回覆「僅供學業使用」；穴位課程日前不預設學生具備穴位知識。
 
 ## 專案結構
 
@@ -20,8 +21,15 @@
 │   ├── line.js          # LINE API 處理邏輯
 │   ├── openai.js        # OpenAI Assistant API 處理邏輯
 │   └── state.js         # 對話狀態管理 (目前為 Mock，需自行對接資料庫)
+├── config
+│   └── syllabus.json    # 課綱與講義日期（時間感知檢索用）
+├── api
+│   ├── index.py         # Vercel 入口（Flask + 課綱鎖定）
+│   ├── syllabus.py      # 時間感知檢索與課綱鎖定模組
+│   └── webhook.js       # Node 版 Webhook（選用）
 ├── .env.example         # 環境變數範例
 ├── package.json         # 專案依賴設定
+├── requirements.txt    # Python 依賴
 └── README.md            # 說明文件
 ```
 

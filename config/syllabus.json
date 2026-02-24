@@ -1,0 +1,46 @@
+{
+  "description": "本學期課綱：日期格式 YYYY-MM-DD，關鍵字用於偵測是否為未來課程主題",
+  "acupoint_lecture_date": "2026-04-01",
+  "lectures": [
+    {
+      "date": "2026-02-17",
+      "title": "課程導論與 TCM 概論",
+      "keywords": ["導論", "概論", "introduction", "TCM overview", "中醫概論"]
+    },
+    {
+      "date": "2026-02-24",
+      "title": "氣與經絡基礎",
+      "keywords": ["氣", "qi", "經絡", "meridian", "meridians", "經脈", "energy"]
+    },
+    {
+      "date": "2026-03-03",
+      "title": "針灸入門",
+      "keywords": ["針灸", "acupuncture", "針刺", "艾灸"]
+    },
+    {
+      "date": "2026-03-10",
+      "title": "中藥與方劑基礎",
+      "keywords": ["中藥", "herbal", "方劑", "草本", "herbs"]
+    },
+    {
+      "date": "2026-03-17",
+      "title": "陰陽五行",
+      "keywords": ["陰陽", "五行", "yin", "yang", "five elements"]
+    },
+    {
+      "date": "2026-04-01",
+      "title": "穴位與取穴",
+      "keywords": ["穴位", "穴道", "acupoint", "acupoints", "取穴", "經穴", "腧穴"]
+    },
+    {
+      "date": "2026-04-08",
+      "title": "常見證型與辨證",
+      "keywords": ["證型", "辨證", "證候", "syndrome", "pattern"]
+    }
+  ],
+  "tcm_related_keywords": [
+    "中醫", "TCM", "經絡", "氣", "qi", "針灸", "穴位", "穴道", "陰陽", "五行",
+    "meridian", "acupuncture", "herbal", "中藥", "方劑", "辨證", "證型",
+    "氣血", "臟腑", "經脈", "艾灸", "脈診", "望聞問切", "EMI", "課程", "講義"
+  ]
+}

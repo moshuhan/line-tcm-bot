@@ -18,6 +18,19 @@ from linebot.models.send_messages import AudioSendMessage
 from upstash_redis import Redis
 from openai import OpenAI
 
+try:
+    from api.syllabus import (
+        get_future_topic_reply,
+        is_off_topic,
+        get_rag_instructions,
+    )
+except ImportError:
+    from syllabus import (
+        get_future_topic_reply,
+        is_off_topic,
+        get_rag_instructions,
+    )
+
 # 1. 初始化（保留原有 upstash_redis 連線設定）
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
@@ -312,10 +325,15 @@ def process_ai_request(event, user_id, text, is_voice=False):
             except Exception:
                 pass
 
+        rag_instructions = get_rag_instructions()
+        user_content = (
+            f"{rag_instructions}\n\n"
+            f"【目前模式：{tag}】\n(提醒：請務必在回答末尾提供參考資料出處)\n使用者的話：{text}"
+        )
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
-            content=f"【目前模式：{tag}】\n(提醒：請務必在回答末尾提供參考資料出處)\n使用者的話：{text}",
+            content=user_content,
         )
         run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
 
@@ -430,6 +448,16 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"))
             return
 
+        # 時間感知檢索與課綱鎖定：未來課程主題 → 引導訊息
+        future_reply = get_future_topic_reply(user_text)
+        if future_reply:
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(future_reply))
+            return
+        # 學術過濾：非課綱且與中醫無關 → 僅供學業使用
+        if is_off_topic(user_text):
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("本機器人僅供學業使用。"))
+            return
+
         mode = _safe_get_mode(user_id)
         mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
 
@@ -521,9 +549,16 @@ def handle_audio(event):
                             AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
                         )
         else:
-            # 非口說模式：沿用原本 Shadowing 報告 + AI
+            # 非口說模式：Shadowing 報告 + 課綱鎖定檢查 + AI
             report = build_shadowing_report(transcript_text, SHADOWING_REFERENCE, TCM_TERMS)
             line_bot_api.push_message(user_id, text_with_quick_reply(report))
+            future_reply = get_future_topic_reply(transcript_text)
+            if future_reply:
+                line_bot_api.push_message(user_id, text_with_quick_reply(future_reply))
+                return
+            if is_off_topic(transcript_text):
+                line_bot_api.push_message(user_id, text_with_quick_reply("本機器人僅供學業使用。"))
+                return
             process_ai_request(event, user_id, transcript_text, is_voice=True)
     except Exception as e:
         traceback.print_exc()
