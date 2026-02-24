@@ -4,3 +4,5 @@ openai
 upstash-redis
 python-dotenv
 requests
+reportlab
+matplotlib

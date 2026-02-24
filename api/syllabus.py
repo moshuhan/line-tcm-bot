@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-時間感知檢索與課綱鎖定模組。
+時間感知與課綱提示模組（放寬檢索邊界）。
 
-- 依系統當前日期（本地時間）限制可檢索的講義範圍（標題日期 <= 當日）。
-- 偵測未來課程關鍵字時回覆引導訊息。
-- 學術過濾：非課綱且與中醫無關則回報僅供學業使用。
-- 回答策略：穴位課程日前不預設學生具備穴位知識。
+- 不鎖定檢索：與中醫/醫療/穴位/經絡/辯證相關之問題，AI 皆可依知識庫或學術資源回答。
+- 進度提示：若問題屬未來課程主題，在回答結束後附加「這是我們第 N 週的重點，你很有先見之明喔！」。
+- 精準過濾：僅對「完全與中醫/醫療學術無關」之問題（閒聊、娛樂、私人）回覆「本機器人僅供學業使用」。
 """
 
 import os
@@ -89,10 +88,10 @@ def get_allowed_lecture_dates(today=None):
     return set(e[0] for e in entries if e[0] <= today)
 
 
-def get_future_topic_reply(user_text, today=None):
+def get_future_topic_hint(user_text, today=None):
     """
-    若使用者問題涉及「未來日期」的講義主題，回傳應顯示的訊息；
-    否則回傳 None（表示可繼續走 AI）。
+    若使用者問題涉及「未來日期」的講義主題，回傳欲附加在回答後的進度提示（非強制）；
+    否則回傳 None。不阻擋 AI 回答。
     """
     if not (user_text or "").strip():
         return None
@@ -101,23 +100,20 @@ def get_future_topic_reply(user_text, today=None):
     text_lower = user_text.strip().lower()
     text = user_text.strip()
 
-    for lecture_date, title, keywords in entries:
+    for idx, (lecture_date, title, keywords) in enumerate(entries, start=1):
         if lecture_date <= today:
             continue
-        # 未來課程：檢查關鍵字是否出現在問題中
         for kw in keywords:
             if kw and (kw.lower() in text_lower or kw in text):
-                date_str = lecture_date.strftime("%Y-%m-%d")
-                return (
-                    f"這部分屬於 {date_str} 的課程（{title}），我們到時候會詳細講解喔！"
-                    "建議先複習本週的內容。"
-                )
+                week_num = idx
+                return f"這是我們第 {week_num} 週的重點，你很有先見之明喔！"
     return None
 
 
 def is_off_topic(user_text):
     """
-    若學生問題不在本學期課綱內且與中醫無關，回傳 True（應回覆「本機器人僅供學業使用」）。
+    僅針對「完全與中醫/醫療學術無關」之問題（閒聊、娛樂、私人）回傳 True。
+    與中醫、醫療、人體、穴位、經絡、辯證等相關者皆視為學業使用，回傳 False。
     """
     if not (user_text or "").strip():
         return False
@@ -136,26 +132,14 @@ def is_off_topic(user_text):
 
 def get_rag_instructions(today=None):
     """
-    回傳要注入給 AI 的檢索與回答策略說明（日期鎖定、學術來源、教學進度遞增）。
+    回傳要注入給 AI 的檢索與回答策略（無課綱日期鎖定、學術來源、優先知識庫）。
     """
     today = today or get_today_local()
-    cfg = _load_syllabus_config()
-    allowed = get_allowed_lecture_dates(today)
-    acupoint_date_str = cfg.get("acupoint_lecture_date", "2026-04-01")
-    try:
-        acupoint_date = datetime.strptime(acupoint_date_str, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        acupoint_date = None
-
     parts = [
         "【檢索與回答規則】",
-        "1. 教材檢索範圍：僅使用「講義/教材標題日期 ≤ 今日」的內容；今日為 " + today.isoformat() + "。",
-        "2. 若需引用外部來源，僅限學術資源：WHO TCM database、PubMed、NCCIH 等（Academic sources only）。",
-        "3. 回答末尾請提供參考資料出處。",
+        "1. 只要問題與中醫、醫療、人體、穴位、經絡、辯證相關，請依專業知識庫或外部學術資源完整回答，不限制講義進度。",
+        "2. 若問題為基礎定義（如穴位位置、經絡走向、合谷穴在哪），請優先從知識庫/教材內容回答，以減少外部搜尋等待時間。",
+        "3. 若需引用外部來源，僅限學術資源：WHO TCM database、PubMed、NCCIH 等（Academic sources only）。",
+        "4. 回答末尾請提供參考資料出處。",
     ]
-    if acupoint_date and today < acupoint_date:
-        parts.append(
-            "4. 教學進度遞增原則：目前尚未教授「穴位」課程（穴位課程日期為 " + acupoint_date_str + "），"
-            "回答時請預設學生不具備穴位知識；若問題涉及穴位，可簡要說明將在後續課程講解，並引導複習已教內容。"
-        )
     return "\n".join(parts)

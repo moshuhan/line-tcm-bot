@@ -1,136 +1,150 @@
-# LINE TCM AI Bot (中醫課程助教)
+# LINE TCM AI Bot（中醫課程助教）
 
-這是一個基於 Node.js 的 LINE Bot 後端程式，專為中醫課程設計。它使用 OpenAI Assistant API 來回答學生的問題，並扮演專業助教的角色。
+以 **Python（Flask）+ OpenAI** 為主的 LINE Bot，專為中醫課程設計。部署於 Vercel，使用 Upstash Redis 儲存狀態，具備時間感知檢索、語音教練、蘇格拉底測驗、主動複習與每週學習報告。
+
+---
 
 ## 功能特色
 
-- **LINE Messaging API 整合**：接收並回覆使用者訊息。
-- **OpenAI Assistant API**：使用強大的 AI 模型與知識庫進行回答。
-- **角色設定**：預設為「中醫學院助教」，語氣專業親切。
-- **Serverless Ready**：專為 Vercel 佈署設計。
-- **安全性**：包含 LINE 簽章驗證 (X-Line-Signature)。
-- **時間感知檢索與課綱鎖定**：依當前日期限制檢索範圍；未來課程主題會引導「到時候再講解」；非學業用途回覆「僅供學業使用」；穴位課程日前不預設學生具備穴位知識。
+- **LINE Messaging API**：接收／回覆文字、語音、Postback（Rich Menu）。
+- **OpenAI**：Assistant API（中醫問答／寫作修訂）、Whisper（語音轉文字）、TTS（示範發音）、GPT-4o-mini（文法、測驗、複習筆記、每週概念標註）。
+- **時間感知檢索與課綱**（`config/syllabus.json` + `api/syllabus.py`）：
+  - 不鎖定檢索：與中醫／醫療相關問題皆可依知識庫或學術資源回答。
+  - 未來課程進度提示：回答後可附加「這是我們第 N 週的重點，你很有先見之明喔！」。
+  - 精準過濾：僅對與中醫／醫療學術完全無關的內容回覆「本機器人僅供學業使用」。
+- **語音教練**（口說練習模式）：
+  - 接收 .m4a → Whisper 轉文字 → 發音準確度（與參考句比對）＋文法檢查（GPT）。
+  - 需修正：回饋文字 ＋ OpenAI TTS（shimmer／alloy）示範語音，供影子跟讀。
+  - 正確：回覆「太棒了，發音很精準！」＋ Quick Reply「是否要練習其他句子？」（要，再練一句）。
+- **蘇格拉底測驗**：
+  - 每個中醫問答回覆後附加「要來試試一題小測驗嗎？」Quick Reply【是／否】。
+  - 點「否」：回覆「好的，有需要再跟我說～」。
+  - 點「是」：依最後一則問題出引導式小題，學生回覆後由 GPT 判斷、鼓勵或修正，並記錄弱項領域。
+- **主動複習**：
+  - 若某學生在特定領域（經絡、穴位、辨證等）表現不佳達門檻，主動詢問：「發現你對這部分較不熟，需要幫你整理複習筆記嗎？」【要／不要】。
+  - 點「要」：產生該領域複習筆記並清除該弱項計數。
+- **每週學習報告（Cron）**：
+  - 每週五 18:00（台灣時間）執行：彙整所有使用者提問，以 GPT 標註概念後統計「前十大困惑觀念」。
+  - 使用 matplotlib 繪製提問次數圖、ReportLab 產出 PDF，經 SMTP 寄至 `REPORT_EMAIL`。
+
+---
 
 ## 專案結構
 
 ```
 .
 ├── api
-│   └── webhook.js       # Vercel Serverless Function 入口點
-├── services
-│   ├── line.js          # LINE API 處理邏輯
-│   ├── openai.js        # OpenAI Assistant API 處理邏輯
-│   └── state.js         # 對話狀態管理 (目前為 Mock，需自行對接資料庫)
+│   ├── index.py          # Vercel 入口（Flask）：Webhook、語音、測驗、複習、Cron
+│   ├── syllabus.py       # 時間感知檢索與課綱（未來提示、離題過濾、RAG 說明）
+│   ├── learning.py       # 問題記錄、蘇格拉底測驗、弱項、複習筆記
+│   ├── weekly_report.py  # 每週報告：Redis 取問、概念統計、PDF、SMTP
+│   └── webhook.js        # Node 版 Webhook（選用，目前未作主要入口）
 ├── config
-│   └── syllabus.json    # 課綱與講義日期（時間感知檢索用）
-├── api
-│   ├── index.py         # Vercel 入口（Flask + 課綱鎖定）
-│   ├── syllabus.py      # 時間感知檢索與課綱鎖定模組
-│   └── webhook.js       # Node 版 Webhook（選用）
-├── .env.example         # 環境變數範例
-├── package.json         # 專案依賴設定
-├── requirements.txt    # Python 依賴
-└── README.md            # 說明文件
+│   └── syllabus.json     # 課綱日期、關鍵字、學業相關關鍵字
+├── services/             # Node 用（line / openai / state）
+├── scripts/
+│   └── setup_rich_menu.js # Rich Menu 設定（Node）
+├── docs/
+│   └── ARCHITECTURE.md   # 技術架構概覽
+├── tests/
+├── main.py               # 本地 Flask 執行（精簡版）
+├── register_menu.py      # Python 版 Rich Menu 上傳（2500x843）
+├── vercel.json           # Rewrite → api/index.py；Cron 每週五 /api/cron/weekly
+├── requirements.txt      # Python 依賴（含 reportlab、matplotlib）
+├── package.json          # Node 依賴與腳本
+├── .env.example          # 環境變數範例
+└── README.md
 ```
 
-## 快速開始
+---
 
-### 1. 安裝依賴
+## 環境變數
+
+複製 `.env.example` 為 `.env` 並填入：
+
+| 變數 | 說明 |
+|------|------|
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Developers Console |
+| `LINE_CHANNEL_SECRET` | LINE Developers Console |
+| `OPENAI_API_KEY` | OpenAI API Key |
+| `OPENAI_ASSISTANT_ID` | OpenAI Assistants 建立的助理 ID |
+| `KV_REST_API_URL` | Upstash Redis URL |
+| `KV_REST_API_TOKEN` | Upstash Redis Token |
+| `REPORT_EMAIL` | 每週 PDF 報告寄送信箱（請輸入你的信箱） |
+| `CRON_SECRET` | 保護 /api/cron/weekly 的密鑰 |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | 寄送每週報告用 SMTP（如 Gmail 應用程式密碼） |
+
+---
+
+## 本地開發
+
+**Python（主要）**
+
+```bash
+pip install -r requirements.txt
+# 設定 .env 後
+python main.py
+# 或
+python api/index.py  # 若該檔有 if __name__ == "__main__": app.run()
+```
+
+**Node（選用）**
 
 ```bash
 npm install
-```
-
-### 2. 設定環境變數
-
-```bash
-cp .env.example .env
-```
-
-- `LINE_CHANNEL_ACCESS_TOKEN`: LINE Developers Console 取得。
-- `LINE_CHANNEL_SECRET`: LINE Developers Console 取得。
-- `OPENAI_API_KEY`: OpenAI Platform 取得。
-- `OPENAI_ASSISTANT_ID`: OpenAI Assistants 頁面建立 Assistant 後取得。
-
-### 3. 本地開發
-
-```bash
 npm run dev
 ```
 
-伺服器將啟動於 `http://localhost:3000`。
-您可以使用 ngrok 將本地端口暴露到公網，以便在 LINE Developers Console 中設定 Webhook URL (例如: `https://xxxx.ngrok.io/api/webhook`)。
+使用 ngrok 等將本機 port 暴露後，在 LINE Developers Console 將 Webhook URL 設為 `https://xxxx.ngrok.io/callback`（Python 入口為 `/callback`）。
 
-## Vercel 佈署步驟（手機端測試）
+---
 
-1. 程式已推送至 **GitHub**（本專案使用 Python + `api/index.py` 作為 Vercel 入口）。
-2. 登入 [Vercel](https://vercel.com) → **Add New Project** → 匯入 **GitHub** 上的 `line-tcm-bot` 倉庫。
-3. **Environment Variables** 請設定：
-   - `LINE_CHANNEL_ACCESS_TOKEN`
-   - `LINE_CHANNEL_SECRET`
-   - `OPENAI_API_KEY`
-   - `OPENAI_ASSISTANT_ID`
-   - `KV_REST_API_URL`（Upstash Redis）
-   - `KV_REST_API_TOKEN`（Upstash Redis）
-4. 點擊 **Deploy**，等待佈署完成。
-5. 複製 Vercel 提供的網域，例如：`https://your-project.vercel.app`。
-6. 到 **LINE Developers Console** → 您的 Channel → Messaging API：
-   - **Webhook URL** 設為：`https://your-project.vercel.app/callback`
+## Vercel 部署
+
+1. 將本專案推送到 **GitHub**。
+2. 登入 [Vercel](https://vercel.com) → **Add New Project** → 匯入 `line-tcm-bot` 倉庫。
+3. **Environment Variables** 設定上述所有變數（含 `REPORT_EMAIL`、`CRON_SECRET`、SMTP、Redis）。
+4. 部署完成後，記下網域（如 `https://your-project.vercel.app`）。
+5. **LINE Developers Console** → Messaging API：
+   - **Webhook URL**：`https://your-project.vercel.app/callback`
    - 開啟 **Use webhook**。
-7. 用手機加入 Bot 為好友並傳送訊息，即可確認執行結果。
+6. 若使用 Vercel Cron：在專案設定中確認已啟用 Cron，排程為每週五 10:00 UTC（台灣 18:00）呼叫 `/api/cron/weekly`。需設定 `CRON_SECRET`，Vercel 會以 `Authorization: Bearer <CRON_SECRET>` 呼叫。
 
-## 如何測試 Shadowing 功能
+---
 
-Shadowing 會把**語音辨識結果**與**教材文本**比對，產出正確率、需改進單字與發音建議。
+## 語音教練測試（口說練習）
 
-### 在 LINE 手機 App 測試（建議）
+1. 在 LINE 切換至「口說練習」模式（或說「口說練習」）。
+2. 傳送語音訊息（.m4a）；Bot 會回覆辨識結果，並依是否有「當前練習句」：
+   - 無：發送新練習句 ＋ TTS 示範（shimmer）。
+   - 有：計算發音分數與文法，達標則「太棒了，發音很精準！」＋「是否要練習其他句子？」；未達標則回饋 ＋ 示範 TTS。
+3. 點「要，再練一句」可取得下一句並繼續練習。
 
-1. **開啟與 Bot 的聊天**，在輸入框旁找到 **麥克風圖示**（或長按輸入框選「語音訊息」）。
-2. **錄一段英文**，內容盡量貼近目前教材（程式內建的參考句如下），以便看出比對效果：
-   - *"Traditional Chinese Medicine (TCM) emphasizes the balance of qi and the flow of energy through meridians. Acupuncture and herbal medicine are used to restore this balance."*
-3. **送出語音訊息**後，Bot 會依序回覆：
-   - 「🎙️ 正在轉換語音...」
-   - 「🎤 辨識內容：「…」」（Whisper 辨識結果）
-   - **📊 Shadowing 回饋報告**（正確率、需改進單字、發音建議）
-   - 依目前模式的 AI 回覆（若為口說練習會再給建議）
+---
 
-### 測試情境建議
+## 蘇格拉底測驗與主動複習
 
-| 情境 | 預期 |
-|------|------|
-| 完整跟讀上述教材句 | 正確率應偏高，需改進單字較少 |
-| 故意漏唸幾個字（如 qi、meridian） | 需改進單字會列出漏掉的術語 |
-| 唸錯或發音不清 | 辨識可能與教材不同，相似度與正確率會下降 |
+- **測驗**：在中醫問答模式中，每次 AI 回覆後會出現「要來試試一題小測驗嗎？」【是／否】。點「是」會收到一題引導式小題，回覆文字後會得到判斷與鼓勵／修正；答錯會記錄該領域弱項。
+- **主動複習**：當某領域弱項次數達門檻且超過冷卻期，Bot 會主動問「需要幫你整理複習筆記嗎？」【要／不要】。點「要」會產出該領域複習筆記並清除該弱項計數。
 
-### 本機快速測試比對邏輯（不發送語音）
+---
 
-若只想確認「教材 vs 辨識文字」的比對與報告內容，可在**專案根目錄**執行：
+## 每週報告（Cron）
 
-```bash
-python -c "
-from api.index import build_shadowing_report, SHADOWING_REFERENCE, TCM_TERMS
-# 模擬學生辨識結果：漏了 qi、meridian
-student = 'Traditional Chinese Medicine emphasizes the balance of and the flow of energy through . Acupuncture and herbal medicine are used to restore this balance.'
-print(build_shadowing_report(student, SHADOWING_REFERENCE, TCM_TERMS))
-"
-```
+- **自動**：Vercel Cron 每週五 10:00 UTC 呼叫 `GET/POST /api/cron/weekly`（需 `CRON_SECRET`）。
+- **手動**：對 `https://你的網域/api/cron/weekly?secret=<CRON_SECRET>` 發 GET 請求（或 Header `Authorization: Bearer <CRON_SECRET>`）。
+- 報告會彙整最近 7 天提問、產出前十大困惑觀念、生成 PDF 並寄至 `REPORT_EMAIL`。請在環境變數中設定 **你的信箱** 與 SMTP。
 
-即可在終端機看到 Shadowing 報告文字，不需透過 LINE 與 Whisper。
+---
 
-## 重要注意事項
+## 技術說明
 
-### 對話記憶 (Thread Persistence)
+- **入口**：Vercel 將所有請求 rewrite 至 `api/index.py`（Flask）。對話狀態、測驗、弱項、問題記錄皆存於 **Upstash Redis**。
+- **架構細節**：見 `docs/ARCHITECTURE.md`。
 
-由於 Vercel Serverless Functions 是無狀態的 (Stateless)，本專案目前的 `services/state.js` 使用記憶體來暫存對話 ID。這意味著：
-- 當函數重新啟動 (Cold Start) 時，對話記憶會消失。
-- 使用者可能會遇到「新對話」的情況。
+---
 
-**建議改進**：
-請修改 `services/state.js`，將 `getThreadId` 和 `saveThreadId` 方法對接到持久化資料庫 (如 MongoDB, Redis, Vercel KV 或 Supabase)。
+## 授權與注意事項
 
-```javascript
-// services/state.js 範例
-async function getThreadId(userId) {
-  // return await redis.get(userId);
-}
-```
+- 本專案供教學使用；涉及中醫內容之回覆會附加「僅供教學用途，不具醫療建議」聲明。
+- 每週報告與 SMTP 寄送依你所填的 `REPORT_EMAIL` 與 SMTP 設定為準，請勿將密碼提交至版控。
