@@ -2,6 +2,7 @@
 import io
 import os
 import re
+import threading
 import time
 import base64
 import json
@@ -112,7 +113,7 @@ SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
 
 WEEKLY_FOCUS = "本週重點：TCM 基礎—氣 (qi)、經絡 (meridians)、針灸 (acupuncture) 與中藥的平衡觀念。"
 VOICE_COACH_TTS_VOICE = "shimmer"
-TIMEOUT_SECONDS = 5
+TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 
 # --- 口說練習：糾錯與分析大腦 ---
@@ -429,6 +430,28 @@ def cron_weekly_report():
 def home():
     return 'Line Bot Server is running!', 200
 
+def _run_voice_background(user_id, message_id, base_url, cron_secret):
+    """Background Task：語音轉錄、GPT 分析、TTS、Cloudinary 上傳。不阻塞 webhook 回傳。"""
+    if base_url and cron_secret:
+        try:
+            requests.post(
+                f"{base_url}/api/process-voice-async",
+                json={"user_id": user_id, "message_id": message_id},
+                headers={"Authorization": f"Bearer {cron_secret}"},
+                timeout=30,
+            )
+        except Exception:
+            try:
+                _process_voice_sync(user_id, message_id)
+            except Exception:
+                traceback.print_exc()
+    else:
+        try:
+            _process_voice_sync(user_id, message_id)
+        except Exception:
+            traceback.print_exc()
+
+
 def _process_voice_sync(user_id, message_id):
     """本機/缺少 VERCEL_URL 時同步執行語音處理（避免非同步觸發失敗時無回應）。"""
     try:
@@ -716,27 +739,39 @@ def handle_message(event):
 
 @line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
+    """口說教練：Webhook 須在 2 秒內回傳 200；語音轉錄／GPT／TTS／Cloudinary 全在 Background 執行。"""
     user_id = event.source.user_id
     message_id = event.message.id
+
+    # 1. 立即回覆使用者（唯一必要的阻塞呼叫，通常 <1.5s）
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🎙️ 正在轉換語音..."))
 
-    # 非同步處理：立即回傳 200 給 LINE，避免 webhook 超時；背景由 /api/process-voice-async 執行
+    # 2. 觸發 Background Task（語音轉錄、GPT、TTS、Cloudinary 在 /api/process-voice-async 獨立執行）
     vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
     base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
     cron_secret = os.getenv("CRON_SECRET", "")
+
     if base_url and cron_secret:
+        # Vercel：同步 fire POST，timeout=0.8s，請求送出即觸發新 invocation，不阻塞
         try:
             requests.post(
                 f"{base_url}/api/process-voice-async",
                 json={"user_id": user_id, "message_id": message_id},
                 headers={"Authorization": f"Bearer {cron_secret}"},
-                timeout=2,
+                timeout=0.8,
             )
-        except requests.exceptions.ReadTimeout:
-            pass  # 非同步端點已啟動，timeout 預期
+        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
+            pass  # 預期：async 已觸發，本函數不等待其完成
         except Exception:
-            traceback.print_exc()
-            _process_voice_sync(user_id, message_id)  # 連線失敗時改為同步
+            threading.Thread(
+                target=_run_voice_background,
+                args=(user_id, message_id, base_url, cron_secret),
+                daemon=True,
+            ).start()  # 連線失敗時由 thread 執行 fallback
     else:
-        # 本機或缺少設定時：同步執行（保留原行為）
-        _process_voice_sync(user_id, message_id)
+        # 本機：thread 中執行，避免阻塞
+        threading.Thread(
+            target=_run_voice_background,
+            args=(user_id, message_id, base_url, cron_secret),
+            daemon=True,
+        ).start()
