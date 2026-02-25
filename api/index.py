@@ -98,45 +98,63 @@ VOICE_COACH_TTS_VOICE = "shimmer"
 TIMEOUT_SECONDS = 5
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 
-# --- 口說練習：以學生說出內容為基準，分析發音與文法 ---
+# --- 口說練習：糾錯與分析大腦 ---
 def _evaluate_speech(transcript):
-    """分析學生語音轉文字：文法與發音正確性。回傳 (correct: bool, feedback_text: str, correct_sentence: str 用於 TTS)。"""
+    """
+    糾錯與分析：檢查語法、拼寫、用詞、語義完整性。
+    回傳 (status: "Correct"|"NeedsImprovement", feedback_text: str, corrected_text: str 用於 TTS)。
+    """
     if not (transcript or "").strip():
-        return True, "", ""
+        return "Correct", "", ""
     try:
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "你是英文發音與文法助教。分析學生語音辨識文字，檢查文法與可能的發音錯誤（如易混淆字）。回傳 JSON：{\"correct\": true/false, \"feedback\": \"簡短回饋（需改進處或鼓勵）\", \"suggestion\": \"修正後的正確句子（若無需修正則為空字串）\"}。",
+                    "content": (
+                        "你是英文發音與文法助教。分析學生語音辨識文字，執行：\n"
+                        "1. 檢查語法錯誤、單字拼寫錯誤、用詞不當\n"
+                        "2. 評估語義是否完整\n"
+                        "回傳 JSON：\n"
+                        '{"status": "Correct" 或 "NeedsImprovement", "feedback": "簡短回饋（需改進處或鼓勵）", "corrected": "修正後的正確文本（若 status 為 Correct 則為空字串）"}\n'
+                        "Status: Correct = 完全正確且自然；NeedsImprovement = 有任何細微錯誤。"
+                    ),
                 },
                 {"role": "user", "content": f"學生說出的內容：{transcript[:500]}"},
             ],
-            max_tokens=200,
+            max_tokens=250,
         )
-        text = (resp.choices[0].message.content or "").strip()
-        for block in (text.split("```"), [text]):
+        raw_text = (resp.choices[0].message.content or "").strip()
+        for block in (raw_text.split("```"), [raw_text]):
             for raw in block:
                 raw = raw.strip()
                 if raw.startswith("{"):
                     try:
                         obj = json.loads(raw.split("```")[0].strip().split("\n")[0])
-                        correct = bool(obj.get("correct", True))
+                        status = (obj.get("status") or "Correct").strip()
+                        if status not in ("Correct", "NeedsImprovement"):
+                            status = "Correct" if obj.get("correct", True) else "NeedsImprovement"
                         feedback = (obj.get("feedback") or "").strip()[:400]
-                        suggestion = (obj.get("suggestion") or "").strip()[:500]
-                        return correct, feedback, suggestion
+                        corrected = (obj.get("corrected") or "").strip()[:500]
+                        return status, feedback, corrected
                     except Exception:
                         pass
     except Exception:
         traceback.print_exc()
-    return True, "", ""
+    return "Correct", "", ""
 
 def _generate_tts_and_store(sentence, voice=None):
-    """OpenAI TTS 產生語音，存 Redis，回傳 (url, duration_ms)。voice 可選 shimmer / alloy（語音教練示範）。"""
-    voice = voice or "nova"
+    """OpenAI TTS (model: tts-1) 產生語音，存 Redis，回傳 (url, duration_ms)。"""
+    voice = voice or "shimmer"
+    if not (sentence or "").strip():
+        return (None, 0)
     token = secrets.token_urlsafe(12)
-    base_url = (os.getenv("VERCEL_URL") and f"https://{os.getenv('VERCEL_URL').rstrip('/')}") or request.host_url.rstrip("/")
+    vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+    if vercel_url:
+        base_url = f"https://{vercel_url}" if not vercel_url.startswith("http") else vercel_url
+    else:
+        base_url = (request.host_url.rstrip("/") if request else "") or "https://placeholder.vercel.app"
     try:
         resp = client.audio.speech.create(
             model="tts-1",
@@ -213,18 +231,17 @@ def quick_reply_items():
 def text_with_quick_reply(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_items())
 
-def quick_reply_speak_again():
-    """語音教練：正確時詢問「是否要練習其他句子？」的 Quick Reply。"""
+def quick_reply_speak_practice():
+    """口說練習：要再練習下一句嗎？[練習下一句] [結束練習]。"""
     return QuickReply(
         items=[
-            QuickReplyButton(action=MessageAction(label="要，再練一句", text="要，再練一句")),
-            QuickReplyButton(action=MessageAction(label="口說練習", text="口說練習")),
-            QuickReplyButton(action=MessageAction(label="課務查詢", text="課務查詢")),
+            QuickReplyButton(action=MessageAction(label="練習下一句", text="練習下一句")),
+            QuickReplyButton(action=MessageAction(label="結束練習", text="結束練習")),
         ]
     )
 
-def text_with_quick_reply_speak_again(content):
-    return TextSendMessage(text=content, quick_reply=quick_reply_speak_again())
+def text_with_quick_reply_speak_practice(content):
+    return TextSendMessage(text=content, quick_reply=quick_reply_speak_practice())
 
 def quick_reply_quiz_ask():
     """每個回答後詢問：要來試試一題小測驗嗎？[是, 否]。"""
@@ -508,14 +525,25 @@ def handle_message(event):
                 pass
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"))
             return
-        if user_text == "要，再練一句":
+        if user_text == "練習下一句":
             mode = _safe_get_mode(user_id)
             if mode == "speaking":
                 line_bot_api.reply_message(
                     event.reply_token,
-                    text_with_quick_reply("請傳送語音訊息開始練習～我會幫你分析發音與文法。"),
+                    text_with_quick_reply_speak_practice("請傳送語音訊息開始練習～我會幫你分析發音與文法。\n\n要再練習下一句嗎？"),
                 )
                 return
+        if user_text == "結束練習":
+            try:
+                if redis:
+                    redis.set(f"user_mode:{user_id}", "tcm")
+            except Exception:
+                pass
+            line_bot_api.reply_message(
+                event.reply_token,
+                text_with_quick_reply("已結束口說練習，已切換回中醫問答模式。"),
+            )
+            return
 
         # 精準過濾：僅完全與中醫/醫療學術無關（閒聊、娛樂、私人）→ 僅供學業使用
         if is_off_topic(user_text):
@@ -572,26 +600,38 @@ def handle_audio(event):
         mode = _safe_get_mode(user_id)
 
         if mode == "speaking":
-            # 口說練習：以學生說出內容為基準，STT → 糾錯（發音/文法）→ 若需修正則 TTS 示範
-            correct, feedback, suggestion = _evaluate_speech(transcript_text)
-            if correct:
+            # 口說練習：糾錯與分析 → Correct/NeedsImprovement → 強制 TTS 示範（NeedsImprovement）
+            status, feedback, corrected_text = _evaluate_speech(transcript_text)
+            if status == "Correct":
                 line_bot_api.push_message(
                     user_id,
-                    text_with_quick_reply_speak_again("太棒了，發音很精準！是否要練習其他句子？"),
+                    text_with_quick_reply_speak_practice("發音非常標準！太棒了！\n\n要再練習下一句嗎？"),
                 )
             else:
-                line_bot_api.push_message(user_id, text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"))
-                if suggestion:
-                    audio_url, duration_ms = _generate_tts_and_store(suggestion, voice=VOICE_COACH_TTS_VOICE)
-                    if audio_url and duration_ms:
-                        line_bot_api.push_message(
-                            user_id,
-                            AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
-                        )
-                        line_bot_api.push_message(
-                            user_id,
-                            text_with_quick_reply(f"🔊 示範語音請跟著唸：\n\n「{suggestion}」"),
-                        )
+                line_bot_api.push_message(
+                    user_id,
+                    text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"),
+                )
+                text_for_tts = corrected_text.strip() if corrected_text else transcript_text
+                audio_url, duration_ms = _generate_tts_and_store(text_for_tts, voice=VOICE_COACH_TTS_VOICE)
+                if audio_url and duration_ms:
+                    line_bot_api.push_message(
+                        user_id,
+                        AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
+                    )
+                    line_bot_api.push_message(
+                        user_id,
+                        text_with_quick_reply_speak_practice(
+                            f"🔊 示範語音請跟著唸：\n\n「{text_for_tts}」\n\n要再練習下一句嗎？"
+                        ),
+                    )
+                else:
+                    line_bot_api.push_message(
+                        user_id,
+                        text_with_quick_reply_speak_practice(
+                            f"修正文本：{text_for_tts}\n\n要再練習下一句嗎？"
+                        ),
+                    )
         else:
             # 非口說模式：課務查詢或 AI
             if is_course_inquiry_intent(transcript_text):
