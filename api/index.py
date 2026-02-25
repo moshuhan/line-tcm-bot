@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import io
 import os
 import re
 import time
@@ -8,6 +9,7 @@ import secrets
 import tempfile
 import traceback
 from flask import Flask, request, abort, Response
+import requests
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
@@ -17,6 +19,8 @@ from linebot.models import (
 from linebot.models.send_messages import AudioSendMessage
 from upstash_redis import Redis
 from openai import OpenAI
+import cloudinary
+import cloudinary.uploader
 
 try:
     from api.syllabus import (
@@ -90,6 +94,19 @@ kv_url = os.getenv("KV_REST_API_URL")
 kv_token = os.getenv("KV_REST_API_TOKEN")
 redis = Redis(url=kv_url, token=kv_token) if kv_url and kv_token else None
 
+# Cloudinary 設定（TTS 語音檔雲端儲存）
+_cloudinary_configured = bool(
+    os.getenv("CLOUDINARY_CLOUD_NAME")
+    and os.getenv("CLOUDINARY_API_KEY")
+    and os.getenv("CLOUDINARY_API_SECRET")
+)
+if _cloudinary_configured:
+    cloudinary.config(
+        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        api_key=os.getenv("CLOUDINARY_API_KEY"),
+        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    )
+
 # 安全聲明：涉及中醫診斷之回覆必須附加
 SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
 
@@ -144,8 +161,29 @@ def _evaluate_speech(transcript):
         traceback.print_exc()
     return "Correct", "", ""
 
+def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
+    """上傳 TTS 語音至 Cloudinary，回傳 (secure_url, duration_ms)。"""
+    if not _cloudinary_configured or not audio_bytes:
+        return (None, 0)
+    try:
+        result = cloudinary.uploader.upload(
+            io.BytesIO(audio_bytes),
+            resource_type="raw",
+            folder="tts",
+            use_filename=True,
+            unique_filename=True,
+        )
+        url = result.get("secure_url")
+        if url:
+            duration_ms = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+            return (url, duration_ms)
+    except Exception:
+        traceback.print_exc()
+    return (None, 0)
+
+
 def _generate_tts_and_store(sentence, voice=None):
-    """OpenAI TTS (model: tts-1) 產生語音，存 Redis，回傳 (url, duration_ms)。"""
+    """OpenAI TTS (model: tts-1) 產生語音，優先上傳 Cloudinary，否則存 Redis，回傳 (url, duration_ms)。"""
     voice = voice or "shimmer"
     if not (sentence or "").strip():
         return (None, 0)
@@ -170,6 +208,14 @@ def _generate_tts_and_store(sentence, voice=None):
         except OSError:
             pass
         duration_ms = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+
+        # 優先上傳 Cloudinary，取得 HTTPS Secure URL
+        if _cloudinary_configured:
+            cloud_url, cloud_dur = _upload_tts_to_cloudinary(audio_bytes, sentence)
+            if cloud_url:
+                return (cloud_url, cloud_dur or duration_ms)
+
+        # 後備：存 Redis，使用 /audio/<token> 路由
         b64 = base64.b64encode(audio_bytes).decode("ascii")
         try:
             if redis:
@@ -177,7 +223,7 @@ def _generate_tts_and_store(sentence, voice=None):
         except Exception:
             pass
         return (f"{base_url}/audio/{token}", duration_ms)
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         return (None, 0)
 
@@ -383,6 +429,107 @@ def cron_weekly_report():
 def home():
     return 'Line Bot Server is running!', 200
 
+def _process_voice_sync(user_id, message_id):
+    """本機/缺少 VERCEL_URL 時同步執行語音處理（避免非同步觸發失敗時無回應）。"""
+    try:
+        message_content = line_bot_api.get_message_content(message_id)
+        tmp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(tmp_dir, f"{message_id}.m4a")
+        try:
+            with open(temp_path, "wb") as f:
+                for chunk in message_content.iter_content():
+                    f.write(chunk)
+        except Exception:
+            temp_path = os.path.join(os.path.dirname(__file__) or ".", f"{message_id}.m4a")
+            with open(temp_path, "wb") as f:
+                for chunk in message_content.iter_content():
+                    f.write(chunk)
+
+        with open(temp_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
+        if os.path.isfile(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
+        transcript_text = (transcript.text or "").strip()
+        line_bot_api.push_message(user_id, TextSendMessage(text=f"🎤 辨識內容：「{transcript_text}」"))
+
+        mode = _safe_get_mode(user_id)
+
+        if mode == "speaking":
+            status, feedback, corrected_text = _evaluate_speech(transcript_text)
+            if status == "Correct":
+                line_bot_api.push_message(
+                    user_id,
+                    text_with_quick_reply_speak_practice("發音非常標準！太棒了！\n\n要再練習下一句嗎？"),
+                )
+            else:
+                line_bot_api.push_message(
+                    user_id,
+                    text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"),
+                )
+                text_for_tts = corrected_text.strip() if corrected_text else transcript_text
+                audio_url, duration_ms = _generate_tts_and_store(text_for_tts, voice=VOICE_COACH_TTS_VOICE)
+                if audio_url and duration_ms:
+                    line_bot_api.push_message(
+                        user_id,
+                        AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
+                    )
+                    line_bot_api.push_message(
+                        user_id,
+                        text_with_quick_reply_speak_practice(
+                            f"🔊 示範語音請跟著唸：\n\n「{text_for_tts}」\n\n要再練習下一句嗎？"
+                        ),
+                    )
+                else:
+                    line_bot_api.push_message(
+                        user_id,
+                        text_with_quick_reply_speak_practice(
+                            f"修正文本：{text_for_tts}\n\n要再練習下一句嗎？"
+                        ),
+                    )
+        else:
+            if is_course_inquiry_intent(transcript_text):
+                line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
+                process_ai_request(None, user_id, transcript_text, is_voice=True, course_inquiry=True)
+            elif is_off_topic(transcript_text):
+                line_bot_api.push_message(user_id, text_with_quick_reply("本機器人僅供學業使用。"))
+            else:
+                process_ai_request(None, user_id, transcript_text, is_voice=True)
+    except Exception:
+        traceback.print_exc()
+        line_bot_api.push_message(user_id, text_with_quick_reply("❌ 語音辨識失敗，請再試一次。"))
+
+
+@app.route("/api/process-voice-async", methods=["POST"])
+def process_voice_async():
+    """Background Task：接收語音 message_id，執行 Whisper -> 評估 -> TTS -> Cloudinary -> push。"""
+    secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
+    expected = os.getenv("CRON_SECRET", "")
+    if expected and secret not in (expected, "Bearer " + expected):
+        return "Unauthorized", 401
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        user_id = (data.get("user_id") or "").strip()
+        message_id = (data.get("message_id") or "").strip()
+        if not user_id or not message_id:
+            return "Missing user_id or message_id", 400
+        _process_voice_sync(user_id, message_id)
+        return "OK", 200
+    except Exception as e:
+        traceback.print_exc()
+        try:
+            line_bot_api.push_message(
+                (request.get_json(force=True, silent=True) or {}).get("user_id", ""),
+                text_with_quick_reply("❌ 語音辨識或處理失敗，請再試一次。"),
+            )
+        except Exception:
+            pass
+        return str(e)[:200], 500
+
+
 @app.route("/audio/<token>", methods=['GET'])
 def serve_audio(token):
     """提供 TTS 音檔給 LINE 播放（Redis 暫存，TTL 約 10 分鐘）。"""
@@ -570,77 +717,26 @@ def handle_message(event):
 @line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
     user_id = event.source.user_id
+    message_id = event.message.id
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🎙️ 正在轉換語音..."))
 
-    message_content = line_bot_api.get_message_content(event.message.id)
-    tmp_dir = tempfile.gettempdir()
-    temp_path = os.path.join(tmp_dir, f"{event.message.id}.m4a")
-    try:
-        with open(temp_path, 'wb') as f:
-            for chunk in message_content.iter_content():
-                f.write(chunk)
-    except Exception:
-        temp_path = os.path.join(os.path.dirname(__file__) or ".", f"{event.message.id}.m4a")
-        with open(temp_path, 'wb') as f:
-            for chunk in message_content.iter_content():
-                f.write(chunk)
-
-    try:
-        with open(temp_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
-        if os.path.isfile(temp_path):
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
-
-        transcript_text = (transcript.text or "").strip()
-        line_bot_api.push_message(user_id, TextSendMessage(text=f"🎤 辨識內容：「{transcript_text}」"))
-
-        mode = _safe_get_mode(user_id)
-
-        if mode == "speaking":
-            # 口說練習：糾錯與分析 → Correct/NeedsImprovement → 強制 TTS 示範（NeedsImprovement）
-            status, feedback, corrected_text = _evaluate_speech(transcript_text)
-            if status == "Correct":
-                line_bot_api.push_message(
-                    user_id,
-                    text_with_quick_reply_speak_practice("發音非常標準！太棒了！\n\n要再練習下一句嗎？"),
-                )
-            else:
-                line_bot_api.push_message(
-                    user_id,
-                    text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"),
-                )
-                text_for_tts = corrected_text.strip() if corrected_text else transcript_text
-                audio_url, duration_ms = _generate_tts_and_store(text_for_tts, voice=VOICE_COACH_TTS_VOICE)
-                if audio_url and duration_ms:
-                    line_bot_api.push_message(
-                        user_id,
-                        AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
-                    )
-                    line_bot_api.push_message(
-                        user_id,
-                        text_with_quick_reply_speak_practice(
-                            f"🔊 示範語音請跟著唸：\n\n「{text_for_tts}」\n\n要再練習下一句嗎？"
-                        ),
-                    )
-                else:
-                    line_bot_api.push_message(
-                        user_id,
-                        text_with_quick_reply_speak_practice(
-                            f"修正文本：{text_for_tts}\n\n要再練習下一句嗎？"
-                        ),
-                    )
-        else:
-            # 非口說模式：課務查詢或 AI
-            if is_course_inquiry_intent(transcript_text):
-                line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
-                process_ai_request(event, user_id, transcript_text, is_voice=True, course_inquiry=True)
-            elif is_off_topic(transcript_text):
-                line_bot_api.push_message(user_id, text_with_quick_reply("本機器人僅供學業使用。"))
-            else:
-                process_ai_request(event, user_id, transcript_text, is_voice=True)
-    except Exception as e:
-        traceback.print_exc()
-        line_bot_api.push_message(user_id, text_with_quick_reply("❌ 語音辨識失敗，請再試一次。"))
+    # 非同步處理：立即回傳 200 給 LINE，避免 webhook 超時；背景由 /api/process-voice-async 執行
+    vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+    base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+    cron_secret = os.getenv("CRON_SECRET", "")
+    if base_url and cron_secret:
+        try:
+            requests.post(
+                f"{base_url}/api/process-voice-async",
+                json={"user_id": user_id, "message_id": message_id},
+                headers={"Authorization": f"Bearer {cron_secret}"},
+                timeout=2,
+            )
+        except requests.exceptions.ReadTimeout:
+            pass  # 非同步端點已啟動，timeout 預期
+        except Exception:
+            traceback.print_exc()
+            _process_voice_sync(user_id, message_id)  # 連線失敗時改為同步
+    else:
+        # 本機或缺少設定時：同步執行（保留原行為）
+        _process_voice_sync(user_id, message_id)

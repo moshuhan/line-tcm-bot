@@ -68,6 +68,7 @@
 | `REPORT_EMAIL` | 每週 PDF 報告寄送信箱（請輸入你的信箱） |
 | `CRON_SECRET` | 保護 /api/cron/weekly 的密鑰 |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | 寄送每週報告用 SMTP（如 Gmail 應用程式密碼） |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | TTS 語音檔雲端儲存（Vercel 部署必填，否則 fallback Redis） |
 
 ---
 
