@@ -180,27 +180,52 @@ def clear_pending_review_category(redis_client, user_id):
         pass
 
 
-def generate_socratic_question(openai_client, last_user_question):
-    """根據使用者最後一則問題，產生一題蘇格拉底式小測驗。"""
-    if not (last_user_question or "").strip():
-        last_user_question = "中醫基礎觀念"
+def set_last_assistant_message(redis_client, user_id, content):
+    """儲存最後一則 assistant 回覆（供動態測驗出題用）。"""
+    if not redis_client:
+        return
+    try:
+        redis_client.set(f"last_assistant_message:{user_id}", (content or "").strip()[:2000])
+    except Exception:
+        pass
+
+
+def get_last_assistant_message(redis_client, user_id):
+    if not redis_client:
+        return None
+    try:
+        val = redis_client.get(f"last_assistant_message:{user_id}")
+        if val is None:
+            return None
+        return val.decode("utf-8") if hasattr(val, "decode") else str(val)
+    except Exception:
+        return None
+
+
+def generate_socratic_question(openai_client, last_interaction_context):
+    """
+    根據 last_interaction_context（最近一筆 assistant 訊息內容）即時生成蘇格拉底式小測驗。
+    禁止從靜態題庫抓題，必須以該內容作為 LLM 輸入。
+    """
+    if not (last_interaction_context or "").strip():
+        last_interaction_context = "中醫基礎觀念"
     try:
         resp = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "你是中醫課程助教，用蘇格拉底提問法出題。根據學生剛問過的主題，出「一題」簡短引導式小測驗（例如：請試著用一句話說明「經絡」是什麼？），讓學生用文字回答。只輸出題目本身，不要答案或說明。題目以「小測驗：」開頭。",
+                    "content": "你是中醫課程助教，用蘇格拉底提問法出題。根據助教「剛剛」回覆的內容（例如討論了合谷穴），出「一題」啟發式簡答題。例如：「既然我們聊到了合谷穴，你能試著解釋為什麼在某些情況下它被稱為『萬能穴』嗎？」只輸出題目，不要答案。題目以「小測驗：」開頭。",
                 },
-                {"role": "user", "content": f"學生剛問過：{last_user_question[:300]}\n請據此出一題小測驗。"},
+                {"role": "user", "content": f"助教剛回覆的內容：\n{last_interaction_context[:1500]}\n\n請據此出一題蘇格拉底式小測驗。"},
             ],
-            max_tokens=120,
+            max_tokens=150,
         )
         text = (resp.choices[0].message.content or "").strip()
         if not text.startswith("小測驗："):
             text = "小測驗：" + text
         return text[:300]
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         return "小測驗：請試著用一句話說明剛才討論的概念。"
 

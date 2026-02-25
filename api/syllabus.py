@@ -132,14 +132,49 @@ def is_off_topic(user_text):
 
 def get_rag_instructions(today=None):
     """
-    回傳要注入給 AI 的檢索與回答策略（無課綱日期鎖定、學術來源、優先知識庫）。
+    中醫問答模式：放寬限制，與中醫相關皆可回答；僅攔截完全無關閒聊。
     """
-    today = today or get_today_local()
     parts = [
-        "【檢索與回答規則】",
+        "【中醫問答模式】",
         "1. 只要問題與中醫、醫療、人體、穴位、經絡、辯證相關，請依專業知識庫或外部學術資源完整回答，不限制講義進度。",
-        "2. 若問題為基礎定義（如穴位位置、經絡走向、合谷穴在哪），請優先從知識庫/教材內容回答，以減少外部搜尋等待時間。",
-        "3. 若需引用外部來源，僅限學術資源：WHO TCM database、PubMed、NCCIH 等（Academic sources only）。",
-        "4. 回答末尾請提供參考資料出處。",
+        "2. 若需引用外部來源，僅限學術資源：WHO TCM database、PubMed、NCCIH 等。",
+        "3. 回答末尾請提供參考資料出處。",
+        "4. 僅攔截完全無關的閒聊（娛樂、天氣等），回覆「本機器人僅供學業使用」。",
     ]
     return "\n".join(parts)
+
+
+def get_writing_mode_instructions():
+    """
+    寫作修訂模式：禁用中醫知識檢索，專注語法、修辭、寫作建議。
+    """
+    return (
+        "【寫作修訂模式】\n"
+        "1. 禁用中醫知識檢索與分析。\n"
+        "2. 專注於：使用者輸入句子的語法糾錯、修辭優化、寫作建議。\n"
+        "3. 請提供具體修改建議與改寫範例。"
+    )
+
+
+def get_course_inquiry_instructions():
+    """
+    課務查詢模式：強制從 2026schedule.pdf、20260307courseintroduction.pdf 檢索，嚴禁拒絕。
+    """
+    return (
+        "【課務查詢模式】\n"
+        "1. 你必須優先且強制檢索以下檔案：2026schedule.pdf、20260307courseintroduction.pdf。\n"
+        "2. 嚴禁回覆「無法回答」或「非學業使用」。必須從上述檔案中提取正確答案。\n"
+        "3. 若檔案中存在課表、進度、老師、課程介紹等相關資訊，請完整回覆。"
+    )
+
+
+def is_course_inquiry_intent(text):
+    """偵測課務相關意圖（這堂課在學什麼、進度、老師、課表等）。"""
+    if not (text or "").strip():
+        return False
+    t = text.strip().lower()
+    keywords = [
+        "這堂課", "在學什麼", "學什麼", "進度", "老師", "教授", "課表", "schedule",
+        "course", "課程介紹", "introduction", "上課", "教室", " syllabus",
+    ]
+    return any(kw in t for kw in keywords)

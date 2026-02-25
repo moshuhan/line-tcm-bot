@@ -5,7 +5,6 @@ import time
 import base64
 import json
 import secrets
-import difflib
 import tempfile
 import traceback
 from flask import Flask, request, abort, Response
@@ -24,11 +23,16 @@ try:
         get_future_topic_hint,
         is_off_topic,
         get_rag_instructions,
+        get_writing_mode_instructions,
+        get_course_inquiry_instructions,
+        is_course_inquiry_intent,
     )
     from api.learning import (
         log_question,
         set_last_question,
         get_last_question,
+        set_last_assistant_message,
+        get_last_assistant_message,
         set_quiz_pending,
         get_quiz_pending,
         clear_quiz_pending,
@@ -49,11 +53,16 @@ except ImportError:
         get_future_topic_hint,
         is_off_topic,
         get_rag_instructions,
+        get_writing_mode_instructions,
+        get_course_inquiry_instructions,
+        is_course_inquiry_intent,
     )
     from learning import (
         log_question,
         set_last_question,
         get_last_question,
+        set_last_assistant_message,
+        get_last_assistant_message,
         set_quiz_pending,
         get_quiz_pending,
         clear_quiz_pending,
@@ -84,115 +93,44 @@ redis = Redis(url=kv_url, token=kv_token) if kv_url and kv_token else None
 # 安全聲明：涉及中醫診斷之回覆必須附加
 SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
 
-# 教材與術語（可依週次更新）
-SHADOWING_REFERENCE = (
-    "Traditional Chinese Medicine (TCM) emphasizes the balance of qi and the flow of energy "
-    "through meridians. Acupuncture and herbal medicine are used to restore this balance."
-)
-TCM_TERMS = [
-    "qi", "meridian", "meridians", "acupuncture", "herbal", "balance",
-    "Traditional Chinese Medicine", "TCM", "energy",
-]
 WEEKLY_FOCUS = "本週重點：TCM 基礎—氣 (qi)、經絡 (meridians)、針灸 (acupuncture) 與中藥的平衡觀念。"
-
-# 口說練習 Shadowing 用句庫（可依週次擴充）
-TCM_EMI_SENTENCES = [
-    "Traditional Chinese Medicine (TCM) emphasizes the balance of qi and the flow of energy through meridians.",
-    "Acupuncture and herbal medicine are used to restore this balance.",
-    "TCM views the body as an integrated whole, with organs and meridians connected.",
-    "The concept of yin and yang is fundamental to understanding TCM.",
-    "Herbal prescriptions are often combined to enhance therapeutic effects.",
-]
-# 語音教練：發音達此分數且文法無誤視為「正確」
-VOICE_COACH_PRONUNCIATION_THRESHOLD = 90
-# 語音教練 TTS 示範音色（shimmer / alloy）
 VOICE_COACH_TTS_VOICE = "shimmer"
+TIMEOUT_SECONDS = 5
+TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 
-# --- 口說練習：新句/重複判斷、評分、TTS ---
-def _norm_text(s):
-    return re.sub(r"[^a-z\s]", " ", (s or "").strip().lower()).strip()
-
-def _get_shadowing_sentence(user_id):
-    """取得目前練習句（Redis）。"""
+# --- 口說練習：以學生說出內容為基準，分析發音與文法 ---
+def _evaluate_speech(transcript):
+    """分析學生語音轉文字：文法與發音正確性。回傳 (correct: bool, feedback_text: str, correct_sentence: str 用於 TTS)。"""
+    if not (transcript or "").strip():
+        return True, "", ""
     try:
-        if not redis:
-            return None
-        val = redis.get(f"shadowing_sentence:{user_id}")
-        if val is None:
-            return None
-        return val.decode("utf-8") if hasattr(val, "decode") else str(val)
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你是英文發音與文法助教。分析學生語音辨識文字，檢查文法與可能的發音錯誤（如易混淆字）。回傳 JSON：{\"correct\": true/false, \"feedback\": \"簡短回饋（需改進處或鼓勵）\", \"suggestion\": \"修正後的正確句子（若無需修正則為空字串）\"}。",
+                },
+                {"role": "user", "content": f"學生說出的內容：{transcript[:500]}"},
+            ],
+            max_tokens=200,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        for block in (text.split("```"), [text]):
+            for raw in block:
+                raw = raw.strip()
+                if raw.startswith("{"):
+                    try:
+                        obj = json.loads(raw.split("```")[0].strip().split("\n")[0])
+                        correct = bool(obj.get("correct", True))
+                        feedback = (obj.get("feedback") or "").strip()[:400]
+                        suggestion = (obj.get("suggestion") or "").strip()[:500]
+                        return correct, feedback, suggestion
+                    except Exception:
+                        pass
     except Exception:
-        return None
-
-def _set_shadowing_sentence(user_id, sentence):
-    try:
-        if redis:
-            redis.set(f"shadowing_sentence:{user_id}", sentence)
-    except Exception:
-        pass
-
-def _clear_shadowing_sentence(user_id):
-    try:
-        if redis:
-            redis.delete(f"shadowing_sentence:{user_id}")
-    except Exception:
-        pass
-
-def _shadowing_similarity(a, b):
-    """0~1，愈高愈像。"""
-    an, bn = _norm_text(a), _norm_text(b)
-    if not an or not bn:
-        return 0.0
-    return difflib.SequenceMatcher(None, an, bn).ratio()
-
-def _is_repeat_practice(transcript, stored_sentence):
-    """是否為「重複練習上一句」而非新句子。"""
-    if not stored_sentence or not (transcript or "").strip():
-        return False
-    return _shadowing_similarity(transcript, stored_sentence) >= 0.5
-
-def _score_shadowing(transcript, reference):
-    """依與參考句相似度給 0~100 分。"""
-    r = _shadowing_similarity(transcript, reference)
-    return min(100, round(r * 100))
-
-def _build_speaking_feedback(transcript, reference, score):
-    """評分 + 需改進單字 + 發音建議。"""
-    ref_lower = reference.strip().lower()
-    terms_in_ref = [t for t in TCM_TERMS if t.lower() in ref_lower]
-    transcript_lower = (transcript or "").strip().lower()
-    transcript_norm = _norm_text(transcript)
-    ref_norm = _norm_text(reference)
-    words_to_improve = []
-    for term in terms_in_ref:
-        t_lower = term.lower()
-        if t_lower in transcript_lower:
-            continue
-        if difflib.get_close_matches(t_lower, transcript_norm.split(), n=1, cutoff=0.6):
-            continue
-        words_to_improve.append(term)
-    tip = "發音與關鍵術語掌握良好。" if not words_to_improve else "建議多聽並跟讀以下術語：" + "、".join(words_to_improve[:8]) + "。"
-    return (
-        f"📊 口說練習回饋\n"
-        f"・評分：{score} 分\n"
-        f"・需改進單字：{', '.join(words_to_improve) if words_to_improve else '無'}\n"
-        f"・建議：{tip}"
-    )
-
-def _get_next_speaking_sentence(user_id):
-    """輪流取下一句練習句。"""
-    try:
-        if redis:
-            idx_val = redis.get(f"shadowing_index:{user_id}")
-            idx = 0
-            if idx_val is not None:
-                idx = int(idx_val.decode("utf-8") if hasattr(idx_val, "decode") else idx_val)
-            sentence = TCM_EMI_SENTENCES[idx % len(TCM_EMI_SENTENCES)]
-            redis.set(f"shadowing_index:{user_id}", str((idx + 1) % len(TCM_EMI_SENTENCES)))
-            return sentence
-    except Exception:
-        pass
-    return TCM_EMI_SENTENCES[0]
+        traceback.print_exc()
+    return True, "", ""
 
 def _generate_tts_and_store(sentence, voice=None):
     """OpenAI TTS 產生語音，存 Redis，回傳 (url, duration_ms)。voice 可選 shimmer / alloy（語音教練示範）。"""
@@ -261,56 +199,6 @@ def get_course_overview():
         "如有疑問請洽課程助教。"
     )
 
-# --- Shadowing：比對辨識結果與教材，產出回饋報告 ---
-def build_shadowing_report(transcript, reference_text, tcm_terms):
-    transcript_lower = (transcript or "").strip().lower()
-    reference_lower = reference_text.strip().lower()
-
-    def norm(s):
-        return re.sub(r"[^a-z\s]", " ", s).strip()
-
-    transcript_norm = norm(transcript_lower)
-    ref_norm = norm(reference_lower)
-    ref_words = set(ref_norm.split())
-
-    terms_in_ref = [t.lower() for t in tcm_terms if t.lower() in reference_lower]
-    if not terms_in_ref:
-        terms_in_ref = [w for w in ref_words if len(w) > 2][:15]
-
-    correct_count = 0
-    words_to_improve = []
-    for term in terms_in_ref:
-        if term in transcript_lower:
-            correct_count += 1
-            continue
-        matches = difflib.get_close_matches(term, transcript_norm.split(), n=1, cutoff=0.6)
-        if matches:
-            correct_count += 1
-            continue
-        words_to_improve.append(term)
-
-    total_terms = len(terms_in_ref) if terms_in_ref else 1
-    correct_rate = round(100 * correct_count / total_terms)
-    similarity = difflib.SequenceMatcher(None, transcript_norm, ref_norm).ratio()
-    similarity_pct = round(100 * similarity)
-
-    if not words_to_improve:
-        pronunciation_tip = "發音與關鍵術語掌握良好，請持續練習整段流暢度。"
-    else:
-        pronunciation_tip = (
-            "建議多聽教材音檔並跟讀以下術語："
-            + "、".join(words_to_improve[:10])
-            + "。可善用線上發音字典確認重音與音節。"
-        )
-
-    return (
-        f"📊 Shadowing 回饋報告\n"
-        f"・正確率：{correct_rate}%（關鍵術語）\n"
-        f"・整體與教材相似度：{similarity_pct}%\n"
-        f"・需改進單字：{', '.join(words_to_improve) if words_to_improve else '無'}\n"
-        f"・發音建議：{pronunciation_tip}"
-    )
-
 # --- QuickReply ---
 def quick_reply_items():
     return QuickReply(
@@ -362,64 +250,6 @@ def quick_reply_review_ask():
 def text_with_quick_reply_review_ask(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_review_ask())
 
-def _evaluate_grammar(transcript):
-    """用 GPT 評估英文句子文法，回傳 (correct: bool, suggestion: str)。"""
-    if not (transcript or "").strip():
-        return True, ""
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an English grammar checker. Reply in JSON only: {\"correct\": true or false, \"suggestion\": \"corrected sentence or empty string if no change needed\"}. One short reply.",
-                },
-                {"role": "user", "content": f"Check grammar and clarity. Sentence: {transcript[:500]}"},
-            ],
-            max_tokens=150,
-        )
-        text = (resp.choices[0].message.content or "").strip()
-        if not text:
-            return True, ""
-        for start in ("```json", "```", ""):
-            t = text
-            if start and text.startswith(start):
-                t = text[len(start):].lstrip()
-            if t.startswith("{"):
-                try:
-                    obj = json.loads(t.split("```")[0].strip())
-                    correct = obj.get("correct", True)
-                    suggestion = (obj.get("suggestion") or "").strip()
-                    return bool(correct), suggestion[:500]
-                except Exception:
-                    pass
-    except Exception as e:
-        traceback.print_exc()
-    return True, ""
-
-def _voice_coach_handle_success(user_id):
-    """語音教練：發音與文法正確時，送鼓勵語 + 是否再練一句。"""
-    _clear_shadowing_sentence(user_id)
-    line_bot_api.push_message(
-        user_id,
-        text_with_quick_reply_speak_again("太棒了，發音很精準！是否要練習其他句子？"),
-    )
-
-def _voice_coach_handle_correction(user_id, transcript, reference, score, grammar_ok, grammar_suggestion):
-    """語音教練：需修正時，生成修正建議 + TTS 示範（shimmer/alloy）一併回傳。"""
-    feedback = _build_speaking_feedback(transcript, reference, score)
-    if grammar_suggestion and not grammar_ok:
-        feedback += f"\n・文法建議：{grammar_suggestion}"
-    line_bot_api.push_message(user_id, text_with_quick_reply(feedback))
-    demo_sentence = grammar_suggestion if (grammar_suggestion and not grammar_ok) else reference
-    audio_url, duration_ms = _generate_tts_and_store(demo_sentence, voice=VOICE_COACH_TTS_VOICE)
-    if audio_url and duration_ms:
-        line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
-        line_bot_api.push_message(
-            user_id,
-            text_with_quick_reply(f"🔊 示範語音請跟著唸：\n\n「{demo_sentence}」"),
-        )
-
 def _safe_get_mode(user_id):
     """安全取得使用者模式，Redis 失敗時回傳 tcm。"""
     try:
@@ -434,8 +264,9 @@ def _safe_get_mode(user_id):
     except Exception:
         return "tcm"
 
-# --- AI 核心函數 ---
-def process_ai_request(event, user_id, text, is_voice=False):
+# --- AI 核心函數（模式路由器）---
+def process_ai_request(event, user_id, text, is_voice=False, course_inquiry=False):
+    """State-Based Router：依 user_state (mode) 切換 System Prompt。"""
     try:
         mode = _safe_get_mode(user_id)
         tag = "🩺 中醫問答"
@@ -464,11 +295,17 @@ def process_ai_request(event, user_id, text, is_voice=False):
             except Exception:
                 pass
 
-        rag_instructions = get_rag_instructions()
-        user_content = (
-            f"{rag_instructions}\n\n"
-            f"【目前模式：{tag}】\n(提醒：請務必在回答末尾提供參考資料出處)\n使用者的話：{text}"
-        )
+        if course_inquiry:
+            mode_instructions = get_course_inquiry_instructions()
+        elif mode == "writing":
+            mode_instructions = get_writing_mode_instructions()
+        else:
+            mode_instructions = get_rag_instructions()
+
+        user_content = f"{mode_instructions}\n\n【{tag}】\n使用者的話：{text}"
+        if mode == "tcm" and not course_inquiry:
+            user_content += "\n(提醒：回答末尾請提供參考資料出處)"
+
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
@@ -478,7 +315,7 @@ def process_ai_request(event, user_id, text, is_voice=False):
 
         start_time = time.time()
         while run.status in ['queued', 'in_progress']:
-            if time.time() - start_time > 8.5:
+            if time.time() - start_time > TIMEOUT_SECONDS:
                 break
             time.sleep(1)
             run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
@@ -486,22 +323,23 @@ def process_ai_request(event, user_id, text, is_voice=False):
         if run.status == 'completed':
             messages = client.beta.threads.messages.list(thread_id=thread_id)
             ai_reply = messages.data[0].content[0].text.value
-            future_hint = get_future_topic_hint(text)
-            if future_hint:
-                ai_reply = ai_reply.rstrip() + "\n\n" + future_hint
-            if mode == "tcm":
+            if not course_inquiry and mode == "tcm":
+                future_hint = get_future_topic_hint(text)
+                if future_hint:
+                    ai_reply = ai_reply.rstrip() + "\n\n" + future_hint
                 ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
-            if mode == "tcm":
+            set_last_assistant_message(redis, user_id, ai_reply)
+            if mode == "tcm" and not course_inquiry:
                 line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n要來試試一題小測驗嗎？"))
             else:
                 line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
         else:
-            line_bot_api.push_message(user_id, text_with_quick_reply("抱歉，這題我想得比較久，請再問我一次好嗎？"))
+            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
     except Exception as e:
         print(f"CRITICAL ERROR: {traceback.format_exc()}")
-        line_bot_api.push_message(user_id, text_with_quick_reply("抱歉，這題我想得比較久，請再問我一次好嗎？"))
+        line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
 
 # --- 每週報告 Cron（需 CRON_SECRET 驗證）---
 try:
@@ -594,6 +432,12 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply(course_info))
             return
 
+        # 課務查詢：優先檢索 2026schedule.pdf、20260307courseintroduction.pdf，嚴禁拒絕
+        if is_course_inquiry_intent(user_text):
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查詢課務資料..."))
+            process_ai_request(event, user_id, user_text, is_voice=False, course_inquiry=True)
+            return
+
         # 蘇格拉底測驗：正在等待測驗回答 → 判斷並回饋
         quiz_topic = get_quiz_pending(redis, user_id)
         if quiz_topic is not None:
@@ -633,15 +477,14 @@ def handle_message(event):
                 )
                 return
 
-        # 蘇格拉底測驗：點擊「否」→ 按鈕消失，簡短回覆
+        # 蘇格拉底測驗：點擊「否」→ 按鈕消失，機器人保持沉默，不發送任何訊息
         if user_text == "否":
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("好的，有需要再跟我說～"))
             return
-        # 蘇格拉底測驗：點擊「是」→ 根據最後一問出題
+        # 蘇格拉底測驗：點擊「是」→ 根據 last_assistant_message 即時生成題目（禁止靜態題庫）
         if user_text == "是":
-            last_q = get_last_question(redis, user_id)
-            socratic_q = generate_socratic_question(client, last_q)
-            set_quiz_pending(redis, user_id, last_q or socratic_q)
+            last_ctx = get_last_assistant_message(redis, user_id)
+            socratic_q = generate_socratic_question(client, last_ctx)
+            set_quiz_pending(redis, user_id, last_ctx or socratic_q)
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply(socratic_q))
             return
 
@@ -668,18 +511,10 @@ def handle_message(event):
         if user_text == "要，再練一句":
             mode = _safe_get_mode(user_id)
             if mode == "speaking":
-                sentence = _get_next_speaking_sentence(user_id)
-                _set_shadowing_sentence(user_id, sentence)
                 line_bot_api.reply_message(
                     event.reply_token,
-                    text_with_quick_reply(f"🆕 新的練習句，請跟著唸：\n\n「{sentence}」"),
+                    text_with_quick_reply("請傳送語音訊息開始練習～我會幫你分析發音與文法。"),
                 )
-                audio_url, duration_ms = _generate_tts_and_store(sentence, voice=VOICE_COACH_TTS_VOICE)
-                if audio_url and duration_ms:
-                    line_bot_api.push_message(
-                        user_id,
-                        AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
-                    )
                 return
 
         # 精準過濾：僅完全與中醫/醫療學術無關（閒聊、娛樂、私人）→ 僅供學業使用
@@ -737,38 +572,35 @@ def handle_audio(event):
         mode = _safe_get_mode(user_id)
 
         if mode == "speaking":
-            # 語音教練：接收 .m4a → Whisper 轉文字 → 分析發音準確度與文法 → 回饋
-            stored = _get_shadowing_sentence(user_id)
-            if not stored:
-                sentence = _get_next_speaking_sentence(user_id)
-                _set_shadowing_sentence(user_id, sentence)
+            # 口說練習：以學生說出內容為基準，STT → 糾錯（發音/文法）→ 若需修正則 TTS 示範
+            correct, feedback, suggestion = _evaluate_speech(transcript_text)
+            if correct:
                 line_bot_api.push_message(
                     user_id,
-                    text_with_quick_reply(f"🆕 新的練習句，請跟著唸：\n\n「{sentence}」"),
+                    text_with_quick_reply_speak_again("太棒了，發音很精準！是否要練習其他句子？"),
                 )
-                audio_url, duration_ms = _generate_tts_and_store(sentence, voice=VOICE_COACH_TTS_VOICE)
-                if audio_url and duration_ms:
-                    line_bot_api.push_message(
-                        user_id,
-                        AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
-                    )
             else:
-                score = _score_shadowing(transcript_text, stored)
-                grammar_ok, grammar_suggestion = _evaluate_grammar(transcript_text)
-                if score >= VOICE_COACH_PRONUNCIATION_THRESHOLD and grammar_ok:
-                    _voice_coach_handle_success(user_id)
-                else:
-                    _voice_coach_handle_correction(
-                        user_id, transcript_text, stored, score, grammar_ok, grammar_suggestion
-                    )
+                line_bot_api.push_message(user_id, text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"))
+                if suggestion:
+                    audio_url, duration_ms = _generate_tts_and_store(suggestion, voice=VOICE_COACH_TTS_VOICE)
+                    if audio_url and duration_ms:
+                        line_bot_api.push_message(
+                            user_id,
+                            AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
+                        )
+                        line_bot_api.push_message(
+                            user_id,
+                            text_with_quick_reply(f"🔊 示範語音請跟著唸：\n\n「{suggestion}」"),
+                        )
         else:
-            # 非口說模式：Shadowing 報告 + 課綱鎖定檢查 + AI
-            report = build_shadowing_report(transcript_text, SHADOWING_REFERENCE, TCM_TERMS)
-            line_bot_api.push_message(user_id, text_with_quick_reply(report))
-            if is_off_topic(transcript_text):
+            # 非口說模式：課務查詢或 AI
+            if is_course_inquiry_intent(transcript_text):
+                line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
+                process_ai_request(event, user_id, transcript_text, is_voice=True, course_inquiry=True)
+            elif is_off_topic(transcript_text):
                 line_bot_api.push_message(user_id, text_with_quick_reply("本機器人僅供學業使用。"))
-                return
-            process_ai_request(event, user_id, transcript_text, is_voice=True)
+            else:
+                process_ai_request(event, user_id, transcript_text, is_voice=True)
     except Exception as e:
         traceback.print_exc()
         line_bot_api.push_message(user_id, text_with_quick_reply("❌ 語音辨識失敗，請再試一次。"))
