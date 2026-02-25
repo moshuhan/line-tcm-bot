@@ -163,13 +163,13 @@ def _evaluate_speech(transcript):
     return "Correct", "", ""
 
 def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
-    """上傳 TTS 語音至 Cloudinary，回傳 (secure_url, duration_ms)。"""
+    """上傳 TTS 語音至 Cloudinary（BytesIO 串流、video 資源型別優化音訊），回傳 (secure_url, duration_ms)。"""
     if not _cloudinary_configured or not audio_bytes:
         return (None, 0)
     try:
         result = cloudinary.uploader.upload(
             io.BytesIO(audio_bytes),
-            resource_type="raw",
+            resource_type="video",  # 音訊用 video 型別，支援轉碼與 CDN 優化
             folder="tts",
             use_filename=True,
             unique_filename=True,
@@ -184,7 +184,7 @@ def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
 
 
 def _generate_tts_and_store(sentence, voice=None):
-    """OpenAI TTS (model: tts-1) 產生語音，優先上傳 Cloudinary，否則存 Redis，回傳 (url, duration_ms)。"""
+    """OpenAI TTS (model: tts-1) 產生語音，直接 BytesIO 串流上傳 Cloudinary，無硬碟寫入。"""
     voice = voice or "shimmer"
     if not (sentence or "").strip():
         return (None, 0)
@@ -200,14 +200,7 @@ def _generate_tts_and_store(sentence, voice=None):
             voice=voice,
             input=sentence[:4096],
         )
-        path = tempfile.mktemp(suffix=".mp3")
-        resp.stream_to_file(path)
-        with open(path, "rb") as f:
-            audio_bytes = f.read()
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+        audio_bytes = resp.content
         duration_ms = max(1000, int(len(sentence.split()) / 2.2 * 1000))
 
         # 優先上傳 Cloudinary，取得 HTTPS Secure URL
@@ -489,11 +482,12 @@ def _process_voice_sync(user_id, message_id):
                     text_with_quick_reply_speak_practice("發音非常標準！太棒了！\n\n要再練習下一句嗎？"),
                 )
             else:
+                text_for_tts = corrected_text.strip() if corrected_text else transcript_text
+                # 先推文字，降低體感等待；TTS + Cloudinary 在後
                 line_bot_api.push_message(
                     user_id,
-                    text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"),
+                    text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}\n\n🔊 請跟著唸：「{text_for_tts}」"),
                 )
-                text_for_tts = corrected_text.strip() if corrected_text else transcript_text
                 audio_url, duration_ms = _generate_tts_and_store(text_for_tts, voice=VOICE_COACH_TTS_VOICE)
                 if audio_url and duration_ms:
                     line_bot_api.push_message(
@@ -502,9 +496,7 @@ def _process_voice_sync(user_id, message_id):
                     )
                     line_bot_api.push_message(
                         user_id,
-                        text_with_quick_reply_speak_practice(
-                            f"🔊 示範語音請跟著唸：\n\n「{text_for_tts}」\n\n要再練習下一句嗎？"
-                        ),
+                        text_with_quick_reply_speak_practice("示範語音已送上，要再練習下一句嗎？"),
                     )
                 else:
                     line_bot_api.push_message(
