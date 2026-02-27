@@ -320,6 +320,48 @@ def quick_reply_review_ask():
 def text_with_quick_reply_review_ask(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_review_ask())
 
+# --- 寫作修訂模式：獨立處理，不經過 Assistant API / RAG ---
+REVISION_MODE = "writing"
+
+def _revision_handler(user_id, text):
+    """
+    寫作修訂專屬處理：使用 Chat Completions API，不調用中醫知識庫。
+    句子正確→稱讚+歡迎繼續；句子錯誤→鼓勵+更正+解釋+歡迎繼續。
+    使用 Markdown 格式優化回饋。
+    """
+    if not (text or "").strip():
+        line_bot_api.push_message(user_id, text_with_quick_reply_writing("請貼上要修改的句子或段落～"))
+        return
+    try:
+        system_prompt = get_writing_mode_instructions()
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"請分析以下句子或段落：\n\n{text[:1500]}"},
+            ],
+            max_tokens=800,
+        )
+        reply = (resp.choices[0].message.content or "").strip()
+        if not reply:
+            reply = "已收到你的練習！歡迎繼續貼上其他句子～"
+        line_bot_api.push_message(user_id, text_with_quick_reply_writing(reply))
+    except Exception:
+        traceback.print_exc()
+        line_bot_api.push_message(user_id, text_with_quick_reply_writing("處理時發生錯誤，請再試一次。"))
+
+def quick_reply_writing():
+    """寫作修訂模式：離開模式、繼續練習。"""
+    return QuickReply(
+        items=[
+            QuickReplyButton(action=MessageAction(label="離開模式", text="離開模式")),
+            QuickReplyButton(action=MessageAction(label="繼續練習", text="繼續練習")),
+        ]
+    )
+
+def text_with_quick_reply_writing(content):
+    return TextSendMessage(text=content, quick_reply=quick_reply_writing())
+
 def _safe_get_mode(user_id):
     """安全取得使用者模式，Redis 失敗時回傳 tcm。"""
     try:
@@ -336,9 +378,12 @@ def _safe_get_mode(user_id):
 
 # --- AI 核心函數（模式路由器）---
 def process_ai_request(event, user_id, text, is_voice=False):
-    """State-Based Router：依 user_state (mode) 切換 System Prompt。"""
+    """State-Based Router：依 user_state (mode) 切換 System Prompt。寫作模式強制走 revision_handler。"""
     try:
         mode = _safe_get_mode(user_id)
+        if mode == REVISION_MODE:
+            _revision_handler(user_id, text)
+            return
         tag = "🩺 中醫問答"
         if mode == "speaking":
             tag = "🗣️ 口說練習"
@@ -482,6 +527,9 @@ def _process_voice_sync(user_id, message_id):
 
         mode = _safe_get_mode(user_id)
 
+        if mode == REVISION_MODE:
+            _revision_handler(user_id, transcript_text)
+            return
         if mode == "speaking":
             status, feedback, corrected_text = _evaluate_speech(transcript_text)
             if status == "Correct":
@@ -611,6 +659,36 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
     try:
+        # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
+        current_mode = _safe_get_mode(user_id)
+        if current_mode == REVISION_MODE:
+            if user_text == "寫作修改":
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    text_with_quick_reply_writing("你已在【✍️ 寫作修訂】模式～請貼上要修改的句子或段落～"),
+                )
+                return
+            if user_text == "離開模式":
+                try:
+                    if redis:
+                        redis.set(f"user_mode:{user_id}", "tcm")
+                except Exception:
+                    pass
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    text_with_quick_reply("已離開寫作修訂模式，已切換回中醫問答模式。"),
+                )
+                return
+            if user_text == "繼續練習":
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    text_with_quick_reply_writing("請貼上要修改的句子或段落～"),
+                )
+                return
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在分析你的寫作..."))
+            _revision_handler(user_id, user_text)
+            return
+
         # 課務查詢／本週重點：統一以 Flex Message 回傳
         if is_course_inquiry_intent(user_text):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
@@ -685,7 +763,10 @@ def handle_message(event):
                     redis.set(f"user_mode:{user_id}", "writing")
             except Exception:
                 pass
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"))
+            line_bot_api.reply_message(
+                event.reply_token,
+                text_with_quick_reply_writing("已切換至【✍️ 寫作修訂】模式，請貼上要修改的句子或段落～"),
+            )
             return
         if user_text == "練習下一句":
             mode = _safe_get_mode(user_id)
