@@ -1,19 +1,130 @@
 {
-  "description": "本學期課綱：日期格式 YYYY-MM-DD，關鍵字用於偵測是否為未來課程主題與學業過濾",
+  "description": "本學期課綱：日期格式 YYYY-MM-DD。lectures 含 Meeting Link/Number/Password 作為課務唯一真理來源。",
+  "meeting_default": {
+    "meeting_link": "https://meet.example.com/tcm-2026",
+    "meeting_number": "",
+    "password": ""
+  },
+  "assessment": {
+    "items": ["專題報告", "出席狀況", "課堂參與", "心得與反思報告"]
+  },
+  "important_dates": [
+    {"date": "2026-04-18", "label": "期中報告"},
+    {"date": "2026-06-13", "label": "期末報告"}
+  ],
   "acupoint_lecture_date": "2026-04-01",
   "lectures": [
-    {"date": "2026-02-17", "title": "課程導論與 TCM 概論", "keywords": ["導論", "概論", "introduction", "TCM overview", "中醫概論"]},
-    {"date": "2026-02-24", "title": "氣與經絡基礎", "keywords": ["氣", "qi", "經絡", "meridian", "meridians", "經脈", "energy"]},
-    {"date": "2026-03-03", "title": "針灸入門", "keywords": ["針灸", "acupuncture", "針刺", "艾灸"]},
-    {"date": "2026-03-10", "title": "中藥與方劑基礎", "keywords": ["中藥", "herbal", "方劑", "草本", "herbs"]},
-    {"date": "2026-03-17", "title": "陰陽五行", "keywords": ["陰陽", "五行", "yin", "yang", "five elements"]},
-    {"date": "2026-04-01", "title": "穴位與取穴", "keywords": ["穴位", "穴道", "acupoint", "acupoints", "取穴", "經穴", "腧穴"]},
-    {"date": "2026-04-08", "title": "常見證型與辨證", "keywords": ["證型", "辨證", "證候", "syndrome", "pattern"]}
+    {
+      "date": "2026-02-17",
+      "title": "課程導論與 TCM 概論",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": false,
+      "keywords": ["導論", "概論", "introduction", "TCM overview", "中醫概論"]
+    },
+    {
+      "date": "2026-02-24",
+      "title": "氣與經絡基礎",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": false,
+      "keywords": ["氣", "qi", "經絡", "meridian", "meridians", "經脈", "energy"]
+    },
+    {
+      "date": "2026-03-07",
+      "title": "針灸入門",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": true,
+      "keywords": ["針灸", "acupuncture", "針刺", "艾灸"]
+    },
+    {
+      "date": "2026-03-14",
+      "title": "中藥與方劑基礎",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": true,
+      "keywords": ["中藥", "herbal", "方劑", "草本", "herbs"]
+    },
+    {
+      "date": "2026-03-21",
+      "title": "陰陽五行",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": true,
+      "keywords": ["陰陽", "五行", "yin", "yang", "five elements"]
+    },
+    {
+      "date": "2026-04-01",
+      "title": "穴位與取穴",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": false,
+      "keywords": ["穴位", "穴道", "acupoint", "acupoints", "取穴", "經穴", "腧穴"]
+    },
+    {
+      "date": "2026-04-11",
+      "title": "常見證型與辨證",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": true,
+      "keywords": ["證型", "辨證", "證候", "syndrome", "pattern"]
+    },
+    {
+      "date": "2026-05-09",
+      "title": "進階經絡與臨床",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": true,
+      "keywords": ["經絡", "臨床", "clinical"]
+    },
+    {
+      "date": "2026-05-16",
+      "title": "進階穴位應用",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": true,
+      "keywords": ["穴位", "取穴", "應用"]
+    },
+    {
+      "date": "2026-05-23",
+      "title": "辨證與治法",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": true,
+      "keywords": ["辨證", "治法", "treatment"]
+    },
+    {
+      "date": "2026-05-30",
+      "title": "學期總結與複習",
+      "lecturer": "課程助教",
+      "meeting_link": "",
+      "meeting_number": "",
+      "password": "",
+      "has_lecture_materials": true,
+      "keywords": ["總結", "複習", "review"]
+    }
   ],
-  "tcm_related_keywords": [
-    "中醫", "TCM", "經絡", "氣", "qi", "針灸", "穴位", "穴道", "陰陽", "五行",
-    "meridian", "acupuncture", "herbal", "中藥", "方劑", "辨證", "證型", "氣血", "臟腑", "經脈", "艾灸", "脈診", "望聞問切",
-    "EMI", "課程", "講義", "醫療", "人體", "症狀", "診斷", "治療", "合谷", "經穴", "腧穴", "學術", "醫學",
-    "medicine", "health", "symptom", "treatment", "acupoint"
-  ]
+  "tcm_related_keywords": ["中醫", "TCM", "經絡", "氣", "qi", "針灸", "穴位", "穴道", "陰陽", "五行", "meridian", "acupuncture", "herbal", "中藥", "方劑", "辨證", "證型", "氣血", "臟腑", "經脈", "艾灸", "脈診", "望聞問切", "EMI", "課程", "講義", "醫療", "人體", "症狀", "診斷", "治療", "合谷", "經穴", "腧穴", "學術", "醫學", "medicine", "health", "symptom", "treatment", "acupoint", "手陽明", "足太陰", "足陽明", "手太陰", "手少陽", "足少陽", "手厥陰", "足厥陰", "手太陽", "足太陽", "手少陰", "足少陰", "陽明經", "太陰經", "少陽經", "厥陰經", "太陽經", "少陰經", "診斷法", "陰陽五行"],
+  "off_topic_keywords": ["明天天氣", "今天天氣", "天氣如何", "天氣怎麼樣", "天氣", "晚餐吃什麼", "午餐吃什麼", "吃什麼", "推薦餐廳", "娛樂新聞", "八卦", "星座運勢", "笑話"]
 }

@@ -15,7 +15,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, PostbackEvent, AudioMessage,
-    QuickReply, QuickReplyButton, MessageAction,
+    QuickReply, QuickReplyButton, MessageAction, FlexSendMessage,
 )
 from linebot.models.send_messages import AudioSendMessage
 from upstash_redis import Redis
@@ -25,12 +25,12 @@ import cloudinary.uploader
 
 try:
     from api.syllabus import (
-        get_future_topic_hint,
         is_off_topic,
         get_rag_instructions,
         get_writing_mode_instructions,
-        get_course_inquiry_instructions,
         is_course_inquiry_intent,
+        build_course_inquiry_flex,
+        OFF_TOPIC_REPLY,
     )
     from api.learning import (
         log_question,
@@ -55,12 +55,12 @@ try:
     )
 except ImportError:
     from syllabus import (
-        get_future_topic_hint,
         is_off_topic,
         get_rag_instructions,
         get_writing_mode_instructions,
-        get_course_inquiry_instructions,
         is_course_inquiry_intent,
+        build_course_inquiry_flex,
+        OFF_TOPIC_REPLY,
     )
     from learning import (
         log_question,
@@ -111,7 +111,6 @@ if _cloudinary_configured:
 # 安全聲明：涉及中醫診斷之回覆必須附加
 SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
 
-WEEKLY_FOCUS = "本週重點：TCM 基礎—氣 (qi)、經絡 (meridians)、針灸 (acupuncture) 與中藥的平衡觀念。"
 VOICE_COACH_TTS_VOICE = "shimmer"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
@@ -221,41 +220,19 @@ def _generate_tts_and_store(sentence, voice=None):
         traceback.print_exc()
         return (None, 0)
 
-# --- 課務助教模組 (Course Ops) ---
-def get_course_info(message_text):
-    """根據關鍵字（評分、課表、作業等）回傳課綱資訊。"""
-    if not message_text or not message_text.strip():
-        return None
-    text = message_text.strip()
-    if "評分" in text or "成績" in text or "grading" in text.lower():
-        return (
-            "📋 評分標準\n"
-            "・期末專題：30%\n"
-            "・課堂參與：30%\n"
-            "・出席：40%\n"
-            "如有疑問請洽課程助教。"
-        )
-    if "課表" in text or "schedule" in text.lower() or "上課時間" in text:
-        return (
-            "📅 課表\n"
-            "請以學校公布之當學期課表為準；EMI 中醫課程通常為週間排課，詳見選課系統。"
-        )
-    if "作業" in text or "assignment" in text.lower() or "繳交" in text:
-        return (
-            "📝 作業\n"
-            "作業與繳交期限依教師當週公告為準；期末專題格式與說明將於期中後公布。"
-        )
-    return None
-
-def get_course_overview():
-    """課務總覽（選單「課務查詢」用）。"""
-    return (
-        "📋 課務總覽\n\n"
-        "・評分標準：期末專題 30%、課堂參與 30%、出席 40%\n"
-        "・課表：以學校當學期課表為準，詳見選課系統\n"
-        "・作業：依教師當週公告；期末專題說明期中後公布\n\n"
-        "如有疑問請洽課程助教。"
+# --- 課務查詢 Flex Message（與本週重點整合）---
+def send_course_inquiry_flex(user_id, reply_token=None):
+    """發送課務查詢 Flex Message（含當週/下週切換、AI 重點、評量、重要日期）。reply_token 有值則 reply，否則 push。"""
+    bubble = build_course_inquiry_flex(client)
+    flex_msg = FlexSendMessage(
+        alt_text="📋 課務查詢與本週重點",
+        contents=bubble,
+        quick_reply=quick_reply_items(),
     )
+    if reply_token:
+        line_bot_api.reply_message(reply_token, flex_msg)
+    else:
+        line_bot_api.push_message(user_id, flex_msg)
 
 # --- QuickReply ---
 def quick_reply_items():
@@ -322,7 +299,7 @@ def _safe_get_mode(user_id):
         return "tcm"
 
 # --- AI 核心函數（模式路由器）---
-def process_ai_request(event, user_id, text, is_voice=False, course_inquiry=False):
+def process_ai_request(event, user_id, text, is_voice=False):
     """State-Based Router：依 user_state (mode) 切換 System Prompt。"""
     try:
         mode = _safe_get_mode(user_id)
@@ -352,15 +329,13 @@ def process_ai_request(event, user_id, text, is_voice=False, course_inquiry=Fals
             except Exception:
                 pass
 
-        if course_inquiry:
-            mode_instructions = get_course_inquiry_instructions()
-        elif mode == "writing":
+        if mode == "writing":
             mode_instructions = get_writing_mode_instructions()
         else:
             mode_instructions = get_rag_instructions()
 
         user_content = f"{mode_instructions}\n\n【{tag}】\n使用者的話：{text}"
-        if mode == "tcm" and not course_inquiry:
+        if mode == "tcm":
             user_content += "\n(提醒：回答末尾請提供參考資料出處)"
 
         client.beta.threads.messages.create(
@@ -380,15 +355,12 @@ def process_ai_request(event, user_id, text, is_voice=False, course_inquiry=Fals
         if run.status == 'completed':
             messages = client.beta.threads.messages.list(thread_id=thread_id)
             ai_reply = messages.data[0].content[0].text.value
-            if not course_inquiry and mode == "tcm":
-                future_hint = get_future_topic_hint(text)
-                if future_hint:
-                    ai_reply = ai_reply.rstrip() + "\n\n" + future_hint
+            if mode == "tcm":
                 ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
             set_last_assistant_message(redis, user_id, ai_reply)
-            if mode == "tcm" and not course_inquiry:
+            if mode == "tcm":
                 line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n要來試試一題小測驗嗎？"))
             else:
                 line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
@@ -508,9 +480,9 @@ def _process_voice_sync(user_id, message_id):
         else:
             if is_course_inquiry_intent(transcript_text):
                 line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
-                process_ai_request(None, user_id, transcript_text, is_voice=True, course_inquiry=True)
+                send_course_inquiry_flex(user_id)
             elif is_off_topic(transcript_text):
-                line_bot_api.push_message(user_id, text_with_quick_reply("本機器人僅供學業使用。"))
+                line_bot_api.push_message(user_id, text_with_quick_reply(OFF_TOPIC_REPLY))
             else:
                 process_ai_request(None, user_id, transcript_text, is_voice=True)
     except Exception:
@@ -579,11 +551,8 @@ def handle_postback(event):
     data = (event.postback.data or "").strip()
     user_id = event.source.user_id
     try:
-        if data == "action=course":
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(get_course_overview()))
-            return
-        if data == "action=weekly":
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(WEEKLY_FOCUS))
+        if data == "action=course" or data == "action=weekly":
+            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
         # mode=tcm / mode=speaking / mode=writing
         mode = data.split("=")[1] if "=" in data else "tcm"
@@ -606,15 +575,9 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
     try:
-        course_info = get_course_info(user_text)
-        if course_info is not None:
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(course_info))
-            return
-
-        # 課務查詢：優先檢索 2026schedule.pdf、20260307courseintroduction.pdf，嚴禁拒絕
+        # 課務查詢／本週重點：統一以 Flex Message 回傳（syllabus.json 為唯一真理來源）
         if is_course_inquiry_intent(user_text):
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查詢課務資料..."))
-            process_ai_request(event, user_id, user_text, is_voice=False, course_inquiry=True)
+            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
         # 蘇格拉底測驗：正在等待測驗回答 → 判斷並回饋
@@ -668,7 +631,7 @@ def handle_message(event):
             return
 
         if user_text == "本週重點":
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(WEEKLY_FOCUS))
+            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
         if user_text == "口說練習":
@@ -709,7 +672,7 @@ def handle_message(event):
 
         # 精準過濾：僅完全與中醫/醫療學術無關（閒聊、娛樂、私人）→ 僅供學業使用
         if is_off_topic(user_text):
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("本機器人僅供學業使用。"))
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(OFF_TOPIC_REPLY))
             return
 
         mode = _safe_get_mode(user_id)
