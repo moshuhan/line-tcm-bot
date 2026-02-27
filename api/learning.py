@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-個人化學習分析與互動：問題記錄、蘇格拉底測驗、弱項追蹤、複習筆記。
+個人化學習分析與互動：問題記錄、動態小測驗、弱項追蹤、複習筆記。
+動態出題依 syllabus_full 本週主題，含狀態機與自動批改。
 """
 
 import json
@@ -8,11 +9,17 @@ import time
 import traceback
 from openai import OpenAI
 
+# 對話狀態
+STATE_NORMAL = "normal"
+STATE_QUIZ_WAITING = "quiz_waiting"
+
 # Redis key 前綴
 QUESTION_LOG_KEY = "question_log"
 QUESTION_LOG_MAX = 5000
 LAST_QUESTION_KEY = "last_question:{user_id}"
 QUIZ_PENDING_KEY = "quiz_pending:{user_id}"
+QUIZ_DATA_KEY = "quiz_data:{user_id}"
+USER_STATE_KEY = "user_state:{user_id}"
 USER_WEAK_KEY = "user_weak:{user_id}"
 LAST_REVIEW_ASK_KEY = "last_review_ask:{user_id}"
 REVIEW_ASK_COOLDOWN_DAYS = 7
@@ -53,7 +60,7 @@ def get_last_question(redis_client, user_id):
 
 
 def set_quiz_pending(redis_client, user_id, topic_or_question):
-    """設定使用者處於「等待測驗回答」狀態。"""
+    """設定使用者處於「等待測驗回答」狀態（相容舊 API）。"""
     if not redis_client:
         return
     try:
@@ -79,6 +86,67 @@ def clear_quiz_pending(redis_client, user_id):
         return
     try:
         redis_client.delete(f"quiz_pending:{user_id}")
+    except Exception:
+        pass
+
+
+def set_user_state(redis_client, user_id, state):
+    """設定對話狀態：STATE_NORMAL 或 STATE_QUIZ_WAITING。"""
+    if not redis_client:
+        return
+    try:
+        redis_client.set(f"user_state:{user_id}", (state or STATE_NORMAL)[:50])
+    except Exception:
+        pass
+
+
+def get_user_state(redis_client, user_id):
+    if not redis_client:
+        return STATE_NORMAL
+    try:
+        val = redis_client.get(f"user_state:{user_id}")
+        if val is None:
+            return STATE_NORMAL
+        s = val.decode("utf-8") if hasattr(val, "decode") else str(val)
+        return s.strip() or STATE_NORMAL
+    except Exception:
+        return STATE_NORMAL
+
+
+def set_quiz_data(redis_client, user_id, question, answer_criteria, category):
+    """儲存測驗題目與評分標準，供批改使用。"""
+    if not redis_client:
+        return
+    try:
+        payload = json.dumps({
+            "question": (question or "")[:500],
+            "answer_criteria": (answer_criteria or "")[:800],
+            "category": (category or "其他")[:30],
+        }, ensure_ascii=False)
+        redis_client.set(f"quiz_data:{user_id}", payload, ex=3600)
+    except Exception:
+        pass
+
+
+def get_quiz_data(redis_client, user_id):
+    """取得暫存的測驗資料。回傳 dict 或 None。"""
+    if not redis_client:
+        return None
+    try:
+        val = redis_client.get(f"quiz_data:{user_id}")
+        if val is None:
+            return None
+        s = val.decode("utf-8") if hasattr(val, "decode") else str(val)
+        return json.loads(s)
+    except Exception:
+        return None
+
+
+def clear_quiz_data(redis_client, user_id):
+    if not redis_client:
+        return
+    try:
+        redis_client.delete(f"quiz_data:{user_id}")
     except Exception:
         pass
 
@@ -203,46 +271,110 @@ def get_last_assistant_message(redis_client, user_id):
 
 
 def generate_socratic_question(openai_client, last_interaction_context):
+    """相容舊 API，改為呼叫 generate_dynamic_quiz。"""
+    q, _, _ = generate_dynamic_quiz(openai_client, week_topic=None, last_context=last_interaction_context)
+    return q
+
+
+def generate_dynamic_quiz(openai_client, week_topic=None, last_context=None):
     """
-    根據 last_interaction_context（最近一筆 assistant 訊息內容）即時生成蘇格拉底式小測驗。
-    禁止從靜態題庫抓題，必須以該內容作為 LLM 輸入。
+    依 syllabus_full 本週主題動態出題，避免重複「陰陽」等固定題目。
+    回傳 (question_text, answer_criteria, category)。
     """
-    if not (last_interaction_context or "").strip():
-        last_interaction_context = "中醫基礎觀念"
+    try:
+        from api.syllabus import get_display_week_lectures
+    except ImportError:
+        from syllabus import get_display_week_lectures
+
+    display_lec, _, _ = get_display_week_lectures()
+    topic = (week_topic or (display_lec and display_lec.get("title")) or "").strip()
+    if not topic or topic == "（待填入）":
+        topic = "中醫基礎觀念"
+
+    context_hint = ""
+    if (last_context or "").strip() and len(last_context) > 50:
+        context_hint = f"\n（若與以下近期討論相關可結合出題，但勿重複「陰陽的重要性」）近期：{last_context[:400]}"
+
     try:
         resp = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "你是中醫課程助教，用蘇格拉底提問法出題。根據助教「剛剛」回覆的內容（例如討論了合谷穴），出「一題」啟發式簡答題。例如：「既然我們聊到了合谷穴，你能試著解釋為什麼在某些情況下它被稱為『萬能穴』嗎？」只輸出題目，不要答案。題目以「小測驗：」開頭。",
+                    "content": (
+                        "你是中醫課程助教。根據「本週課程主題」出一道簡答題。"
+                        "題型隨機（填空、解釋、舉例、比較等），禁止出「陰陽的重要性」或類似重複題。"
+                        "回傳 JSON：{\"question\": \"題目\", \"answer_criteria\": \"正確答案要點（供批改用）\", \"category\": \"概念名\"}"
+                    ),
                 },
-                {"role": "user", "content": f"助教剛回覆的內容：\n{last_interaction_context[:1500]}\n\n請據此出一題蘇格拉底式小測驗。"},
+                {"role": "user", "content": f"本週主題：{topic}{context_hint}\n\n請出一道小測驗，回傳 JSON。"},
             ],
-            max_tokens=150,
+            max_tokens=350,
         )
         text = (resp.choices[0].message.content or "").strip()
-        if not text.startswith("小測驗："):
-            text = "小測驗：" + text
-        return text[:300]
+        for block in (text.split("```"), [text]):
+            for raw in block:
+                raw = raw.strip()
+                if raw.startswith("{"):
+                    try:
+                        obj = json.loads(raw.split("```")[0].strip().split("\n")[0])
+                        q = (obj.get("question") or "").strip()[:400]
+                        a = (obj.get("answer_criteria") or "").strip()[:600]
+                        c = (obj.get("category") or "其他").strip()[:20]
+                        if q:
+                            return (("小測驗：" + q) if not q.startswith("小測驗") else q, a or q, c or "其他")
+                    except Exception:
+                        pass
     except Exception:
         traceback.print_exc()
-        return "小測驗：請試著用一句話說明剛才討論的概念。"
+
+    return (f"小測驗：請用 1～2 句話說明本週主題「{topic}」的一個重點。", topic, "其他")
 
 
-def judge_quiz_answer(openai_client, topic_or_question, student_reply):
-    """判斷測驗回答，回傳 (feedback_text, category_for_weak, was_correct)。"""
+def reveal_quiz_answer(openai_client, question, answer_criteria):
+    """使用者點「我不知道」時，公佈答案並給予簡短說明。"""
+    if not answer_criteria or not (question or "").strip():
+        return "參考課本與講義複習本週重點～"
     try:
         resp = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "你是中醫助教。根據學生對小測驗的回答，給予簡短鼓勵或修正（2～3 句）。並回傳 JSON：{\"feedback\": \"你的回饋文字\", \"category\": \"一個中文概念名，例如：經絡、穴位、辨證\", \"correct\": true 或 false}。",
+                    "content": "你是中醫助教。根據題目與正確答案要點，用 2～3 句友善說明答案，幫助學生理解。",
                 },
-                {"role": "user", "content": f"題目/主題：{topic_or_question[:200]}\n學生回答：{student_reply[:300]}"},
+                {"role": "user", "content": f"題目：{question[:300]}\n正確答案要點：{answer_criteria[:400]}\n請公佈答案並簡短說明。"},
             ],
             max_tokens=200,
+        )
+        return (resp.choices[0].message.content or answer_criteria or "").strip()[:500]
+    except Exception:
+        return (answer_criteria or "參考講義複習～")[:400]
+
+
+def judge_quiz_answer(openai_client, topic_or_question, student_reply, answer_criteria=None):
+    """判斷測驗回答，回傳 (feedback_text, category_for_weak, was_correct)。若有 answer_criteria 可更精準批改。"""
+    criteria_ctx = ""
+    if answer_criteria:
+        criteria_ctx = f"\n正確答案要點（供評分參考）：{answer_criteria[:400]}"
+    try:
+        resp = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "你是中醫助教。根據題目與學生回答，判斷對錯並給予 2～4 句回饋。"
+                        "若正確：鼓勵並可補充要點。若錯誤：友善指出並簡要說明正確概念。"
+                        "回傳 JSON：{\"feedback\": \"回饋文字\", \"category\": \"概念名\", \"correct\": true/false}"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"題目：{topic_or_question[:250]}{criteria_ctx}\n\n學生回答：{student_reply[:400]}\n\n請批改並回傳 JSON。",
+                },
+            ],
+            max_tokens=250,
         )
         text = (resp.choices[0].message.content or "").strip()
         for block in (text.split("```"), [text]):

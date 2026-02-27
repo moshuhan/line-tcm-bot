@@ -41,6 +41,13 @@ try:
         set_quiz_pending,
         get_quiz_pending,
         clear_quiz_pending,
+        set_user_state,
+        get_user_state,
+        set_quiz_data,
+        get_quiz_data,
+        clear_quiz_data,
+        STATE_NORMAL,
+        STATE_QUIZ_WAITING,
         record_weak_category,
         get_weak_categories,
         clear_weak_category,
@@ -49,7 +56,8 @@ try:
         set_pending_review_category,
         get_pending_review_category,
         clear_pending_review_category,
-        generate_socratic_question,
+        generate_dynamic_quiz,
+        reveal_quiz_answer,
         judge_quiz_answer,
         generate_review_note,
     )
@@ -71,6 +79,13 @@ except ImportError:
         set_quiz_pending,
         get_quiz_pending,
         clear_quiz_pending,
+        set_user_state,
+        get_user_state,
+        set_quiz_data,
+        get_quiz_data,
+        clear_quiz_data,
+        STATE_NORMAL,
+        STATE_QUIZ_WAITING,
         record_weak_category,
         get_weak_categories,
         clear_weak_category,
@@ -79,7 +94,8 @@ except ImportError:
         set_pending_review_category,
         get_pending_review_category,
         clear_pending_review_category,
-        generate_socratic_question,
+        generate_dynamic_quiz,
+        reveal_quiz_answer,
         judge_quiz_answer,
         generate_review_note,
     )
@@ -271,6 +287,37 @@ def quick_reply_quiz_ask():
 
 def text_with_quick_reply_quiz(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_quiz_ask())
+
+
+def build_quiz_flex_message(question):
+    """建立測驗題目 Flex Message，含「我不知道，請公佈答案」按鈕。"""
+    bubble = {
+        "type": "bubble",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "contents": [
+                {"type": "text", "text": "📝 一題小測驗", "weight": "bold", "size": "lg"},
+                {"type": "text", "text": question, "wrap": True, "size": "sm"},
+            ],
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "secondary",
+                    "action": {"type": "message", "label": "我不知道，請公佈答案", "text": "我不知道，請公佈答案"},
+                },
+            ],
+        },
+    }
+    alt = f"小測驗：{(question or '')[:80]}"
+    if len(question or "") > 80:
+        alt += "..."
+    return FlexSendMessage(alt_text=alt, contents=bubble)
 
 def quick_reply_review_ask():
     """主動複習：需要幫你整理複習筆記嗎？[要, 不要]。"""
@@ -575,19 +622,35 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
     try:
-        # 課務查詢／本週重點：統一以 Flex Message 回傳（syllabus.json 為唯一真理來源）
+        # 課務查詢／本週重點：統一以 Flex Message 回傳
         if is_course_inquiry_intent(user_text):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 蘇格拉底測驗：正在等待測驗回答 → 判斷並回饋
-        quiz_topic = get_quiz_pending(redis, user_id)
-        if quiz_topic is not None:
+        # 小測驗狀態機：正在等待回答 → 批改或公佈答案
+        if get_user_state(redis, user_id) == STATE_QUIZ_WAITING:
+            quiz_data = get_quiz_data(redis, user_id)
+            set_user_state(redis, user_id, STATE_NORMAL)
+            clear_quiz_data(redis, user_id)
             clear_quiz_pending(redis, user_id)
-            feedback, category, was_correct = judge_quiz_answer(client, quiz_topic, user_text)
-            if not was_correct:
-                record_weak_category(redis, user_id, category)
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(feedback))
+
+            if quiz_data:
+                q = quiz_data.get("question", "")
+                criteria = quiz_data.get("answer_criteria", "")
+                category = quiz_data.get("category", "其他")
+
+                # 「我不知道，請公佈答案」
+                if user_text == "我不知道，請公佈答案" or user_text.strip() == "我不知道":
+                    answer_text = reveal_quiz_answer(client, q, criteria)
+                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"📌 答案說明\n\n{answer_text}"))
+                else:
+                    # 一般回答：自動批改
+                    feedback, cat, was_correct = judge_quiz_answer(client, q, user_text, answer_criteria=criteria)
+                    if not was_correct:
+                        record_weak_category(redis, user_id, cat or category)
+                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(feedback))
+            else:
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("測驗狀態已過期，請重新開始～"))
             return
 
         # 主動複習：使用者選擇「要複習筆記」
@@ -619,15 +682,18 @@ def handle_message(event):
                 )
                 return
 
-        # 蘇格拉底測驗：點擊「否」→ 按鈕消失，機器人保持沉默，不發送任何訊息
+        # 小測驗：點擊「否」→ 按鈕消失，機器人保持沉默
         if user_text == "否":
             return
-        # 蘇格拉底測驗：點擊「是」→ 根據 last_assistant_message 即時生成題目（禁止靜態題庫）
+        # 小測驗：點擊「是」→ 依 syllabus_full 本週主題動態出題，Flex Message + 「我不知道」按鈕
         if user_text == "是":
             last_ctx = get_last_assistant_message(redis, user_id)
-            socratic_q = generate_socratic_question(client, last_ctx)
-            set_quiz_pending(redis, user_id, last_ctx or socratic_q)
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(socratic_q))
+            question, answer_criteria, category = generate_dynamic_quiz(client, last_context=last_ctx)
+            set_quiz_data(redis, user_id, question, answer_criteria, category)
+            set_user_state(redis, user_id, STATE_QUIZ_WAITING)
+            set_quiz_pending(redis, user_id, question)
+            flex_msg = build_quiz_flex_message(question)
+            line_bot_api.reply_message(event.reply_token, flex_msg)
             return
 
         if user_text == "本週重點":
