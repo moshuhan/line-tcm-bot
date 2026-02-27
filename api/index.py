@@ -289,11 +289,8 @@ def text_with_quick_reply_quiz(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_quiz_ask())
 
 
-def build_quiz_flex_message(question, topic=None):
-    """建立測驗題目 Flex Message，含「我不知道，請公布答案」按鈕（Postback）。"""
-    postback_data = "action=show_answer"
-    if topic and len(str(topic)) < 50:
-        postback_data += "&topic=" + str(topic).replace("&", ",").replace("=", ":")[:40]
+def build_quiz_flex_message(question):
+    """建立測驗題目 Flex Message（學生的回答將視為新問題）。"""
     bubble = {
         "type": "bubble",
         "body": {
@@ -303,17 +300,6 @@ def build_quiz_flex_message(question, topic=None):
             "contents": [
                 {"type": "text", "text": "📝 一題小測驗", "weight": "bold", "size": "lg"},
                 {"type": "text", "text": question, "wrap": True, "size": "sm"},
-            ],
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "secondary",
-                    "action": {"type": "postback", "label": "我不知道，請公布答案", "data": postback_data},
-                },
             ],
         },
     }
@@ -604,20 +590,6 @@ def handle_postback(event):
         if data == "action=course" or data == "action=weekly":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
-        # 小測驗：公布答案（action=show_answer）
-        if data == "action=show_answer" or data.startswith("action=show_answer&"):
-            quiz_data = get_quiz_data(redis, user_id)
-            set_user_state(redis, user_id, STATE_NORMAL)
-            clear_quiz_data(redis, user_id)
-            clear_quiz_pending(redis, user_id)
-            if quiz_data:
-                q = quiz_data.get("question", "")
-                criteria = quiz_data.get("answer_criteria", "")
-                answer_text = reveal_quiz_answer(client, q, criteria)
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply(answer_text))
-            else:
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("測驗狀態已過期，請重新開始～"))
-            return
         # mode=tcm / mode=speaking / mode=writing
         mode = data.split("=")[1] if "=" in data else "tcm"
         try:
@@ -644,30 +616,13 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 小測驗狀態機：正在等待回答 → 批改或公佈答案
+        # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理
         if get_user_state(redis, user_id) == STATE_QUIZ_WAITING:
-            quiz_data = get_quiz_data(redis, user_id)
             set_user_state(redis, user_id, STATE_NORMAL)
             clear_quiz_data(redis, user_id)
             clear_quiz_pending(redis, user_id)
-
-            if quiz_data:
-                q = quiz_data.get("question", "")
-                criteria = quiz_data.get("answer_criteria", "")
-                category = quiz_data.get("category", "其他")
-
-                # 「我不知道，請公佈答案」
-                if user_text == "我不知道，請公佈答案" or user_text.strip() == "我不知道":
-                    answer_text = reveal_quiz_answer(client, q, criteria)
-                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"📌 答案說明\n\n{answer_text}"))
-                else:
-                    # 一般回答：自動批改
-                    feedback, cat, was_correct = judge_quiz_answer(client, q, user_text, answer_criteria=criteria)
-                    if not was_correct:
-                        record_weak_category(redis, user_id, cat or category)
-                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(feedback))
-            else:
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("測驗狀態已過期，請重新開始～"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在分析中..."))
+            process_ai_request(event, user_id, user_text, is_voice=False)
             return
 
         # 主動複習：使用者選擇「要複習筆記」
@@ -703,15 +658,12 @@ def handle_message(event):
         if user_text == "否":
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("沒問題！如果有其他想了解的，歡迎隨時提問。"))
             return
-        # 小測驗：點擊「是」→ 針對剛才討論的主題出題，Flex Message + 「我不知道」按鈕
+        # 小測驗：點擊「是」→ 針對剛才討論的主題出題（學生的回答將視為新問題）
         if user_text == "是":
             discussed_topic = get_last_question(redis, user_id)
             last_ctx = get_last_assistant_message(redis, user_id)
-            question, answer_criteria, category = generate_dynamic_quiz(client, discussed_topic=discussed_topic, last_context=last_ctx)
-            set_quiz_data(redis, user_id, question, answer_criteria, category)
-            set_user_state(redis, user_id, STATE_QUIZ_WAITING)
-            set_quiz_pending(redis, user_id, question)
-            flex_msg = build_quiz_flex_message(question, topic=category)
+            question, _, _ = generate_dynamic_quiz(client, discussed_topic=discussed_topic, last_context=last_ctx)
+            flex_msg = build_quiz_flex_message(question)
             line_bot_api.reply_message(event.reply_token, flex_msg)
             return
 
