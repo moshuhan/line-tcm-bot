@@ -3,8 +3,9 @@
 時間感知與課綱模組（課務查詢統一整合）。
 
 - 時區：Asia/Taipei (UTC+8)，精確至小時分鐘。
-- 資料源：config/syllabus.json 為唯一真理來源，含 Meeting Link、Number、Password。
-- 當週 vs 下週：若 現在 <= 當週課程 10:00 AM → 顯示當週；否則顯示下週。
+- 資料源：優先 config/syllabus_full.json（含 start_time/end_time/has_handout）；否則 syllabus.json。
+- 當週 vs 下週：以當週 end_time 為分界，過後即自動顯示下一週資訊。
+- Flex Message：當週課程、AI 重點（has_handout 時）、下週預告、評量、重要日期。
 - 精準過濾：僅對「完全與中醫/醫療學術無關」之問題回覆「本機器人僅供學業使用」。
 """
 
@@ -19,18 +20,18 @@ TAIPEI_TZ = timezone(timedelta(hours=8))
 # 專案根目錄（api 的上一層）
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _CONFIG_PATH = os.path.join(_ROOT, "config", "syllabus.json")
+_SYLLABUS_FULL_PATH = os.path.join(_ROOT, "config", "syllabus_full.json")
 _LECTURE_FOLDER_ENV = "LECTURE_FOLDER"
 
-# 當週課程結束判定：該日 10:00 AM
-_COURSE_CUTOFF_HOUR = 10
-_COURSE_CUTOFF_MINUTE = 0
+# 預設當週課程結束時間（syllabus_full 無 end_time 時使用）
+_DEFAULT_END_HOUR, _DEFAULT_END_MINUTE = 10, 0
 
 # 講義檔名格式：2026-03-05_Title.pdf
 _LECTURE_FILENAME_PATTERN = re.compile(r"^(\d{4}-\d{2}-\d{2})_(.+)\.(pdf|docx?|pptx?)$", re.I)
 
 
 def _load_syllabus_config():
-    """載入 config/syllabus.json。"""
+    """載入 config/syllabus.json（用於 is_off_topic、keywords 等）。"""
     try:
         with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -43,6 +44,40 @@ def _load_syllabus_config():
             "important_dates": [],
             "tcm_related_keywords": ["中醫", "TCM", "經絡", "氣", "針灸", "穴位", "陰陽", "五行", "課程", "講義"],
         }
+
+
+def _load_syllabus_full_config():
+    """載入 config/syllabus_full.json（課務查詢用，含 start_time/end_time/has_handout）。若不存在則回傳 None。"""
+    if not os.path.isfile(_SYLLABUS_FULL_PATH):
+        return None
+    try:
+        with open(_SYLLABUS_FULL_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _extract_url_from_markdown_link(text):
+    """從 Markdown 連結 [text](url) 中提取純 URL；若非此格式則原樣回傳。"""
+    if not text or not isinstance(text, str):
+        return text or ""
+    m = re.search(r'\((\s*https?://[^\s)]+\s*)\)', text.strip())
+    if m:
+        return m.group(1).strip()
+    return text.strip()
+
+
+def _parse_time_str(time_str):
+    """解析 'HH:MM' 字串，回傳 (hour, minute)。"""
+    if not time_str or not isinstance(time_str, str):
+        return _DEFAULT_END_HOUR, _DEFAULT_END_MINUTE
+    parts = time_str.strip().split(":")
+    try:
+        h = int(parts[0]) if len(parts) > 0 else _DEFAULT_END_HOUR
+        m = int(parts[1]) if len(parts) > 1 else _DEFAULT_END_MINUTE
+        return h, m
+    except (ValueError, TypeError):
+        return _DEFAULT_END_HOUR, _DEFAULT_END_MINUTE
 
 
 def get_now_taipei():
@@ -77,9 +112,15 @@ def _parse_lecture_dates_from_folder(folder_path):
 
 def _get_lectures_with_metadata():
     """
-    從 config 載入課綱，回傳 [(date, title, lecturer, meeting_link, meeting_number, password, has_lecture_materials, keywords), ...]。
-    每筆皆為 dict 形態的完整 lecture 物件，便於 Flex Message 使用。
+    從 config 載入課綱。優先使用 syllabus_full.json（含 end_time、has_handout）；
+    否則使用 syllabus.json。
+    每筆為 dict：date, title, lecturer, meeting_link, meeting_number, password,
+    has_lecture_materials (或 has_handout), end_hour, end_minute, keywords。
     """
+    full_cfg = _load_syllabus_full_config()
+    if full_cfg:
+        return _get_lectures_from_full(full_cfg)
+
     cfg = _load_syllabus_config()
     default_meeting = cfg.get("meeting_default") or {}
     entries = []
@@ -102,7 +143,54 @@ def _get_lectures_with_metadata():
                 "meeting_number": meeting_number,
                 "password": password,
                 "has_lecture_materials": has_materials,
+                "end_hour": _DEFAULT_END_HOUR,
+                "end_minute": _DEFAULT_END_MINUTE,
                 "keywords": keywords,
+            })
+        except (ValueError, TypeError):
+            continue
+    entries.sort(key=lambda e: e["date"])
+    return entries
+
+
+def _get_lectures_from_full(full_cfg):
+    """從 syllabus_full.json 解析 lectures，支援 end_time、has_handout、topic。"""
+    default_meeting = full_cfg.get("meeting_default") or {}
+    entries = []
+    for lec in full_cfg.get("lectures", []):
+        try:
+            d = datetime.strptime(lec["date"], "%Y-%m-%d").date()
+            end_h, end_m = _parse_time_str(lec.get("end_time", "10:00"))
+            topic = (lec.get("topic") or "").strip()
+            if topic == "手動輸入":
+                topic = "（待填入）"
+            lecturer = (lec.get("lecturer") or default_meeting.get("lecturer") or "").strip()
+            if lecturer == "手動輸入":
+                lecturer = "（待填入）"
+            meeting_link = (lec.get("meeting_link") or default_meeting.get("meeting_link") or "").strip()
+            if meeting_link == "手動輸入":
+                meeting_link = ""
+            else:
+                meeting_link = _extract_url_from_markdown_link(meeting_link)
+            meeting_number = (lec.get("meeting_number") or default_meeting.get("meeting_number") or "").strip()
+            if meeting_number == "手動輸入":
+                meeting_number = ""
+            password = (lec.get("password") or default_meeting.get("password") or "").strip()
+            if password == "手動輸入":
+                password = ""
+            has_handout = bool(lec.get("has_handout", False))
+            entries.append({
+                "date": d,
+                "date_str": lec["date"],
+                "title": topic or "（待填入）",
+                "lecturer": lecturer or "（待填入）",
+                "meeting_link": meeting_link,
+                "meeting_number": meeting_number,
+                "password": password,
+                "has_lecture_materials": has_handout,
+                "end_hour": end_h,
+                "end_minute": end_m,
+                "keywords": [topic] if topic and topic != "（待填入）" else [],
             })
         except (ValueError, TypeError):
             continue
@@ -126,7 +214,7 @@ def _get_all_lecture_entries():
 def get_display_week_lectures(now=None):
     """
     當週 vs 下週智慧切換邏輯。
-    若 現在 <= 當週課程日期 10:00 AM → 顯示當週；否則顯示下週。
+    以當週 end_time 為分界：若 現在 <= 當週課程 end_time → 顯示當週；否則自動顯示下一週。
     回傳 (display_lecture, next_lecture, is_showing_current_week)。
     display_lecture / next_lecture 為 dict 或 None。
     """
@@ -136,12 +224,14 @@ def get_display_week_lectures(now=None):
         return None, None, True
 
     for i, lec in enumerate(entries):
+        end_h = lec.get("end_hour", _DEFAULT_END_HOUR)
+        end_m = lec.get("end_minute", _DEFAULT_END_MINUTE)
         cutoff = datetime(
             lec["date"].year,
             lec["date"].month,
             lec["date"].day,
-            _COURSE_CUTOFF_HOUR,
-            _COURSE_CUTOFF_MINUTE,
+            end_h,
+            end_m,
             tzinfo=TAIPEI_TZ,
         )
         if now <= cutoff:
@@ -182,14 +272,22 @@ def generate_ai_weekly_highlights(openai_client, lecture_title, max_points=3):
         return []
 
 
+def _get_course_inquiry_config():
+    """課務查詢用 config：優先 syllabus_full，否則 syllabus.json。"""
+    full = _load_syllabus_full_config()
+    if full:
+        return full
+    return _load_syllabus_config()
+
+
 def build_course_inquiry_flex(openai_client, now=None):
     """
     建立課務查詢 Flex Message 內容。
-    含：課程資訊、AI 本週重點（有講義時）、下週預告、固定課務資訊、重要日期、結尾聲明。
+    含：當週課程資訊、AI 重點（has_handout 時）、下週預告、評量方式、重要日期、結尾聲明。
     回傳 FlexSendMessage 用的 contents dict（單一 bubble）。
     """
     now = now or get_now_taipei()
-    cfg = _load_syllabus_config()
+    cfg = _get_course_inquiry_config()
     display_lec, next_lec, is_showing_current = get_display_week_lectures(now)
 
     body_contents = []
@@ -232,9 +330,11 @@ def build_course_inquiry_flex(openai_client, now=None):
         body_contents.append(sec_course)
         body_contents.append({"type": "separator"})
 
-    # ---- AI 本週重點（僅當有講義時）----
-    if display_lec and display_lec.get("has_lecture_materials") and openai_client:
-        highlights = generate_ai_weekly_highlights(openai_client, display_lec["title"])
+    # ---- AI 本週重點（僅當 has_handout / has_lecture_materials 時）----
+    has_handout = display_lec and display_lec.get("has_lecture_materials", False)
+    topic_for_ai = (display_lec or {}).get("title", "")
+    if has_handout and openai_client and topic_for_ai and topic_for_ai != "（待填入）":
+        highlights = generate_ai_weekly_highlights(openai_client, topic_for_ai)
         if highlights:
             hi_lines = [{"type": "text", "text": h, "wrap": True, "size": "xs"} for h in highlights]
             body_contents.append({

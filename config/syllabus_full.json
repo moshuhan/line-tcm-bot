@@ -1,0 +1,215 @@
+{
+  "description": "完整課綱：date、start_time、end_time、has_handout。Topic/Lecturer/Meeting 可手動填入。",
+  "meeting_default": {
+    "meeting_link": "手動輸入",
+    "meeting_number": "手動輸入",
+    "password": "手動輸入"
+  },
+  "assessment": {
+    "items": [
+      "專題報告",
+      "出席狀況",
+      "課堂參與",
+      "心得與反思報告"
+    ]
+  },
+  "important_dates": [
+    {
+      "date": "2026-04-18",
+      "label": "期中報告"
+    },
+    {
+      "date": "2026-06-13",
+      "label": "期末報告"
+    }
+  ],
+  "lectures": [
+    {
+      "date": "2026-03-07",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "課程簡介 – 中醫概論：主要理論與診斷",
+      "lecturer": "Prof. Hung-Rong Yen (顏宏融)",
+      "meeting_link": "[https://cmuniv.webex.com/cmuniv/j.php?MTID=mb9b45eacaf4e9b0f3f672dd9f6f561e7](https://cmuniv.webex.com/cmuniv/j.php?MTID=mb9b45eacaf4e9b0f3f672dd9f6f561e7)",
+      "meeting_number": "2511 898 2231",
+      "password": "TCM123",
+      "has_handout": true
+    },
+    {
+      "date": "2026-03-14",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "中醫概論：主要理論與診斷",
+      "lecturer": "Prof. Hung-Rong Yen (顏宏融)",
+      "meeting_link": "[https://cmuniv.webex.com/cmuniv/j.php?MTID=mc125b1408d6ee17281da4fdab024f7d6](https://cmuniv.webex.com/cmuniv/j.php?MTID=mc125b1408d6ee17281da4fdab024f7d6)",
+      "meeting_number": "2513 327 6827",
+      "password": "TCM123",
+      "has_handout": true
+    },
+    {
+      "date": "2026-03-21",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "中醫概論：主要理論與診斷",
+      "lecturer": "Prof. Hung-Rong Yen (顏宏融)",
+      "meeting_link": "[https://cmuniv.webex.com/cmuniv/j.php?MTID=m356c577c29b8aac692b63480fb299c51](https://cmuniv.webex.com/cmuniv/j.php?MTID=m356c577c29b8aac692b63480fb299c51)",
+      "meeting_number": "2516 604 9689",
+      "password": "TCM123",
+      "has_handout": true
+    },
+    {
+      "date": "2026-03-28",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "我作為外國人學習中醫的經歷 (Dr. Eyal Ben-Arie)",
+      "lecturer": "Prof. Ben Arie Eyal",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=m79dc60761d0656ec836db807755f618e",
+      "meeting_number": "2516 920 5370",
+      "password": "TCM123",
+      "has_handout": false
+    },
+    {
+      "date": "2026-04-04",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "國定假日",
+      "lecturer": "手動輸入",
+      "meeting_link": "手動輸入",
+      "meeting_number": "手動輸入",
+      "password": "手動輸入",
+      "has_handout": false
+    },
+    {
+      "date": "2026-04-11",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "中醫概論：主要理論與診斷",
+      "lecturer": "Prof. Hung-Rong Yen (顏宏融)",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=m9c7b54f002de9c1ab747899d4146c624",
+      "meeting_number": "2517 020 1199",
+      "password": "TCM123",
+      "has_handout": true
+    },
+    {
+      "date": "2026-04-18",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "期中報告",
+      "lecturer": "手動輸入",
+      "meeting_link": "手動輸入",
+      "meeting_number": "手動輸入",
+      "password": "手動輸入",
+      "has_handout": false
+    },
+    {
+      "date": "2026-04-25",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "中醫概論：中藥與方劑",
+      "lecturer": "Prof. Hung-Rong Yen (顏宏融)",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=mdb501a95f271478248d655627397fa08",
+      "meeting_number": "2512 958 5452",
+      "password": "TCM123",
+      "has_handout": false
+    },
+    {
+      "date": "2026-05-02",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "我作為外國人(與臺灣人)學習中醫的經歷 (Dr. Peter Mayer)",
+      "lecturer": "Prof. PETER KARL MAYER (馬培德)",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=m5d8d1cb24250f59a1c344a5465fd1d7b",
+      "meeting_number": "2516 952 7628",
+      "password": "TCM123",
+      "has_handout": false
+    },
+    {
+      "date": "2026-05-09",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "經絡與針灸",
+      "lecturer": "Prof. Zimmerman Gregory Donald",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=mba893bff39c085b71d0f128e7e3790bc",
+      "meeting_number": "2518 457 4656",
+      "has_handout": true,
+      "password": "TCM123"
+    },
+    {
+      "date": "2026-05-16",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "經絡與針灸",
+      "lecturer": "Prof. Zimmerman Gregory Donald",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=m00ee8b4cfb5abe477dd946e41b77440e",
+      "meeting_number": "2518 684 4539",
+      "has_handout": true,
+      "password": "TCM123"
+    },
+    {
+      "date": "2026-05-23",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "經絡與針灸",
+      "lecturer": "Prof. Zimmerman Gregory Donald",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=m23c5ef6061d376d8c343337474caa85a",
+      "meeting_number": "2514 045 2848",
+      "has_handout": true,
+      "password": "TCM123"
+    },
+    {
+      "date": "2026-05-30",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "經絡與針灸",
+      "lecturer": "Prof. Zimmerman Gregory Donald",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=md04978339f3fd66522013d5028941902",
+      "meeting_number": "2514 230 3662",
+      "password": "TCM123",
+      "has_handout": true
+    },
+    {
+      "date": "2026-06-06",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "中醫養生與氣功(太極拳)",
+      "lecturer": "Prof. PETER KARL MAYER (馬培德)",
+      "meeting_link": "https://cmuniv.webex.com/cmuniv/j.php?MTID=m7f996e2064a2bc0ddcd5bd49caf66c4b",
+      "meeting_number": "2516 997 4431",
+      "password": "手動輸入",
+      "has_handout": false
+    },
+    {
+      "date": "2026-06-13",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "期末報告",
+      "lecturer": "手動輸入",
+      "meeting_link": "手動輸入",
+      "meeting_number": "手動輸入",
+      "password": "手動輸入",
+      "has_handout": false
+    },
+    {
+      "date": "2026-06-20",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "自主彈性學習",
+      "lecturer": "手動輸入",
+      "meeting_link": "手動輸入",
+      "meeting_number": "手動輸入",
+      "password": "手動輸入",
+      "has_handout": false
+    },
+    {
+      "date": "2026-06-27",
+      "start_time": "08:00",
+      "end_time": "10:00",
+      "topic": "自主彈性學習",
+      "lecturer": "手動輸入",
+      "meeting_link": "手動輸入",
+      "meeting_number": "手動輸入",
+      "password": "手動輸入",
+      "has_handout": false
+    }
+  ]
+}
