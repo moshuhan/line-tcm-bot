@@ -371,24 +371,40 @@ def generate_dynamic_quiz(openai_client, discussed_topic=None, last_context=None
 
 
 def reveal_quiz_answer(openai_client, question, answer_criteria):
-    """使用者點「我不知道」時，公佈答案並給予簡短說明。"""
-    if not answer_criteria or not (question or "").strip():
-        return "參考課本與講義複習本週重點～"
+    """
+    使用者點「我不知道，請公布答案」時，調用 AI 生成回覆。
+    回覆須包含：鼓勵式話語、詳解、結語「如果還有其他問題，歡迎隨時問我。」
+    """
+    if not (question or "").strip():
+        return "沒關係，學習是一步步累積的！\n\n參考課本與講義複習本週重點～\n\n如果還有其他問題，歡迎隨時問我。"
+    criteria = (answer_criteria or "").strip() or question[:200]
     try:
         resp = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "你是中醫助教。根據題目與正確答案要點，用 2～3 句友善說明答案，幫助學生理解。",
+                    "content": (
+                        "你是中醫助教。學生表示不知道答案，請生成公布答案的回覆。"
+                        "回覆須包含三部分："
+                        "1. 鼓勵式話語（例如「沒關係，學習是一步步累積的！」或「這題確實有點難度，我們先來看看答案吧。」）"
+                        "2. 詳解：針對題目提供完整、易懂的答案說明"
+                        "3. 結語：固定以「如果還有其他問題，歡迎隨時問我。」結尾"
+                    ),
                 },
-                {"role": "user", "content": f"題目：{question[:300]}\n正確答案要點：{answer_criteria[:400]}\n請公佈答案並簡短說明。"},
+                {
+                    "role": "user",
+                    "content": f"題目：{question[:300]}\n正確答案要點：{criteria[:400]}\n\n請依上述格式生成公布答案的回覆。",
+                },
             ],
-            max_tokens=200,
+            max_tokens=400,
         )
-        return (resp.choices[0].message.content or answer_criteria or "").strip()[:500]
+        content = (resp.choices[0].message.content or "").strip()[:700]
+        if content and "如果還有其他問題" not in content and "歡迎隨時問我" not in content:
+            content = content.rstrip() + "\n\n如果還有其他問題，歡迎隨時問我。"
+        return content or "沒關係，學習是一步步累積的！\n\n如果還有其他問題，歡迎隨時問我。"
     except Exception:
-        return (answer_criteria or "參考講義複習～")[:400]
+        return f"沒關係，學習是一步步累積的！\n\n{criteria[:300]}\n\n如果還有其他問題，歡迎隨時問我。"
 
 
 def judge_quiz_answer(openai_client, topic_or_question, student_reply, answer_criteria=None):

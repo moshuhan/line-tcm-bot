@@ -289,8 +289,11 @@ def text_with_quick_reply_quiz(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_quiz_ask())
 
 
-def build_quiz_flex_message(question):
-    """建立測驗題目 Flex Message，含「我不知道，請公佈答案」按鈕。"""
+def build_quiz_flex_message(question, topic=None):
+    """建立測驗題目 Flex Message，含「我不知道，請公布答案」按鈕（Postback）。"""
+    postback_data = "action=show_answer"
+    if topic and len(str(topic)) < 50:
+        postback_data += "&topic=" + str(topic).replace("&", ",").replace("=", ":")[:40]
     bubble = {
         "type": "bubble",
         "body": {
@@ -309,7 +312,7 @@ def build_quiz_flex_message(question):
                 {
                     "type": "button",
                     "style": "secondary",
-                    "action": {"type": "message", "label": "我不知道，請公佈答案", "text": "我不知道，請公佈答案"},
+                    "action": {"type": "postback", "label": "我不知道，請公布答案", "data": postback_data},
                 },
             ],
         },
@@ -601,6 +604,20 @@ def handle_postback(event):
         if data == "action=course" or data == "action=weekly":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
+        # 小測驗：公布答案（action=show_answer）
+        if data == "action=show_answer" or data.startswith("action=show_answer&"):
+            quiz_data = get_quiz_data(redis, user_id)
+            set_user_state(redis, user_id, STATE_NORMAL)
+            clear_quiz_data(redis, user_id)
+            clear_quiz_pending(redis, user_id)
+            if quiz_data:
+                q = quiz_data.get("question", "")
+                criteria = quiz_data.get("answer_criteria", "")
+                answer_text = reveal_quiz_answer(client, q, criteria)
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply(answer_text))
+            else:
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("測驗狀態已過期，請重新開始～"))
+            return
         # mode=tcm / mode=speaking / mode=writing
         mode = data.split("=")[1] if "=" in data else "tcm"
         try:
@@ -694,7 +711,7 @@ def handle_message(event):
             set_quiz_data(redis, user_id, question, answer_criteria, category)
             set_user_state(redis, user_id, STATE_QUIZ_WAITING)
             set_quiz_pending(redis, user_id, question)
-            flex_msg = build_quiz_flex_message(question)
+            flex_msg = build_quiz_flex_message(question, topic=category)
             line_bot_api.reply_message(event.reply_token, flex_msg)
             return
 
