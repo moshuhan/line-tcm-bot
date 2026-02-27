@@ -408,7 +408,7 @@ def process_ai_request(event, user_id, text, is_voice=False):
             set_last_question(redis, user_id, text)
             set_last_assistant_message(redis, user_id, ai_reply)
             if mode == "tcm":
-                line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n要來試試一題小測驗嗎？"))
+                line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
             else:
                 line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
         else:
@@ -682,13 +682,15 @@ def handle_message(event):
                 )
                 return
 
-        # 小測驗：點擊「否」→ 按鈕消失，機器人保持沉默
+        # 小測驗：點擊「否」→ 友善回覆，保持一般問答模式
         if user_text == "否":
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("沒問題！如果有其他想了解的，歡迎隨時提問。"))
             return
-        # 小測驗：點擊「是」→ 依 syllabus_full 本週主題動態出題，Flex Message + 「我不知道」按鈕
+        # 小測驗：點擊「是」→ 針對剛才討論的主題出題，Flex Message + 「我不知道」按鈕
         if user_text == "是":
+            discussed_topic = get_last_question(redis, user_id)
             last_ctx = get_last_assistant_message(redis, user_id)
-            question, answer_criteria, category = generate_dynamic_quiz(client, last_context=last_ctx)
+            question, answer_criteria, category = generate_dynamic_quiz(client, discussed_topic=discussed_topic, last_context=last_ctx)
             set_quiz_data(redis, user_id, question, answer_criteria, category)
             set_user_state(redis, user_id, STATE_QUIZ_WAITING)
             set_quiz_pending(redis, user_id, question)

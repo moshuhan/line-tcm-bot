@@ -272,15 +272,55 @@ def get_last_assistant_message(redis_client, user_id):
 
 def generate_socratic_question(openai_client, last_interaction_context):
     """相容舊 API，改為呼叫 generate_dynamic_quiz。"""
-    q, _, _ = generate_dynamic_quiz(openai_client, week_topic=None, last_context=last_interaction_context)
+    q, _, _ = generate_dynamic_quiz(openai_client, discussed_topic=None, last_context=last_interaction_context)
     return q
 
 
-def generate_dynamic_quiz(openai_client, week_topic=None, last_context=None):
+def generate_dynamic_quiz(openai_client, discussed_topic=None, last_context=None, week_topic=None):
     """
-    依 syllabus_full 本週主題動態出題，避免重複「陰陽」等固定題目。
+    出題邏輯：若 discussed_topic 存在，針對「剛才討論的主題」出開放式簡答題；
+    否則依 syllabus_full 本週主題出題。
     回傳 (question_text, answer_criteria, category)。
     """
+    # 有剛才討論的主題（使用者問題）→ 針對該主題出題
+    if (discussed_topic or "").strip():
+        topic_str = discussed_topic.strip()[:200]
+        context_str = ""
+        if (last_context or "").strip() and len(last_context) > 30:
+            context_str = f"\n助教剛才的回答摘要：{last_context[:500]}"
+        try:
+            resp = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "你是中醫課程助教。請針對剛才討論的主題出一道「開放式簡答題」。"
+                            "回傳 JSON：{\"question\": \"題目\", \"answer_criteria\": \"正確答案要點（供批改用）\", \"category\": \"概念名\"}"
+                        ),
+                    },
+                    {"role": "user", "content": f"剛才討論的主題（使用者問的）：{topic_str}{context_str}\n\n請針對此主題出一道開放式簡答題，回傳 JSON。"},
+                ],
+                max_tokens=350,
+            )
+            text = (resp.choices[0].message.content or "").strip()
+            for block in (text.split("```"), [text]):
+                for raw in block:
+                    raw = raw.strip()
+                    if raw.startswith("{"):
+                        try:
+                            obj = json.loads(raw.split("```")[0].strip().split("\n")[0])
+                            q = (obj.get("question") or "").strip()[:400]
+                            a = (obj.get("answer_criteria") or "").strip()[:600]
+                            c = (obj.get("category") or "其他").strip()[:20]
+                            if q:
+                                return (("小測驗：" + q) if not q.startswith("小測驗") else q, a or q, c or "其他")
+                        except Exception:
+                            pass
+        except Exception:
+            traceback.print_exc()
+
+    # 無討論主題 → 依 syllabus_full 本週主題
     try:
         from api.syllabus import get_display_week_lectures
     except ImportError:
@@ -293,7 +333,7 @@ def generate_dynamic_quiz(openai_client, week_topic=None, last_context=None):
 
     context_hint = ""
     if (last_context or "").strip() and len(last_context) > 50:
-        context_hint = f"\n（若與以下近期討論相關可結合出題，但勿重複「陰陽的重要性」）近期：{last_context[:400]}"
+        context_hint = f"\n（若與以下近期討論相關可結合出題）近期：{last_context[:400]}"
 
     try:
         resp = openai_client.chat.completions.create(
@@ -302,8 +342,7 @@ def generate_dynamic_quiz(openai_client, week_topic=None, last_context=None):
                 {
                     "role": "system",
                     "content": (
-                        "你是中醫課程助教。根據「本週課程主題」出一道簡答題。"
-                        "題型隨機（填空、解釋、舉例、比較等），禁止出「陰陽的重要性」或類似重複題。"
+                        "你是中醫課程助教。根據「本週課程主題」出一道開放式簡答題。"
                         "回傳 JSON：{\"question\": \"題目\", \"answer_criteria\": \"正確答案要點（供批改用）\", \"category\": \"概念名\"}"
                     ),
                 },
@@ -353,7 +392,10 @@ def reveal_quiz_answer(openai_client, question, answer_criteria):
 
 
 def judge_quiz_answer(openai_client, topic_or_question, student_reply, answer_criteria=None):
-    """判斷測驗回答，回傳 (feedback_text, category_for_weak, was_correct)。若有 answer_criteria 可更精準批改。"""
+    """
+    批改測驗回答，回傳 (feedback_text, category_for_weak, was_correct)。
+    回饋須包含：稱讚語句、正確性判斷、詳解。
+    """
     criteria_ctx = ""
     if answer_criteria:
         criteria_ctx = f"\n正確答案要點（供評分參考）：{answer_criteria[:400]}"
@@ -364,17 +406,17 @@ def judge_quiz_answer(openai_client, topic_or_question, student_reply, answer_cr
                 {
                     "role": "system",
                     "content": (
-                        "你是中醫助教。根據題目與學生回答，判斷對錯並給予 2～4 句回饋。"
-                        "若正確：鼓勵並可補充要點。若錯誤：友善指出並簡要說明正確概念。"
-                        "回傳 JSON：{\"feedback\": \"回饋文字\", \"category\": \"概念名\", \"correct\": true/false}"
+                        "你是中醫助教。批改學生測驗回答，回饋須包含三部分："
+                        "1. 稱讚語句（先肯定學生的嘗試）；2. 正確性判斷（對/錯或部分正確）；3. 詳解（說明正確概念或補充要點）。"
+                        "回傳 JSON：{\"feedback\": \"完整回饋文字（含稱讚、判斷、詳解）\", \"category\": \"概念名\", \"correct\": true/false}"
                     ),
                 },
                 {
                     "role": "user",
-                    "content": f"題目：{topic_or_question[:250]}{criteria_ctx}\n\n學生回答：{student_reply[:400]}\n\n請批改並回傳 JSON。",
+                    "content": f"題目：{topic_or_question[:250]}{criteria_ctx}\n\n學生回答：{student_reply[:400]}\n\n請批改（含稱讚、判斷、詳解）並回傳 JSON。",
                 },
             ],
-            max_tokens=250,
+            max_tokens=350,
         )
         text = (resp.choices[0].message.content or "").strip()
         for block in (text.split("```"), [text]):
@@ -384,7 +426,7 @@ def judge_quiz_answer(openai_client, topic_or_question, student_reply, answer_cr
                     try:
                         obj = json.loads(raw.split("\n")[0].strip())
                         return (
-                            (obj.get("feedback") or "謝謝你的回答！").strip()[:400],
+                            (obj.get("feedback") or "謝謝你的回答！").strip()[:600],
                             (obj.get("category") or "其他").strip()[:20],
                             bool(obj.get("correct", True)),
                         )
