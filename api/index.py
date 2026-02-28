@@ -20,6 +20,8 @@ from linebot.models import (
 from linebot.models.send_messages import AudioSendMessage
 from upstash_redis import Redis
 from openai import OpenAI
+import httpx
+from httpx_retries import RetryTransport, Retry
 import cloudinary
 import cloudinary.uploader
 
@@ -104,7 +106,13 @@ except ImportError:
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 line_webhook_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# 使用 httpx + RetryTransport 緩解 Vercel 上 Errno 16 "Device or resource busy" 等瞬斷
+_retry = Retry(total=3, backoff_factor=0.5)
+_http_client = httpx.Client(
+    transport=RetryTransport(retry=_retry),
+    limits=httpx.Limits(max_keepalive_connections=5, max_connections=20),
+)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
 kv_url = os.getenv("KV_REST_API_URL")

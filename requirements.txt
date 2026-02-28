@@ -2,6 +2,7 @@ line-bot-sdk
 flask
 openai
 upstash-redis
+httpx-retries
 python-dotenv
 requests
 reportlab
