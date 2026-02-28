@@ -487,6 +487,12 @@ def cron_weekly_report():
 def home():
     return 'Line Bot Server is running!', 200
 
+@app.route("/favicon.ico", methods=['GET'])
+@app.route("/favicon.png", methods=['GET'])
+def favicon():
+    """避免瀏覽器/爬蟲請求 favicon 產生 404 日誌。"""
+    return "", 204
+
 def _run_voice_background(user_id, message_id, base_url, cron_secret):
     """Background Task：語音轉錄、GPT 分析、TTS、Cloudinary 上傳。不阻塞 webhook 回傳。"""
     if base_url and cron_secret:
