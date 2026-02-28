@@ -643,6 +643,7 @@ def serve_audio(token):
 
 @app.route("/callback", methods=['POST'])
 def callback():
+    """LINE Webhook 唯一入口（Vercel rewrite → 本檔）。Postback / Message 皆由此處理。"""
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
     try:
@@ -678,10 +679,15 @@ def handle_postback(event):
                 print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_ok={redis_ok} verified={verified}")
         except Exception as e:
             print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_set_failed err={e}")
-        msg = f"已切換至【{mode_map.get(mode, mode)}】模式"
+        # 與 CLI/文字指令一致的切換訊息（寫作修訂需含操作指引）
         if mode == REVISION_MODE:
+            msg = "已切換至【✍️ 寫作修訂】模式，請貼上要修改的句子或段落～"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
+        elif mode == "speaking":
+            msg = "已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(msg))
         else:
+            msg = f"已切換至【{mode_map.get(mode, mode)}】模式"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply(msg))
     except Exception as e:
         traceback.print_exc()
