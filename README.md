@@ -42,7 +42,7 @@
 ├── docs/
 │   └── ARCHITECTURE.md   # 技術架構概覽
 ├── tests/
-├── main.py               # 本地 Flask 執行（精簡版）
+├── test_local.py         # 本地測試入口（等同 python -m api.index）
 ├── register_menu.py      # Python 版 Rich Menu 上傳（2500x843）
 ├── vercel.json           # Rewrite → api/index.py；Cron 每週五 /api/cron/weekly
 ├── requirements.txt      # Python 依賴（含 reportlab、matplotlib）
@@ -85,7 +85,10 @@ pip install -r requirements.txt
 # 方式 A：直接執行（推薦）
 python -m api.index
 
-# 方式 B：Windows PowerShell 一鍵腳本
+# 方式 B：等同方式 A
+python test_local.py
+
+# 方式 C：Windows PowerShell 一鍵腳本
 .\scripts\run_local.ps1
 ```
 
@@ -117,7 +120,7 @@ https://你的ngrok網址/callback
 
 ---
 
-**備註**：`main.py` 為精簡版；完整功能（寫作修訂、口說練習、測驗、課務查詢等）請使用 `api/index.py`。
+**備註**：Vercel 與本地測試皆使用 `api/index.py`；`test_local.py` 為本地啟動捷徑。
 
 ---
 

@@ -21,7 +21,7 @@ line-tcm-bot/
 │   └── test_openai_service.js
 ├── assets/                 # Rich Menu 圖片等靜態資源（register_menu.py 使用）
 ├── docs/                   # 文件（本架構說明）
-├── main.py                 # 本地 Flask 執行用（精簡版，與 api/index.py 邏輯類似）
+├── test_local.py           # 本地測試入口（執行 api.index，與 Vercel 使用相同邏輯）
 ├── register_menu.py        # 以 Python 建立 Rich Menu（上傳 2500x843 圖片、Postback 區塊）
 ├── vercel.json             # Vercel 路由：全部請求轉發至 /api/index.py
 ├── package.json            # Node 依賴與腳本（webhook、dev）
@@ -38,7 +38,7 @@ line-tcm-bot/
 | **services/** | 僅供 Node 版使用：LINE 發送、OpenAI 對話、使用者狀態。正式部署的 Python 版在 `api/index.py` 內直接整合 LINE / OpenAI / Redis，不經此目錄。 |
 | **scripts/** | 維護用：以 Node 建立或更新 LINE Rich Menu。 |
 | **tests/** | 單元或整合測試（例如 OpenAI 服務）。 |
-| **根目錄** | 設定檔（`vercel.json`、`package.json`、`requirements.txt`）、環境變數範例、本地/備用入口（`main.py`、`register_menu.py`）與文件。 |
+| **根目錄** | 設定檔（`vercel.json`、`package.json`、`requirements.txt`）、環境變數範例、本地入口（`test_local.py`）、Rich Menu 註冊（`register_menu.py`）與文件。 |
 
 ---
 
@@ -186,7 +186,7 @@ classDiagram
   - 因此 **唯一 HTTP 進入點** 為 **`api/index.py`** 的 Flask 應用程式。
 
 - **本地 Python**  
-  - 可直接執行 `main.py` 或 `api/index.py`（若 `if __name__ == "__main__"` 或 `app.run()`），監聽本機 port，供 ngrok 等轉發給 LINE。
+  - 可直接執行 `python -m api.index` 或 `python test_local.py`，監聽本機 port，供 ngrok 等轉發給 LINE。
 
 - **Node 版（目前非 Vercel 預設）**  
   - `package.json` 的 `main` 與 `dev` 指向 `api/webhook.js`；若改寫 `vercel.json` 指向 Node 函式，則進入點會是 `api/webhook.js` 匯出的 Express app。目前專案 **未** 如此設定。

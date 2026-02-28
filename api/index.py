@@ -338,7 +338,7 @@ def _revision_handler(user_id, text):
     使用 Markdown 格式優化回饋。
     """
     if not (text or "").strip():
-        line_bot_api.push_message(user_id, text_with_quick_reply_writing("請貼上要修改的句子或段落～"))
+        line_bot_api.push_message(user_id, text_with_quick_reply_writing("請貼上要修改的段落。"))
         return
     try:
         system_prompt = get_writing_mode_instructions()
@@ -681,7 +681,7 @@ def handle_postback(event):
             print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_set_failed err={e}")
         # 與 CLI/文字指令一致的切換訊息（寫作修訂需含操作指引）
         if mode == REVISION_MODE:
-            msg = "已切換至【✍️ 寫作修訂】模式，請貼上要修改的句子或段落～"
+            msg = "已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
         elif mode == "speaking":
             msg = "已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"
@@ -709,7 +709,7 @@ def handle_message(event):
             if user_text == "寫作修改":
                 line_bot_api.reply_message(
                     event.reply_token,
-                    text_with_quick_reply_writing("你已在【✍️ 寫作修訂】模式～請貼上要修改的句子或段落～"),
+                    text_with_quick_reply_writing("你已在【✍️ 寫作修訂】模式～請貼上要修改的段落。"),
                 )
                 return
             if user_text == "離開模式":
@@ -726,7 +726,7 @@ def handle_message(event):
             if user_text == "繼續練習":
                 line_bot_api.reply_message(
                     event.reply_token,
-                    text_with_quick_reply_writing("請貼上要修改的句子或段落～"),
+                    text_with_quick_reply_writing("請貼上要修改的段落。"),
                 )
                 return
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在分析你的寫作..."))
@@ -814,7 +814,7 @@ def handle_message(event):
                 print(f"[MODE] 寫作修改 user_id={user_id} redis_set_failed err={e}")
             line_bot_api.reply_message(
                 event.reply_token,
-                text_with_quick_reply_writing("已切換至【✍️ 寫作修訂】模式，請貼上要修改的句子或段落～"),
+                text_with_quick_reply_writing("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"),
             )
             return
         if user_text == "練習下一句":
