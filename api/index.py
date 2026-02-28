@@ -848,3 +848,9 @@ def handle_audio(event):
             args=(user_id, message_id, base_url, cron_secret),
             daemon=True,
         ).start()
+
+
+if __name__ == "__main__":
+    # 本地快速測試：python -m api.index 或 python api/index.py（從專案根目錄）
+    # 再開一個終端執行 ngrok http 5000，並將 LINE Webhook 改為 https://YOUR-NGROK-URL/callback
+    app.run(host="0.0.0.0", port=5000, debug=True)

@@ -72,26 +72,52 @@
 
 ---
 
-## 本地開發
+## 本地開發與快速測試
 
-**Python（主要）**
+不需要每次部署就能在 LINE 上即時測試程式碼變更：
+
+### 1. 啟動本地伺服器（與 Vercel 相同的完整版）
 
 ```bash
 pip install -r requirements.txt
-# 設定 .env 後
-python main.py
-# 或
-python api/index.py  # 若該檔有 if __name__ == "__main__": app.run()
+# 確保 .env 已設定
+
+# 方式 A：直接執行（推薦）
+python -m api.index
+
+# 方式 B：Windows PowerShell 一鍵腳本
+.\scripts\run_local.ps1
 ```
 
-**Node（選用）**
+Flask 會啟動於 `http://0.0.0.0:5000`。
+
+### 2. 用 ngrok 暴露本機
+
+另開一個終端執行：
 
 ```bash
-npm install
-npm run dev
+ngrok http 5000
 ```
 
-使用 ngrok 等將本機 port 暴露後，在 LINE Developers Console 將 Webhook URL 設為 `https://xxxx.ngrok.io/callback`（Python 入口為 `/callback`）。
+（若未安裝：`choco install ngrok` 或從 [ngrok.com](https://ngrok.com) 下載）
+
+### 3. 設定 LINE Webhook
+
+複製 ngrok 顯示的 `https://xxxx.ngrok-free.app`，到 **LINE Developers Console** → Messaging API → Webhook URL 設為：
+
+```
+https://你的ngrok網址/callback
+```
+
+### 4. 開始測試
+
+在 LINE 傳訊息給 Bot，會即時打到你的本機。改完程式碼後只需重啟 `python -m api.index` 即可，不需重新部署。
+
+**測試完成後**：記得把 Webhook URL 改回 Vercel 網址，否則正式環境不會收到訊息。
+
+---
+
+**備註**：`main.py` 為精簡版；完整功能（寫作修訂、口說練習、測驗、課務查詢等）請使用 `api/index.py`。
 
 ---
 
