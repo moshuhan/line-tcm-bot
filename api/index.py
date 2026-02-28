@@ -905,6 +905,20 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
     try:
+        # --- 離開模式：不論目前模式，一律切回中醫問答 ---
+        if user_text == "離開模式":
+            try:
+                _set_cached_mode(user_id, "tcm")
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), "tcm")
+            except Exception:
+                pass
+            line_bot_api.reply_message(
+                event.reply_token,
+                text_with_quick_reply("已切換回【🩺 中醫問答】模式，有什麼想問的嗎？"),
+            )
+            return
+
         # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
         current_mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
@@ -914,18 +928,6 @@ def handle_message(event):
                 line_bot_api.reply_message(
                     event.reply_token,
                     text_with_quick_reply_writing(REVISION_MODE_PROMPT),
-                )
-                return
-            if user_text == "離開模式":
-                try:
-                    _set_cached_mode(user_id, "tcm")
-                    if redis:
-                        redis.set(_redis_user_mode_key(user_id), "tcm")
-                except Exception:
-                    pass
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_with_quick_reply("結束寫作修訂，已切換回中醫問答模式。"),
                 )
                 return
             if user_text == "繼續練習":
