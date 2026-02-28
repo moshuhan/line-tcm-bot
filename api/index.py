@@ -358,24 +358,28 @@ REDIS_KEY_USER_MODE = "user_mode"  # 與 Postback/切換按鈕寫入的 Key 完�
 
 def _revision_handler(user_id, text):
     """
-    寫作修訂專屬處理：使用 Chat Completions API，不調用中醫知識庫。
-    句子正確→稱讚+歡迎繼續；句子錯誤→鼓勵+更正+解釋+歡迎繼續。
-    使用 Markdown 格式優化回饋。
+    寫作修訂專屬處理：使用 Chat Completions API (gpt-4o-mini)，不調用中醫知識庫。
+    採串流累積後一次送出，縮短體感等待。
     """
     if not (text or "").strip():
         line_bot_api.push_message(user_id, text_with_quick_reply_writing("請貼上要修改的段落。"))
         return
     try:
         system_prompt = get_writing_mode_instructions()
-        resp = client.chat.completions.create(
+        stream = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"請分析以下句子或段落：\n\n{text[:1500]}"},
             ],
             max_tokens=800,
+            stream=True,
         )
-        reply = (resp.choices[0].message.content or "").strip()
+        reply_chunks = []
+        for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                reply_chunks.append(chunk.choices[0].delta.content)
+        reply = ("".join(reply_chunks) or "").strip()
         if not reply:
             reply = "已收到你的練習！歡迎繼續貼上其他句子～"
         line_bot_api.push_message(user_id, text_with_quick_reply_writing(reply))
@@ -426,14 +430,14 @@ def _set_cached_mode(user_id, mode):
 def _safe_get_mode(user_id):
     """
     安全取得使用者模式。Key 與 Postback 寫入處一致。
+    快取優先：有有效快取時直接回傳，減少 Redis 讀取與 Device/resource busy 風險。
     Redis 失敗時：先嘗試本地快取，僅在快取也無效時才 fallback 至 tcm。
     """
     try:
+        cached = _get_cached_mode(user_id)
+        if cached:
+            return cached
         if not redis:
-            cached = _get_cached_mode(user_id)
-            if cached:
-                print(f"[MODE] _safe_get_mode user_id={user_id} redis_none using_cache={cached}")
-                return cached
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=redis_none")
             return "tcm"
         key = _redis_user_mode_key(user_id)
@@ -486,11 +490,10 @@ def _safe_get_mode(user_id):
         return "tcm"
 
 # --- AI 核心函數（模式路由器）---
-def process_ai_request(event, user_id, text, is_voice=False):
-    """State-Based Router：依 user_state (mode) 切換 System Prompt。寫作模式強制走 revision_handler，跳過 Assistant file_search。"""
+def _process_assistant_sync(user_id, text):
+    """Assistant API 邏輯：Thread/Run/RAG，完成後 push_message。供 process-text-async 背景呼叫。"""
     try:
         mode = _safe_get_mode(user_id)
-        print(f"[MODE] process_ai_request user_id={user_id} mode={mode} routing={'revision' if mode == REVISION_MODE else 'assistant'}")
         if mode == REVISION_MODE:
             _revision_handler(user_id, text)
             return
@@ -560,6 +563,48 @@ def process_ai_request(event, user_id, text, is_voice=False):
     except Exception as e:
         print(f"CRITICAL ERROR: {traceback.format_exc()}")
         line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+
+
+def process_ai_request(event, user_id, text, is_voice=False):
+    """State-Based Router：依 user_state (mode) 切換。寫作模式走 revision_handler，其餘走 Assistant API。"""
+    try:
+        mode = _safe_get_mode(user_id)
+        print(f"[MODE] process_ai_request user_id={user_id} mode={mode} routing={'revision' if mode == REVISION_MODE else 'assistant'}")
+        if mode == REVISION_MODE:
+            _revision_handler(user_id, text)
+            return
+        _process_assistant_sync(user_id, text)
+    except Exception as e:
+        print(f"CRITICAL ERROR: {traceback.format_exc()}")
+        line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+
+
+def _run_text_background(user_id, text, task, base_url, cron_secret):
+    """Background Task：觸發 process-text-async 或本地執行，不阻塞 webhook。"""
+    if base_url and cron_secret:
+        try:
+            requests.post(
+                f"{base_url}/api/process-text-async",
+                json={"user_id": user_id, "text": text, "task": task},
+                headers={"Authorization": f"Bearer {cron_secret}"},
+                timeout=30,
+            )
+        except Exception:
+            try:
+                if task == "revision":
+                    _revision_handler(user_id, text)
+                else:
+                    _process_assistant_sync(user_id, text)
+            except Exception:
+                traceback.print_exc()
+    else:
+        try:
+            if task == "revision":
+                _revision_handler(user_id, text)
+            else:
+                _process_assistant_sync(user_id, text)
+        except Exception:
+            traceback.print_exc()
 
 # --- 每週報告 Cron（需 CRON_SECRET 驗證）---
 try:
@@ -717,6 +762,36 @@ def process_voice_async():
         return str(e)[:200], 500
 
 
+@app.route("/api/process-text-async", methods=["POST"])
+def process_text_async():
+    """Background Task：接收文字 AI 任務，執行寫作修訂或 Assistant RAG，完成後 push_message。"""
+    secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
+    expected = os.getenv("CRON_SECRET", "")
+    if expected and secret not in (expected, "Bearer " + expected):
+        return "Unauthorized", 401
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        user_id = (data.get("user_id") or "").strip()
+        text = (data.get("text") or "").strip()
+        task = (data.get("task") or "assistant").strip().lower()
+        if not user_id:
+            return "Missing user_id", 400
+        if task == "revision":
+            _revision_handler(user_id, text)
+        else:
+            _process_assistant_sync(user_id, text)
+        return "OK", 200
+    except Exception as e:
+        traceback.print_exc()
+        try:
+            uid = (request.get_json(force=True, silent=True) or {}).get("user_id", "")
+            if uid:
+                line_bot_api.push_message(uid, text_with_quick_reply(TIMEOUT_MESSAGE))
+        except Exception:
+            pass
+        return str(e)[:200], 500
+
+
 @app.route("/audio/<token>", methods=['GET'])
 def serve_audio(token):
     """提供 TTS 音檔給 LINE 播放（Redis 暫存，TTL 約 10 分鐘）。"""
@@ -825,7 +900,31 @@ def handle_message(event):
                 )
                 return
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在分析你的寫作..."))
-            _revision_handler(user_id, user_text)
+            vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+            base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+            cron_secret = os.getenv("CRON_SECRET", "")
+            if base_url and cron_secret:
+                try:
+                    requests.post(
+                        f"{base_url}/api/process-text-async",
+                        json={"user_id": user_id, "text": user_text, "task": "revision"},
+                        headers={"Authorization": f"Bearer {cron_secret}"},
+                        timeout=0.8,
+                    )
+                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
+                    pass
+                except Exception:
+                    threading.Thread(
+                        target=_run_text_background,
+                        args=(user_id, user_text, "revision", base_url, cron_secret),
+                        daemon=True,
+                    ).start()
+            else:
+                threading.Thread(
+                    target=_run_text_background,
+                    args=(user_id, user_text, "revision", base_url, cron_secret),
+                    daemon=True,
+                ).start()
             return
 
         # 課務查詢／本週重點：統一以 Flex Message 回傳
@@ -839,7 +938,31 @@ def handle_message(event):
             clear_quiz_data(redis, user_id)
             clear_quiz_pending(redis, user_id)
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在分析中..."))
-            process_ai_request(event, user_id, user_text, is_voice=False)
+            vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+            base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+            cron_secret = os.getenv("CRON_SECRET", "")
+            if base_url and cron_secret:
+                try:
+                    requests.post(
+                        f"{base_url}/api/process-text-async",
+                        json={"user_id": user_id, "text": user_text, "task": "assistant"},
+                        headers={"Authorization": f"Bearer {cron_secret}"},
+                        timeout=0.8,
+                    )
+                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
+                    pass
+                except Exception:
+                    threading.Thread(
+                        target=_run_text_background,
+                        args=(user_id, user_text, "assistant", base_url, cron_secret),
+                        daemon=True,
+                    ).start()
+            else:
+                threading.Thread(
+                    target=_run_text_background,
+                    args=(user_id, user_text, "assistant", base_url, cron_secret),
+                    daemon=True,
+                ).start()
             return
 
         # 主動複習：使用者選擇「要複習筆記」
@@ -945,9 +1068,32 @@ def handle_message(event):
         print(f"[MODE] handle_message -> process_ai_request (current_mode={mode!r}, not REVISION_MODE)")
         mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
 
-        # 先回覆「正在分析」，再同步執行 AI（Vercel 背景執行緒可能被終止，改回同步以確保有回覆）
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
-        process_ai_request(event, user_id, user_text, is_voice=False)
+        vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+        base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+        cron_secret = os.getenv("CRON_SECRET", "")
+        if base_url and cron_secret:
+            try:
+                requests.post(
+                    f"{base_url}/api/process-text-async",
+                    json={"user_id": user_id, "text": user_text, "task": "assistant"},
+                    headers={"Authorization": f"Bearer {cron_secret}"},
+                    timeout=0.8,
+                )
+            except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
+                pass
+            except Exception:
+                threading.Thread(
+                    target=_run_text_background,
+                    args=(user_id, user_text, "assistant", base_url, cron_secret),
+                    daemon=True,
+                ).start()
+        else:
+            threading.Thread(
+                target=_run_text_background,
+                args=(user_id, user_text, "assistant", base_url, cron_secret),
+                daemon=True,
+            ).start()
     except Exception as e:
         traceback.print_exc()
         err_msg = str(e).strip()[:100]
