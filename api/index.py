@@ -115,9 +115,32 @@ _http_client = httpx.Client(
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
+# Redis：全域單例，Upstash REST API 無需連線池，模組載入時建立一次
 kv_url = os.getenv("KV_REST_API_URL")
 kv_token = os.getenv("KV_REST_API_TOKEN")
-redis = Redis(url=kv_url, token=kv_token) if kv_url and kv_token else None
+redis = None
+if kv_url and kv_token:
+    try:
+        redis = Redis(
+            url=kv_url,
+            token=kv_token,
+            rest_retries=5,
+            rest_retry_interval=2,
+        )
+    except TypeError:
+        try:
+            redis = Redis(url=kv_url, token=kv_token)
+        except Exception as e:
+            print(f"[REDIS] init failed err={e}")
+            redis = None
+    except Exception as e:
+        print(f"[REDIS] init failed err={e}")
+        redis = None
+
+# 模式快取：Redis 瞬斷時使用，key=user_id -> (mode, timestamp)
+_mode_cache = {}
+_MODE_CACHE_TTL = 180
+_MODE_CACHE_MAX = 1000
 
 # Cloudinary 設定（TTS 語音檔雲端儲存）
 _cloudinary_configured = bool(
@@ -375,13 +398,41 @@ def _redis_user_mode_key(user_id):
     """統一的 Redis Key，與 Postback/切換按鈕寫入處完全一致。"""
     return f"{REDIS_KEY_USER_MODE}:{user_id}"
 
+def _get_cached_mode(user_id):
+    """Redis 失敗時從本地快取讀取最近一次成功的模式。"""
+    now = time.time()
+    if user_id in _mode_cache:
+        mode, ts = _mode_cache[user_id]
+        if now - ts < _MODE_CACHE_TTL:
+            return mode
+        try:
+            del _mode_cache[user_id]
+        except KeyError:
+            pass
+    return None
+
+def _set_cached_mode(user_id, mode):
+    """寫入模式快取，供 Redis 瞬斷時 fallback。"""
+    now = time.time()
+    while len(_mode_cache) >= _MODE_CACHE_MAX:
+        try:
+            oldest = min(_mode_cache.items(), key=lambda x: x[1][1])
+            del _mode_cache[oldest[0]]
+        except (ValueError, KeyError):
+            break
+    _mode_cache[user_id] = (mode, now)
+
 def _safe_get_mode(user_id):
     """
     安全取得使用者模式。Key 與 Postback 寫入處一致。
-    為避免瞬斷導致寫作模式使用者被誤判為 tcm，Redis 讀取失敗時會重試，僅在重試後仍失敗才 fallback。
+    Redis 失敗時：先嘗試本地快取，僅在快取也無效時才 fallback 至 tcm。
     """
     try:
         if not redis:
+            cached = _get_cached_mode(user_id)
+            if cached:
+                print(f"[MODE] _safe_get_mode user_id={user_id} redis_none using_cache={cached}")
+                return cached
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=redis_none")
             return "tcm"
         key = _redis_user_mode_key(user_id)
@@ -389,30 +440,47 @@ def _safe_get_mode(user_id):
         for attempt in range(3):
             try:
                 mode_val = redis.get(key)
-                break  # 取得結果（含 None）即跳出；僅在 exception 時重試
+                break
             except Exception as e:
+                last_err = e
                 if attempt < 2:
-                    time.sleep(0.15 * (attempt + 1))
+                    time.sleep(0.2 * (attempt + 1))
                     continue
-                print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception_after_retry err={e}")
+                # Redis 重試後仍失敗：嘗試快取
+                cached = _get_cached_mode(user_id)
+                if cached:
+                    err_detail = f"errno={getattr(e, 'errno', 'N/A')} type={type(e).__name__}"
+                    print(f"[MODE] _safe_get_mode user_id={user_id} redis_fail using_cache={cached} {err_detail}")
+                    return cached
+                err_detail = f"errno={getattr(e, 'errno', 'N/A')} type={type(e).__name__}"
+                print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception_after_retry {err_detail} err={e}")
+                traceback.print_exc()
                 return "tcm"
         if mode_val is None:
+            cached = _get_cached_mode(user_id)
+            if cached:
+                print(f"[MODE] _safe_get_mode user_id={user_id} key_missing using_cache={cached}")
+                return cached
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=key_missing_or_null")
             return "tcm"
-        # Upstash 回傳 str 或 bytes，統一正規化
         if isinstance(mode_val, bytes):
             mode_str = mode_val.decode("utf-8", errors="replace").strip()
         else:
             mode_str = str(mode_val).strip()
         if not mode_str:
+            cached = _get_cached_mode(user_id)
+            if cached:
+                return cached
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=empty_value raw={repr(mode_val)}")
             return "tcm"
-        # 正規化為小寫，避免 Redis 回傳 "Writing" 等導致比對失敗
         result = mode_str.lower()
-        if result == REVISION_MODE:
-            print(f"[MODE] _safe_get_mode user_id={user_id} mode=writing (raw={mode_str!r})")
+        _set_cached_mode(user_id, result)
         return result
     except Exception as e:
+        cached = _get_cached_mode(user_id)
+        if cached:
+            print(f"[MODE] _safe_get_mode user_id={user_id} outer_exception using_cache={cached} err={e}")
+            return cached
         print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception err={e}")
         return "tcm"
 
@@ -689,6 +757,7 @@ def handle_postback(event):
         # mode=tcm / mode=speaking / mode=writing（Rich Menu 切換）
         mode = data.split("=")[1].strip() if "=" in data else "tcm"
         mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
+        _set_cached_mode(user_id, mode)
         redis_ok = False
         try:
             if redis:
@@ -738,6 +807,7 @@ def handle_message(event):
                 return
             if user_text == "離開模式":
                 try:
+                    _set_cached_mode(user_id, "tcm")
                     if redis:
                         redis.set(_redis_user_mode_key(user_id), "tcm")
                 except Exception:
@@ -819,6 +889,7 @@ def handle_message(event):
 
         if user_text == "口說練習":
             try:
+                _set_cached_mode(user_id, "speaking")
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), "speaking")
             except Exception:
@@ -827,6 +898,7 @@ def handle_message(event):
             return
         if user_text == "寫作修改":
             try:
+                _set_cached_mode(user_id, REVISION_MODE)
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
                     v = redis.get(_redis_user_mode_key(user_id))
@@ -852,6 +924,7 @@ def handle_message(event):
                 return
         if user_text == "結束練習":
             try:
+                _set_cached_mode(user_id, "tcm")
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), "tcm")
             except Exception:
