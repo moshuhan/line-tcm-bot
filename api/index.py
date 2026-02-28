@@ -330,6 +330,7 @@ def text_with_quick_reply_review_ask(content):
 
 # --- 寫作修訂模式：獨立處理，不經過 Assistant API / RAG ---
 REVISION_MODE = "writing"
+REDIS_KEY_USER_MODE = "user_mode"  # 與 Postback/切換按鈕寫入的 Key 完全一致：user_mode:{user_id}
 
 def _revision_handler(user_id, text):
     """
@@ -370,14 +371,31 @@ def quick_reply_writing():
 def text_with_quick_reply_writing(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_writing())
 
+def _redis_user_mode_key(user_id):
+    """統一的 Redis Key，與 Postback/切換按鈕寫入處完全一致。"""
+    return f"{REDIS_KEY_USER_MODE}:{user_id}"
+
 def _safe_get_mode(user_id):
-    """安全取得使用者模式，Redis 失敗時回傳 tcm。每個 user_id 獨立，無 Global 混淆。"""
+    """
+    安全取得使用者模式。Key 與 Postback 寫入處一致。
+    為避免瞬斷導致寫作模式使用者被誤判為 tcm，Redis 讀取失敗時會重試，僅在重試後仍失敗才 fallback。
+    """
     try:
         if not redis:
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=redis_none")
             return "tcm"
-        key = f"user_mode:{user_id}"
-        mode_val = redis.get(key)
+        key = _redis_user_mode_key(user_id)
+        mode_val = None
+        for attempt in range(3):
+            try:
+                mode_val = redis.get(key)
+                break  # 取得結果（含 None）即跳出；僅在 exception 時重試
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(0.15 * (attempt + 1))
+                    continue
+                print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception_after_retry err={e}")
+                return "tcm"
         if mode_val is None:
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=key_missing_or_null")
             return "tcm"
@@ -670,10 +688,10 @@ def handle_postback(event):
         redis_ok = False
         try:
             if redis:
-                redis.set(f"user_mode:{user_id}", mode)
+                redis.set(_redis_user_mode_key(user_id), mode)
                 redis_ok = True
                 # 寫入後立即讀回驗證（供除錯）
-                verify = redis.get(f"user_mode:{user_id}")
+                verify = redis.get(_redis_user_mode_key(user_id))
                 v = verify.decode("utf-8").strip() if isinstance(verify, bytes) else str(verify or "").strip()
                 verified = (v == mode)
                 print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_ok={redis_ok} verified={verified}")
@@ -715,7 +733,7 @@ def handle_message(event):
             if user_text == "離開模式":
                 try:
                     if redis:
-                        redis.set(f"user_mode:{user_id}", "tcm")
+                        redis.set(_redis_user_mode_key(user_id), "tcm")
                 except Exception:
                     pass
                 line_bot_api.reply_message(
@@ -796,7 +814,7 @@ def handle_message(event):
         if user_text == "口說練習":
             try:
                 if redis:
-                    redis.set(f"user_mode:{user_id}", "speaking")
+                    redis.set(_redis_user_mode_key(user_id), "speaking")
             except Exception:
                 pass
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
@@ -804,8 +822,8 @@ def handle_message(event):
         if user_text == "寫作修改":
             try:
                 if redis:
-                    redis.set(f"user_mode:{user_id}", REVISION_MODE)
-                    v = redis.get(f"user_mode:{user_id}")
+                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
+                    v = redis.get(_redis_user_mode_key(user_id))
                     v_str = v.decode("utf-8").strip() if isinstance(v, bytes) else str(v or "").strip()
                     print(f"[MODE] 寫作修改 user_id={user_id} set_mode=writing verified={v_str == REVISION_MODE}")
                 else:
@@ -828,7 +846,7 @@ def handle_message(event):
         if user_text == "結束練習":
             try:
                 if redis:
-                    redis.set(f"user_mode:{user_id}", "tcm")
+                    redis.set(_redis_user_mode_key(user_id), "tcm")
             except Exception:
                 pass
             line_bot_api.reply_message(
