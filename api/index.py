@@ -359,12 +359,25 @@ REDIS_KEY_USER_MODE = "user_mode"  # 與 Postback/切換按鈕寫入的 Key 完�
 def _revision_handler(user_id, text):
     """
     寫作修訂專屬處理：使用 Chat Completions API (gpt-4o-mini)，不調用中醫知識庫。
-    採串流累積後一次送出，縮短體感等待。
+    採串流累積後一次送出。結果一律以 push_message 送出（reply_token 已用於「正在分析」）。
     """
+    if not user_id or not str(user_id).strip():
+        print(f"[REVISION] ERROR: user_id invalid or empty user_id={repr(user_id)}")
+        return
     if not (text or "").strip():
-        line_bot_api.push_message(user_id, text_with_quick_reply_writing("請貼上要修改的段落。"))
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply_writing("請貼上要修改的段落。"))
+        except Exception as e:
+            print(f"[REVISION] push_message failed (empty text branch) err={e}")
+            traceback.print_exc()
         return
     try:
+        print(f"[REVISION] start user_id={user_id} text_len={len(text)}")
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("[REVISION] ERROR: OPENAI_API_KEY not set")
+            line_bot_api.push_message(user_id, text_with_quick_reply_writing("系統設定錯誤，請稍後再試。"))
+            return
         system_prompt = get_writing_mode_instructions()
         stream = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -377,15 +390,27 @@ def _revision_handler(user_id, text):
         )
         reply_chunks = []
         for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                reply_chunks.append(chunk.choices[0].delta.content)
+            try:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if delta and getattr(delta, "content", None):
+                        reply_chunks.append(str(delta.content))
+            except Exception as e:
+                print(f"[REVISION] stream chunk parse err={e}")
+                traceback.print_exc()
         reply = ("".join(reply_chunks) or "").strip()
+        reply = str(reply) if reply else ""
         if not reply:
             reply = "已收到你的練習！歡迎繼續貼上其他句子～"
+        print(f"[REVISION] done user_id={user_id} reply_len={len(reply)}")
         line_bot_api.push_message(user_id, text_with_quick_reply_writing(reply))
-    except Exception:
+    except Exception as e:
+        print(f"[REVISION] CRITICAL err={e}")
         traceback.print_exc()
-        line_bot_api.push_message(user_id, text_with_quick_reply_writing("處理時發生錯誤，請再試一次。"))
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply_writing("處理時發生錯誤，請再試一次。"))
+        except Exception as push_err:
+            print(f"[REVISION] push_message (error fallback) failed err={push_err}")
 
 def quick_reply_writing():
     """寫作修訂模式：離開模式、繼續練習。"""
@@ -581,21 +606,26 @@ def process_ai_request(event, user_id, text, is_voice=False):
 
 def _run_text_background(user_id, text, task, base_url, cron_secret):
     """Background Task：觸發 process-text-async 或本地執行，不阻塞 webhook。"""
+    print(f"[TEXT_BG] start user_id={user_id} task={task} has_base={bool(base_url)} has_secret={bool(cron_secret)}")
     if base_url and cron_secret:
         try:
-            requests.post(
+            r = requests.post(
                 f"{base_url}/api/process-text-async",
                 json={"user_id": user_id, "text": text, "task": task},
                 headers={"Authorization": f"Bearer {cron_secret}"},
                 timeout=30,
             )
-        except Exception:
+            print(f"[TEXT_BG] POST result status={r.status_code}")
+        except Exception as e:
+            print(f"[TEXT_BG] POST failed, fallback local err={e}")
+            traceback.print_exc()
             try:
                 if task == "revision":
                     _revision_handler(user_id, text)
                 else:
                     _process_assistant_sync(user_id, text)
-            except Exception:
+            except Exception as inner:
+                print(f"[TEXT_BG] fallback handler failed err={inner}")
                 traceback.print_exc()
     else:
         try:
@@ -603,7 +633,8 @@ def _run_text_background(user_id, text, task, base_url, cron_secret):
                 _revision_handler(user_id, text)
             else:
                 _process_assistant_sync(user_id, text)
-        except Exception:
+        except Exception as e:
+            print(f"[TEXT_BG] direct handler failed err={e}")
             traceback.print_exc()
 
 # --- 每週報告 Cron（需 CRON_SECRET 驗證）---
@@ -768,27 +799,31 @@ def process_text_async():
     secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
     expected = os.getenv("CRON_SECRET", "")
     if expected and secret not in (expected, "Bearer " + expected):
+        print(f"[process-text-async] 401 Unauthorized")
         return "Unauthorized", 401
     try:
         data = request.get_json(force=True, silent=True) or {}
         user_id = (data.get("user_id") or "").strip()
         text = (data.get("text") or "").strip()
         task = (data.get("task") or "assistant").strip().lower()
+        print(f"[process-text-async] received user_id={user_id!r} task={task} text_len={len(text)}")
         if not user_id:
             return "Missing user_id", 400
         if task == "revision":
             _revision_handler(user_id, text)
         else:
             _process_assistant_sync(user_id, text)
+        print(f"[process-text-async] done task={task}")
         return "OK", 200
     except Exception as e:
+        print(f"[process-text-async] CRITICAL err={e}")
         traceback.print_exc()
         try:
             uid = (request.get_json(force=True, silent=True) or {}).get("user_id", "")
             if uid:
                 line_bot_api.push_message(uid, text_with_quick_reply(TIMEOUT_MESSAGE))
-        except Exception:
-            pass
+        except Exception as push_err:
+            print(f"[process-text-async] push error fallback failed err={push_err}")
         return str(e)[:200], 500
 
 
@@ -903,28 +938,28 @@ def handle_message(event):
             vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
             base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
             cron_secret = os.getenv("CRON_SECRET", "")
+            async_ok = False
             if base_url and cron_secret:
                 try:
-                    requests.post(
+                    r = requests.post(
                         f"{base_url}/api/process-text-async",
                         json={"user_id": user_id, "text": user_text, "task": "revision"},
                         headers={"Authorization": f"Bearer {cron_secret}"},
-                        timeout=0.8,
+                        timeout=5,
                     )
-                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
-                    pass
-                except Exception:
-                    threading.Thread(
-                        target=_run_text_background,
-                        args=(user_id, user_text, "revision", base_url, cron_secret),
-                        daemon=True,
-                    ).start()
-            else:
-                threading.Thread(
-                    target=_run_text_background,
-                    args=(user_id, user_text, "revision", base_url, cron_secret),
-                    daemon=True,
-                ).start()
+                    if r.status_code == 200:
+                        async_ok = True
+                        print(f"[REVISION] async POST ok status=200")
+                    else:
+                        print(f"[REVISION] async POST non-2xx status={r.status_code} body={r.text[:200]}")
+                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
+                    print(f"[REVISION] async POST timeout - fallback sync to guarantee response err={e}")
+                except Exception as e:
+                    print(f"[REVISION] async POST failed - fallback sync err={e}")
+                    traceback.print_exc()
+            if not async_ok:
+                print(f"[REVISION] running synchronously user_id={user_id}")
+                _revision_handler(user_id, user_text)
             return
 
         # 課務查詢／本週重點：統一以 Flex Message 回傳
