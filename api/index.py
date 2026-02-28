@@ -353,6 +353,7 @@ def text_with_quick_reply_review_ask(content):
 
 # --- 寫作修訂模式：獨立處理，不經過 Assistant API / RAG ---
 REVISION_MODE = "writing"
+REVISION_MODE_PROMPT = "你已在【✍️ 寫作修訂】模式～請貼上要修改的段落。"
 REDIS_KEY_USER_MODE = "user_mode"  # 與 Postback/切換按鈕寫入的 Key 完全一致：user_mode:{user_id}
 
 def _revision_handler(user_id, text):
@@ -772,7 +773,7 @@ def handle_postback(event):
             print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_set_failed err={e}")
         # 與 CLI/文字指令一致的切換訊息（寫作修訂需含操作指引）
         if mode == REVISION_MODE:
-            msg = "已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"
+            msg = REVISION_MODE_PROMPT
             if not redis:
                 msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
@@ -802,7 +803,7 @@ def handle_message(event):
             if user_text == "寫作修改":
                 line_bot_api.reply_message(
                     event.reply_token,
-                    text_with_quick_reply_writing("你已在【✍️ 寫作修訂】模式～請貼上要修改的段落。"),
+                    text_with_quick_reply_writing(REVISION_MODE_PROMPT),
                 )
                 return
             if user_text == "離開模式":
@@ -909,7 +910,7 @@ def handle_message(event):
                     print(f"[MODE] 寫作修改 user_id={user_id} redis_none mode_not_persisted")
             except Exception as e:
                 print(f"[MODE] 寫作修改 user_id={user_id} redis_set_failed err={e}")
-            msg = "已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"
+            msg = REVISION_MODE_PROMPT
             if not redis:
                 msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
