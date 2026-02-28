@@ -363,24 +363,35 @@ def text_with_quick_reply_writing(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_writing())
 
 def _safe_get_mode(user_id):
-    """安全取得使用者模式，Redis 失敗時回傳 tcm。"""
+    """安全取得使用者模式，Redis 失敗時回傳 tcm。每個 user_id 獨立，無 Global 混淆。"""
     try:
         if not redis:
+            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=redis_none")
             return "tcm"
-        mode_val = redis.get(f"user_mode:{user_id}")
+        key = f"user_mode:{user_id}"
+        mode_val = redis.get(key)
         if mode_val is None:
+            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=key_missing_or_null")
             return "tcm"
-        if hasattr(mode_val, "decode"):
-            return mode_val.decode("utf-8").strip() or "tcm"
-        return str(mode_val).strip() or "tcm"
-    except Exception:
+        # Upstash 回傳 str 或 bytes，統一正規化
+        if isinstance(mode_val, bytes):
+            mode_str = mode_val.decode("utf-8", errors="replace").strip()
+        else:
+            mode_str = str(mode_val).strip()
+        if not mode_str:
+            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=empty_value raw={repr(mode_val)}")
+            return "tcm"
+        return mode_str
+    except Exception as e:
+        print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception err={e}")
         return "tcm"
 
 # --- AI 核心函數（模式路由器）---
 def process_ai_request(event, user_id, text, is_voice=False):
-    """State-Based Router：依 user_state (mode) 切換 System Prompt。寫作模式強制走 revision_handler。"""
+    """State-Based Router：依 user_state (mode) 切換 System Prompt。寫作模式強制走 revision_handler，跳過 Assistant file_search。"""
     try:
         mode = _safe_get_mode(user_id)
+        print(f"[MODE] process_ai_request user_id={user_id} mode={mode} routing={'revision' if mode == REVISION_MODE else 'assistant'}")
         if mode == REVISION_MODE:
             _revision_handler(user_id, text)
             return
@@ -638,15 +649,26 @@ def handle_postback(event):
         if data == "action=course" or data == "action=weekly":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
-        # mode=tcm / mode=speaking / mode=writing
-        mode = data.split("=")[1] if "=" in data else "tcm"
+        # mode=tcm / mode=speaking / mode=writing（Rich Menu 切換）
+        mode = data.split("=")[1].strip() if "=" in data else "tcm"
+        mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
+        redis_ok = False
         try:
             if redis:
                 redis.set(f"user_mode:{user_id}", mode)
-        except Exception:
-            pass
-        mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
-        line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"已切換至【{mode_map.get(mode, mode)}】模式"))
+                redis_ok = True
+                # 寫入後立即讀回驗證（供除錯）
+                verify = redis.get(f"user_mode:{user_id}")
+                v = verify.decode("utf-8").strip() if isinstance(verify, bytes) else str(verify or "").strip()
+                verified = (v == mode)
+                print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_ok={redis_ok} verified={verified}")
+        except Exception as e:
+            print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_set_failed err={e}")
+        msg = f"已切換至【{mode_map.get(mode, mode)}】模式"
+        if mode == REVISION_MODE:
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
+        else:
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(msg))
     except Exception as e:
         traceback.print_exc()
         try:
@@ -661,7 +683,9 @@ def handle_message(event):
     try:
         # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
         current_mode = _safe_get_mode(user_id)
+        print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
         if current_mode == REVISION_MODE:
+            print(f"[MODE] handle_message -> REVISION_MODE branch, skipping TCM Assistant")
             if user_text == "寫作修改":
                 line_bot_api.reply_message(
                     event.reply_token,
@@ -760,9 +784,14 @@ def handle_message(event):
         if user_text == "寫作修改":
             try:
                 if redis:
-                    redis.set(f"user_mode:{user_id}", "writing")
-            except Exception:
-                pass
+                    redis.set(f"user_mode:{user_id}", REVISION_MODE)
+                    v = redis.get(f"user_mode:{user_id}")
+                    v_str = v.decode("utf-8").strip() if isinstance(v, bytes) else str(v or "").strip()
+                    print(f"[MODE] 寫作修改 user_id={user_id} set_mode=writing verified={v_str == REVISION_MODE}")
+                else:
+                    print(f"[MODE] 寫作修改 user_id={user_id} redis_none mode_not_persisted")
+            except Exception as e:
+                print(f"[MODE] 寫作修改 user_id={user_id} redis_set_failed err={e}")
             line_bot_api.reply_message(
                 event.reply_token,
                 text_with_quick_reply_writing("已切換至【✍️ 寫作修訂】模式，請貼上要修改的句子或段落～"),
