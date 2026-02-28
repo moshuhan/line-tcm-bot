@@ -407,7 +407,11 @@ def _safe_get_mode(user_id):
         if not mode_str:
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=empty_value raw={repr(mode_val)}")
             return "tcm"
-        return mode_str
+        # 正規化為小寫，避免 Redis 回傳 "Writing" 等導致比對失敗
+        result = mode_str.lower()
+        if result == REVISION_MODE:
+            print(f"[MODE] _safe_get_mode user_id={user_id} mode=writing (raw={mode_str!r})")
+        return result
     except Exception as e:
         print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception err={e}")
         return "tcm"
@@ -700,6 +704,8 @@ def handle_postback(event):
         # 與 CLI/文字指令一致的切換訊息（寫作修訂需含操作指引）
         if mode == REVISION_MODE:
             msg = "已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"
+            if not redis:
+                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
         elif mode == "speaking":
             msg = "已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"
@@ -824,16 +830,17 @@ def handle_message(event):
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
                     v = redis.get(_redis_user_mode_key(user_id))
-                    v_str = v.decode("utf-8").strip() if isinstance(v, bytes) else str(v or "").strip()
-                    print(f"[MODE] 寫作修改 user_id={user_id} set_mode=writing verified={v_str == REVISION_MODE}")
+                    v_str = (v.decode("utf-8").strip() if isinstance(v, bytes) else str(v or "").strip()).lower()
+                    verified = v_str == REVISION_MODE
+                    print(f"[MODE] 寫作修改 user_id={user_id} set_mode=writing verified={verified} raw={v_str!r}")
                 else:
                     print(f"[MODE] 寫作修改 user_id={user_id} redis_none mode_not_persisted")
             except Exception as e:
                 print(f"[MODE] 寫作修改 user_id={user_id} redis_set_failed err={e}")
-            line_bot_api.reply_message(
-                event.reply_token,
-                text_with_quick_reply_writing("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"),
-            )
+            msg = "已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"
+            if not redis:
+                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
             return
         if user_text == "練習下一句":
             mode = _safe_get_mode(user_id)
@@ -861,6 +868,7 @@ def handle_message(event):
             return
 
         mode = _safe_get_mode(user_id)
+        print(f"[MODE] handle_message -> process_ai_request (current_mode={mode!r}, not REVISION_MODE)")
         mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
 
         # 先回覆「正在分析」，再同步執行 AI（Vercel 背景執行緒可能被終止，改回同步以確保有回覆）
