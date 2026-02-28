@@ -815,7 +815,7 @@ def handle_message(event):
                     pass
                 line_bot_api.reply_message(
                     event.reply_token,
-                    text_with_quick_reply("已離開寫作修訂模式，已切換回中醫問答模式。"),
+                    text_with_quick_reply("結束寫作修訂，已切換回中醫問答模式。"),
                 )
                 return
             if user_text == "繼續練習":
