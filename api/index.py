@@ -159,6 +159,7 @@ if _cloudinary_configured:
 SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
 
 VOICE_COACH_TTS_VOICE = "shimmer"
+TTS_SPEED = 0.8  # shadowing 語音 0.8 倍速，較慢易於跟讀
 VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
@@ -223,7 +224,8 @@ def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
         )
         url = result.get("secure_url")
         if url:
-            duration_ms = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+            base_dur = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+            duration_ms = int(base_dur / TTS_SPEED)
             return (url, duration_ms)
     except Exception:
         traceback.print_exc()
@@ -246,9 +248,11 @@ def _generate_tts_and_store(sentence, voice=None):
             model="tts-1",
             voice=voice,
             input=sentence[:4096],
+            speed=TTS_SPEED,
         )
         audio_bytes = resp.content
-        duration_ms = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+        base_dur = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+        duration_ms = int(base_dur / TTS_SPEED)
 
         # 優先上傳 Cloudinary，取得 HTTPS Secure URL
         if _cloudinary_configured:
