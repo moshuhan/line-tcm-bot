@@ -356,10 +356,14 @@ REVISION_MODE = "writing"
 REVISION_MODE_PROMPT = "你已在【✍️ 寫作修訂】模式～請貼上要修改的段落。"
 REDIS_KEY_USER_MODE = "user_mode"  # 與 Postback/切換按鈕寫入的 Key 完全一致：user_mode:{user_id}
 
-# 寫作模式精簡 prompt，減少 token 以加速
+# 寫作模式 prompt：分段呈現，易讀
 _REVISION_PROMPT = (
-    "你是專業溫暖的語言老師。正確→稱讚+歡迎繼續；有誤→鼓勵+更正+簡短解釋+歡迎繼續。"
-    "用 **粗體** 標示修正，回覆簡潔（約 150 字內）。"
+    "你是專業溫暖的語言老師。回覆請用以下分段格式（每段標題獨立一行）：\n\n"
+    "【鼓勵】\n（正面肯定）\n\n"
+    "【需要修改的原因】\n（若有錯誤，簡要說明；若無誤則寫「沒有需要修改的地方」）\n\n"
+    "【修改後的版本】\n（修正後的完整句子，用 **粗體** 標示修改處；若無誤則寫「原文已很道地！」）\n\n"
+    "【回饋鼓勵】\n（鼓勵繼續發問、貼上其他句子練習）\n\n"
+    "正確時仍要給鼓勵與回饋，有誤時務必含原因與修正版。"
 )
 
 def _revision_handler(user_id, text):
@@ -387,9 +391,9 @@ def _revision_handler(user_id, text):
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": _REVISION_PROMPT},
-                {"role": "user", "content": f"分析：\n{text[:1000]}"},
+                {"role": "user", "content": f"分析以下句子或段落：\n{text[:1000]}"},
             ],
-            max_tokens=400,
+            max_tokens=600,
         )
         reply = (resp.choices[0].message.content or "").strip()
         if not reply:
@@ -405,10 +409,9 @@ def _revision_handler(user_id, text):
             print(f"[REVISION] push_message (error fallback) failed err={push_err}")
 
 def quick_reply_writing():
-    """寫作修訂模式：離開模式、繼續練習。"""
+    """寫作修訂模式：僅繼續練習按鈕（已取消離開模式）。"""
     return QuickReply(
         items=[
-            QuickReplyButton(action=MessageAction(label="離開模式", text="離開模式")),
             QuickReplyButton(action=MessageAction(label="繼續練習", text="繼續練習")),
         ]
     )
@@ -897,20 +900,6 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
     try:
-        # --- 離開模式：不論目前模式，一律切回中醫問答 ---
-        if user_text == "離開模式":
-            try:
-                _set_cached_mode(user_id, "tcm")
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), "tcm")
-            except Exception:
-                pass
-            line_bot_api.reply_message(
-                event.reply_token,
-                text_with_quick_reply("已切換回【🩺 中醫問答】模式，有什麼想問的嗎？"),
-            )
-            return
-
         # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
         current_mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
@@ -928,7 +917,10 @@ def handle_message(event):
                     text_with_quick_reply_writing("請貼上要修改的段落。"),
                 )
                 return
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在分析你的寫作..."))
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
+            )
             vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
             base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
             cron_secret = os.getenv("CRON_SECRET", "")
