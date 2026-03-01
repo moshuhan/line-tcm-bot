@@ -356,10 +356,15 @@ REVISION_MODE = "writing"
 REVISION_MODE_PROMPT = "你已在【✍️ 寫作修訂】模式～請貼上要修改的段落。"
 REDIS_KEY_USER_MODE = "user_mode"  # 與 Postback/切換按鈕寫入的 Key 完全一致：user_mode:{user_id}
 
+# 寫作模式精簡 prompt，減少 token 以加速
+_REVISION_PROMPT = (
+    "你是專業溫暖的語言老師。正確→稱讚+歡迎繼續；有誤→鼓勵+更正+簡短解釋+歡迎繼續。"
+    "用 **粗體** 標示修正，回覆簡潔（約 150 字內）。"
+)
+
 def _revision_handler(user_id, text):
     """
-    寫作修訂專屬處理：使用 Chat Completions API (gpt-4o-mini)，不調用中醫知識庫。
-    採串流累積後一次送出。結果一律以 push_message 送出（reply_token 已用於「正在分析」）。
+    寫作修訂：gpt-4o-mini + Chat Completion，非串流以加速。結果以 push_message 送出。
     """
     if not user_id or not str(user_id).strip():
         print(f"[REVISION] ERROR: user_id invalid or empty user_id={repr(user_id)}")
@@ -378,28 +383,15 @@ def _revision_handler(user_id, text):
             print("[REVISION] ERROR: OPENAI_API_KEY not set")
             line_bot_api.push_message(user_id, text_with_quick_reply_writing("系統設定錯誤，請稍後再試。"))
             return
-        system_prompt = get_writing_mode_instructions()
-        stream = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"請分析以下句子或段落：\n\n{text[:1500]}"},
+                {"role": "system", "content": _REVISION_PROMPT},
+                {"role": "user", "content": f"分析：\n{text[:1000]}"},
             ],
-            max_tokens=800,
-            stream=True,
+            max_tokens=400,
         )
-        reply_chunks = []
-        for chunk in stream:
-            try:
-                if chunk.choices and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta
-                    if delta and getattr(delta, "content", None):
-                        reply_chunks.append(str(delta.content))
-            except Exception as e:
-                print(f"[REVISION] stream chunk parse err={e}")
-                traceback.print_exc()
-        reply = ("".join(reply_chunks) or "").strip()
-        reply = str(reply) if reply else ""
+        reply = (resp.choices[0].message.content or "").strip()
         if not reply:
             reply = "已收到你的練習！歡迎繼續貼上其他句子～"
         print(f"[REVISION] done user_id={user_id} reply_len={len(reply)}")
