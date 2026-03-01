@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from linebot import LineBotApi
-from linebot.models.actions import PostbackAction
+from linebot.models.actions import MessageAction
 from linebot.models.rich_menu import RichMenu, RichMenuSize, RichMenuArea, RichMenuBounds
 import requests
 
@@ -9,7 +9,7 @@ import requests
 load_dotenv()
 
 # 2. 從環境變數抓取 Token (請確保你的 .env 裡面是用這個名稱)
-TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN') 
+TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 
 if not TOKEN:
     print("錯誤：找不到 LINE_CHANNEL_ACCESS_TOKEN，請檢查 .env 檔案")
@@ -18,8 +18,8 @@ if not TOKEN:
 TOKEN = TOKEN.strip()
 line_bot_api = LineBotApi(TOKEN)
 
-
-# 定義選單結構：五個選項（2500 / 5 = 500 寬 each），圖片需為 2500x843
+# 定義選單結構：四個選項（2500 / 4 = 625 寬 each），點擊後傳送該按鈕文字以確認觸發
+# 圖片需為 2500x843，請將底圖存於 assets/rich_menu_background.png
 rich_menu_to_create = RichMenu(
     size=RichMenuSize(width=2500, height=843),
     selected=True,
@@ -27,24 +27,20 @@ rich_menu_to_create = RichMenu(
     chat_bar_text="點我切換學習模式",
     areas=[
         RichMenuArea(
-            bounds=RichMenuBounds(x=0, y=0, width=500, height=843),
-            action=PostbackAction(label='中醫問答', data='mode=tcm'),
+            bounds=RichMenuBounds(x=0, y=0, width=625, height=843),
+            action=MessageAction(label="中醫問答", text="中醫問答"),
         ),
         RichMenuArea(
-            bounds=RichMenuBounds(x=500, y=0, width=500, height=843),
-            action=PostbackAction(label='口說練習', data='mode=speaking'),
+            bounds=RichMenuBounds(x=625, y=0, width=625, height=843),
+            action=MessageAction(label="口說練習", text="口說練習"),
         ),
         RichMenuArea(
-            bounds=RichMenuBounds(x=1000, y=0, width=500, height=843),
-            action=PostbackAction(label='寫作修訂', data='mode=writing'),
+            bounds=RichMenuBounds(x=1250, y=0, width=625, height=843),
+            action=MessageAction(label="寫作修訂", text="寫作修訂"),
         ),
         RichMenuArea(
-            bounds=RichMenuBounds(x=1500, y=0, width=500, height=843),
-            action=PostbackAction(label='課務查詢', data='action=course'),
-        ),
-        RichMenuArea(
-            bounds=RichMenuBounds(x=2000, y=0, width=500, height=843),
-            action=PostbackAction(label='本週重點', data='action=weekly'),
+            bounds=RichMenuBounds(x=1875, y=0, width=625, height=843),
+            action=MessageAction(label="課務查詢", text="課務查詢"),
         ),
     ]
 )
@@ -61,11 +57,15 @@ try:
         'Content-Type': 'image/jpeg' # 如果你的圖是 jpg，請改為 image/jpeg
     }
     
-    # 選單改為 5 格，請使用 2500x843 圖片並依序排：中醫問答｜口說練習｜寫作修訂｜課務查詢｜本週重點
-    image_path = "assets/rich_menu_background.jpg"
+    # 四格選單：中醫問答｜口說練習｜寫作修訂｜課務查詢，請使用 2500x843 底圖
+    image_path = "assets/rich_menu_background.png"
+    if not os.path.exists(image_path):
+        image_path = "assets/rich_menu_background.jpg"
+    content_type = "image/png" if image_path.endswith(".png") else "image/jpeg"
+    headers["Content-Type"] = content_type
     with open(image_path, 'rb') as f:
         img_data = f.read()
-        
+
     response = requests.post(url, headers=headers, data=img_data)
     
     if response.status_code == 200:

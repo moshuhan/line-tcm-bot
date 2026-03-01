@@ -927,7 +927,7 @@ def handle_message(event):
         print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
         if current_mode == REVISION_MODE:
             print(f"[MODE] handle_message -> REVISION_MODE branch, skipping TCM Assistant")
-            if user_text == "寫作修改":
+            if user_text in ("寫作修改", "寫作修訂"):
                 line_bot_api.reply_message(
                     event.reply_token,
                     text_with_quick_reply_writing(REVISION_MODE_PROMPT),
@@ -1054,6 +1054,19 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
+        if user_text == "中醫問答":
+            try:
+                _set_cached_mode(user_id, "tcm")
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), "tcm")
+            except Exception:
+                pass
+            line_bot_api.reply_message(
+                event.reply_token,
+                text_with_quick_reply("已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"),
+            )
+            return
+
         if user_text == "口說練習":
             try:
                 _set_cached_mode(user_id, "speaking")
@@ -1063,7 +1076,7 @@ def handle_message(event):
                 pass
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
             return
-        if user_text == "寫作修改":
+        if user_text in ("寫作修改", "寫作修訂"):
             try:
                 _set_cached_mode(user_id, REVISION_MODE)
                 if redis:
