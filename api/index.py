@@ -159,6 +159,7 @@ if _cloudinary_configured:
 SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
 
 VOICE_COACH_TTS_VOICE = "shimmer"
+VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 
@@ -685,8 +686,15 @@ def _run_voice_background(user_id, message_id, base_url, cron_secret):
 
 
 def _process_voice_sync(user_id, message_id):
-    """本機/缺少 VERCEL_URL 時同步執行語音處理（避免非同步觸發失敗時無回應）。"""
+    """
+    語音處理：Whisper 辨識 -> GPT 評估 -> TTS -> Cloudinary。
+    一律用 push_message 回傳，錯誤時主動 push 友善提示。
+    """
+    if not user_id or not str(user_id).strip():
+        print(f"[VOICE] ERROR: user_id invalid user_id={repr(user_id)}")
+        return
     try:
+        print(f"[VOICE] start user_id={user_id} message_id={message_id}")
         message_content = line_bot_api.get_message_content(message_id)
         tmp_dir = tempfile.gettempdir()
         temp_path = os.path.join(tmp_dir, f"{message_id}.m4a")
@@ -715,6 +723,7 @@ def _process_voice_sync(user_id, message_id):
 
         if mode == REVISION_MODE:
             _revision_handler(user_id, transcript_text)
+            print(f"[VOICE] done revision path")
             return
         if mode == "speaking":
             status, feedback, corrected_text = _evaluate_speech(transcript_text)
@@ -723,13 +732,18 @@ def _process_voice_sync(user_id, message_id):
                     user_id,
                     text_with_quick_reply_speak_practice("發音非常標準！太棒了！\n\n要再練習下一句嗎？"),
                 )
-            else:
-                text_for_tts = corrected_text.strip() if corrected_text else transcript_text
-                # 先推文字，降低體感等待；TTS + Cloudinary 在後
-                line_bot_api.push_message(
-                    user_id,
-                    text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}\n\n🔊 請跟著唸：「{text_for_tts}」"),
-                )
+                print(f"[VOICE] done speaking Correct")
+                return
+            line_bot_api.push_message(
+                user_id,
+                text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"),
+            )
+            text_for_tts = corrected_text.strip() if corrected_text else transcript_text
+            line_bot_api.push_message(
+                user_id,
+                TextSendMessage(text=f"🔊 請跟著唸：「{text_for_tts}」"),
+            )
+            try:
                 audio_url, duration_ms = _generate_tts_and_store(text_for_tts, voice=VOICE_COACH_TTS_VOICE)
                 if audio_url and duration_ms:
                     line_bot_api.push_message(
@@ -741,23 +755,28 @@ def _process_voice_sync(user_id, message_id):
                         text_with_quick_reply_speak_practice("示範語音已送上，要再練習下一句嗎？"),
                     )
                 else:
-                    line_bot_api.push_message(
-                        user_id,
-                        text_with_quick_reply_speak_practice(
-                            f"修正文本：{text_for_tts}\n\n要再練習下一句嗎？"
-                        ),
-                    )
+                    line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(VOICE_ERROR_MSG))
+            except Exception as tts_err:
+                print(f"[VOICE] TTS/Cloudinary err={tts_err}")
+                traceback.print_exc()
+                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(VOICE_ERROR_MSG))
+            print(f"[VOICE] done speaking NeedsImprovement")
+            return
+        if is_course_inquiry_intent(transcript_text):
+            line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
+            send_course_inquiry_flex(user_id)
+        elif is_off_topic(transcript_text):
+            line_bot_api.push_message(user_id, text_with_quick_reply(OFF_TOPIC_REPLY))
         else:
-            if is_course_inquiry_intent(transcript_text):
-                line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
-                send_course_inquiry_flex(user_id)
-            elif is_off_topic(transcript_text):
-                line_bot_api.push_message(user_id, text_with_quick_reply(OFF_TOPIC_REPLY))
-            else:
-                process_ai_request(None, user_id, transcript_text, is_voice=True)
-    except Exception:
+            process_ai_request(None, user_id, transcript_text, is_voice=True)
+        print(f"[VOICE] done other mode")
+    except Exception as e:
+        print(f"[VOICE] CRITICAL err={e}")
         traceback.print_exc()
-        line_bot_api.push_message(user_id, text_with_quick_reply("❌ 語音辨識失敗，請再試一次。"))
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply("❌ 語音辨識失敗，請再試一次。"))
+        except Exception:
+            pass
 
 
 @app.route("/api/process-voice-async", methods=["POST"])
@@ -1127,42 +1146,42 @@ def handle_message(event):
 
 @line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
-    """口說教練：Webhook 須在 2 秒內回傳 200；語音轉錄／GPT／TTS／Cloudinary 全在 Background 執行。"""
+    """口說教練：立即回覆釋放 token，背景/同步處理語音。"""
     user_id = event.source.user_id
     message_id = event.message.id
 
-    # 1. 立即回覆使用者（唯一必要的阻塞呼叫，通常 <1.5s）
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🎙️ 正在轉換語音..."))
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text="正在轉換語音，請稍候... 🎙️"),
+    )
 
-    # 2. 觸發 Background Task（語音轉錄、GPT、TTS、Cloudinary 在 /api/process-voice-async 獨立執行）
     vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
     base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
     cron_secret = os.getenv("CRON_SECRET", "")
+    async_ok = False
 
     if base_url and cron_secret:
-        # Vercel：同步 fire POST，timeout=0.8s，請求送出即觸發新 invocation，不阻塞
         try:
-            requests.post(
+            r = requests.post(
                 f"{base_url}/api/process-voice-async",
                 json={"user_id": user_id, "message_id": message_id},
                 headers={"Authorization": f"Bearer {cron_secret}"},
-                timeout=0.8,
+                timeout=5,
             )
-        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
-            pass  # 預期：async 已觸發，本函數不等待其完成
-        except Exception:
-            threading.Thread(
-                target=_run_voice_background,
-                args=(user_id, message_id, base_url, cron_secret),
-                daemon=True,
-            ).start()  # 連線失敗時由 thread 執行 fallback
-    else:
-        # 本機：thread 中執行，避免阻塞
-        threading.Thread(
-            target=_run_voice_background,
-            args=(user_id, message_id, base_url, cron_secret),
-            daemon=True,
-        ).start()
+            if r.status_code == 200:
+                async_ok = True
+                print("[VOICE] async POST ok status=200")
+            else:
+                print(f"[VOICE] async POST non-2xx status={r.status_code}")
+        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
+            print(f"[VOICE] async POST timeout - fallback sync err={e}")
+        except Exception as e:
+            print(f"[VOICE] async POST failed - fallback sync err={e}")
+            traceback.print_exc()
+
+    if not async_ok:
+        print(f"[VOICE] running synchronously user_id={user_id}")
+        _process_voice_sync(user_id, message_id)
 
 
 if __name__ == "__main__":
