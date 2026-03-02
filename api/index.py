@@ -1193,7 +1193,7 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理（非阻塞）
+        # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理
         if get_user_state(redis, user_id) == STATE_QUIZ_WAITING:
             set_user_state(redis, user_id, STATE_NORMAL)
             clear_quiz_data(redis, user_id)
@@ -1204,11 +1204,29 @@ def handle_message(event):
             vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
             base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
             cron_secret = os.getenv("CRON_SECRET", "")
-            threading.Thread(
-                target=_run_text_background,
-                args=(user_id, user_text, "assistant", base_url, cron_secret, event.reply_token),
-                daemon=True,
-            ).start()
+            payload = {"user_id": user_id, "text": user_text, "task": "assistant", "reply_token": event.reply_token}
+            if base_url and cron_secret:
+                try:
+                    requests.post(
+                        f"{base_url}/api/process-text-async",
+                        json=payload,
+                        headers={"Authorization": f"Bearer {cron_secret}"},
+                        timeout=5,
+                    )
+                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
+                    pass
+                except Exception:
+                    threading.Thread(
+                        target=_run_text_background,
+                        args=(user_id, user_text, "assistant", base_url, cron_secret, event.reply_token),
+                        daemon=True,
+                    ).start()
+            else:
+                threading.Thread(
+                    target=_run_text_background,
+                    args=(user_id, user_text, "assistant", base_url, cron_secret, event.reply_token),
+                    daemon=True,
+                ).start()
             return
 
         # 主動複習：使用者選擇「要複習筆記」
@@ -1296,15 +1314,34 @@ def handle_message(event):
 
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
 
-        # 非阻塞：一律以背景執行 AI，避免 webhook 阻塞（傳 reply_token 供中醫問答兩階段快速摘要使用）
+        # 觸發 process-text-async：直接 POST（fire-and-forget）確保 Vercel 上一定被呼叫
+        # threading 在 serverless 回傳後可能被凍結，導致 AI 永不執行
         vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
         base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
         cron_secret = os.getenv("CRON_SECRET", "")
-        threading.Thread(
-            target=_run_text_background,
-            args=(user_id, user_text, "assistant", base_url, cron_secret, event.reply_token),
-            daemon=True,
-        ).start()
+        payload = {"user_id": user_id, "text": user_text, "task": "assistant", "reply_token": event.reply_token}
+        if base_url and cron_secret:
+            try:
+                requests.post(
+                    f"{base_url}/api/process-text-async",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {cron_secret}"},
+                    timeout=5,
+                )
+            except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
+                pass  # Timeout 預期：process-text-async 需 20+ 秒，請求已送達即觸發新 invocation
+            except Exception:
+                threading.Thread(
+                    target=_run_text_background,
+                    args=(user_id, user_text, "assistant", base_url, cron_secret, event.reply_token),
+                    daemon=True,
+                ).start()
+        else:
+            threading.Thread(
+                target=_run_text_background,
+                args=(user_id, user_text, "assistant", base_url, cron_secret, event.reply_token),
+                daemon=True,
+            ).start()
     except Exception as e:
         traceback.print_exc()
         err_msg = str(e).strip()[:100]
