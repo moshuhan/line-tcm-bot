@@ -450,10 +450,42 @@ def _load_tcm_json():
     _TCM_JSON_CACHE = out
     return _TCM_JSON_CACHE
 
-def _tcm_keyword_match_and_gemini(user_id, text):
+def _build_full_tcm_context():
+    """將 tcm_master_knowledge.json 全部知識點序列化為文字 context。"""
+    parts = []
+    for data in _load_tcm_json():
+        for kp in data.get("knowledge_points") or []:
+            block = []
+            if kp.get("category"):
+                block.append(f"【{kp['category']}】")
+            if kp.get("core_logic"):
+                block.append(kp["core_logic"])
+            if kp.get("mechanism"):
+                block.append(kp["mechanism"])
+            for cr in (kp.get("causal_relationships") or []):
+                if isinstance(cr, dict):
+                    block.append(f"{cr.get('emotion','')}→{cr.get('impact','')}：{cr.get('symptoms','')}")
+            for pf in (kp.get("pathological_features") or []):
+                if isinstance(pf, dict):
+                    block.append(f"{pf.get('evil','')}：{pf.get('features','')}")
+            for row in (kp.get("five_elements_table") or []):
+                if isinstance(row, dict):
+                    block.append(json.dumps(row, ensure_ascii=False))
+            for qa in (kp.get("student_qa") or []):
+                if isinstance(qa, str):
+                    block.append(qa)
+            if kp.get("interactions"):
+                for k, v in (kp["interactions"] or {}).items():
+                    block.append(f"{k}: {v}")
+            if block:
+                parts.append("\n".join(block))
+    return "\n\n".join(parts) if parts else ""
+
+def _tcm_gemini_reply(user_id, text):
     """
-    關鍵字匹配 tcm_master_knowledge.json，若匹配則將內容餵給 Gemini 回覆。
-    回傳 True 若已回覆，False 則 fallback 至 Assistant API。
+    以 tcm_master_knowledge.json 為 context，用 Gemini 生成回覆。
+    先關鍵字匹配，有匹配用精簡 context；無匹配用完整 JSON。不經過 Assistant API。
+    回傳 True 若已回覆，False 若失敗（如無 GEMINI_API_KEY）。
     """
     if not (text or "").strip():
         return False
@@ -502,9 +534,9 @@ def _tcm_keyword_match_and_gemini(user_id, text):
                 for qa in (kp.get("student_qa") or []):
                     if isinstance(qa, str):
                         ctx_parts.append(qa)
-    if not ctx_parts:
+    ctx = "\n".join(ctx_parts)[:2000] if ctx_parts else _build_full_tcm_context()[:4000]
+    if not ctx or not ctx.strip():
         return False
-    ctx = "\n".join(ctx_parts)[:2000]
     try:
         from google import genai
         from google.genai import types
@@ -1120,9 +1152,15 @@ def handle_message(event):
             clear_quiz_data(redis, user_id)
             clear_quiz_pending(redis, user_id)
             mode = _safe_get_mode(user_id)
-            immediate_msg = "正在查找資料..." if mode == "tcm" else "正在分析中..."
+            immediate_msg = "正在查找資料，請稍候... ✨" if mode == "tcm" else "正在分析中..."
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
-            if mode == "tcm" and _tcm_keyword_match_and_gemini(user_id, user_text):
+            if mode == "tcm":
+                if _tcm_gemini_reply(user_id, user_text):
+                    return
+                try:
+                    line_bot_api.push_message(user_id, text_with_quick_reply("暫無法回答，請確認已設定 GEMINI_API_KEY 或稍後再試。"))
+                except Exception:
+                    pass
                 return
             vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
             base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
@@ -1209,19 +1247,25 @@ def handle_message(event):
         mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message -> async AI (current_mode={mode!r}, not REVISION_MODE)")
 
-        # 中醫問答：先試 tcm_master_knowledge.json + Gemini（快速），無匹配再走 Assistant API
+        # 中醫問答：全程用 tcm_master_knowledge.json + Gemini，不經過 Assistant API
         if mode == "tcm":
-            immediate_msg = "正在查找資料..."
+            immediate_msg = "正在查找資料，請稍候... ✨"
         else:
             mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
             immediate_msg = f"正在以【{mode_name}】模式分析中..."
 
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
 
-        if mode == "tcm" and _tcm_keyword_match_and_gemini(user_id, user_text):
+        if mode == "tcm":
+            if _tcm_gemini_reply(user_id, user_text):
+                return
+            try:
+                line_bot_api.push_message(user_id, text_with_quick_reply("暫無法回答，請確認已設定 GEMINI_API_KEY 或稍後再試。"))
+            except Exception:
+                pass
             return
 
-        # 非阻塞：背景執行 AI，避免 webhook 阻塞
+        # 非阻塞：背景執行 AI（speaking 等模式），避免 webhook 阻塞
         vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
         base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
         cron_secret = os.getenv("CRON_SECRET", "")
