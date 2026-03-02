@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import io
+import glob
 import os
 import re
 import threading
@@ -426,6 +427,106 @@ def text_with_quick_reply_writing(content):
 def _redis_user_mode_key(user_id):
     """統一的 Redis Key，與 Postback/切換按鈕寫入處完全一致。"""
     return f"{REDIS_KEY_USER_MODE}:{user_id}"
+
+# --- 中醫問答：tcm_master_knowledge.json 關鍵字匹配 + Gemini（方案一加速）---
+_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+_TCM_JSON_CACHE = None
+
+def _load_tcm_json():
+    """載入 data/tcm_master_knowledge.json，快取。"""
+    global _TCM_JSON_CACHE
+    if _TCM_JSON_CACHE is not None:
+        return _TCM_JSON_CACHE
+    paths = glob.glob(os.path.join(_DATA_DIR, "tcm_*.json"))
+    out = []
+    for p in paths:
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                if d and isinstance(d, dict):
+                    out.append(d)
+        except Exception:
+            pass
+    _TCM_JSON_CACHE = out
+    return _TCM_JSON_CACHE
+
+def _tcm_keyword_match_and_gemini(user_id, text):
+    """
+    關鍵字匹配 tcm_master_knowledge.json，若匹配則將內容餵給 Gemini 回覆。
+    回傳 True 若已回覆，False 則 fallback 至 Assistant API。
+    """
+    if not (text or "").strip():
+        return False
+    txt = text.strip()
+    all_data = _load_tcm_json()
+    ctx_parts = []
+    for data in all_data:
+        for kp in data.get("knowledge_points") or []:
+            cat = (kp.get("category") or "").split("(")[0].strip()
+            terms = [cat] if len(cat) >= 2 else []
+            for cr in (kp.get("causal_relationships") or []):
+                if isinstance(cr, dict):
+                    for k in ("emotion", "target_organ"):
+                        v = cr.get(k, "")
+                        if isinstance(v, str) and len(v) >= 1:
+                            terms.extend(v.replace("/", " ").split())
+            for pf in (kp.get("pathological_features") or []):
+                if isinstance(pf, dict):
+                    v = pf.get("evil", "")
+                    if isinstance(v, str):
+                        terms.append(v.split("(")[0].strip())
+            for row in (kp.get("five_elements_table") or []):
+                if isinstance(row, dict):
+                    for k in ("organ", "element"):
+                        v = row.get(k, "")
+                        if isinstance(v, str) and len(v) >= 2:
+                            terms.append(v)
+            for qa in (kp.get("student_qa") or []):
+                if isinstance(qa, str) and "：" in qa:
+                    q = qa.split("：", 1)[0].strip().replace("？", "").replace("?", "")
+                    if 2 <= len(q) <= 25:
+                        terms.append(q)
+            if any(t in txt for t in terms if t and len(t) >= 2):
+                if kp.get("core_logic"):
+                    ctx_parts.append(kp["core_logic"])
+                if kp.get("mechanism"):
+                    ctx_parts.append(kp["mechanism"])
+                cr = kp.get("causal_relationships")
+                if cr:
+                    lines = [f"{r.get('emotion','')}→{r.get('impact','')}：{r.get('symptoms','')}" for r in cr if isinstance(r, dict)]
+                    ctx_parts.append("；".join(lines))
+                pf = kp.get("pathological_features")
+                if pf:
+                    lines = [f"{r.get('evil','')}：{r.get('features','')}" for r in pf if isinstance(r, dict)]
+                    ctx_parts.append("；".join(lines))
+                for qa in (kp.get("student_qa") or []):
+                    if isinstance(qa, str):
+                        ctx_parts.append(qa)
+    if not ctx_parts:
+        return False
+    ctx = "\n".join(ctx_parts)[:2000]
+    try:
+        from google import genai
+        from google.genai import types
+        key = (os.getenv("GEMINI_API_KEY") or "").strip()
+        if not key:
+            return False
+        gc = genai.Client(api_key=key)
+        resp = gc.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料在150字內精準回答，跳過開場白。",
+            config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=256),
+        )
+        if resp and getattr(resp, "text", None):
+            ai_reply = resp.text.strip()[:500] + SAFETY_DISCLAIMER
+            log_question(redis, user_id, text)
+            set_last_question(redis, user_id, text)
+            set_last_assistant_message(redis, user_id, ai_reply)
+            line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
+            return True
+    except Exception:
+        pass
+    return False
 
 def _get_cached_mode(user_id):
     """Redis 失敗時從本地快取讀取最近一次成功的模式。"""
@@ -1013,14 +1114,16 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理（非阻塞）
+        # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理
         if get_user_state(redis, user_id) == STATE_QUIZ_WAITING:
             set_user_state(redis, user_id, STATE_NORMAL)
             clear_quiz_data(redis, user_id)
             clear_quiz_pending(redis, user_id)
             mode = _safe_get_mode(user_id)
-            immediate_msg = "正在為您查詢中醫典籍，請稍候..." if mode == "tcm" else "正在分析中..."
+            immediate_msg = "正在查找資料..." if mode == "tcm" else "正在分析中..."
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
+            if mode == "tcm" and _tcm_keyword_match_and_gemini(user_id, user_text):
+                return
             vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
             base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
             cron_secret = os.getenv("CRON_SECRET", "")
@@ -1106,16 +1209,19 @@ def handle_message(event):
         mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message -> async AI (current_mode={mode!r}, not REVISION_MODE)")
 
-        # 中醫問答：專屬提示；其餘模式維持原樣（934dd37 風格：純 Assistant API，無 JSON RAG）
+        # 中醫問答：先試 tcm_master_knowledge.json + Gemini（快速），無匹配再走 Assistant API
         if mode == "tcm":
-            immediate_msg = "正在為您查詢中醫典籍，請稍候..."
+            immediate_msg = "正在查找資料..."
         else:
             mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
             immediate_msg = f"正在以【{mode_name}】模式分析中..."
 
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
 
-        # 非阻塞：一律以背景執行 AI，避免 webhook 阻塞
+        if mode == "tcm" and _tcm_keyword_match_and_gemini(user_id, user_text):
+            return
+
+        # 非阻塞：背景執行 AI，避免 webhook 阻塞
         vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
         base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
         cron_secret = os.getenv("CRON_SECRET", "")
