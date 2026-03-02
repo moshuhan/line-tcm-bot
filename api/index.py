@@ -541,7 +541,7 @@ def handle_tcm_qa(event, user_id, user_text):
     中醫問答獨立處理：JSON RAG 關鍵字匹配 + Gemini，無匹配則 fallback Assistant。
     僅於 mode == tcm 時呼叫。
     """
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查詢中醫典籍，請稍候..."))
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查找資料..."))
     if _tcm_keyword_match_and_gemini(user_id, user_text):
         return
     process_ai_request(event, user_id, user_text, is_voice=False)
@@ -898,6 +898,19 @@ def handle_message(event):
 
         if user_text == "本週重點":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
+            return
+
+        # Rich Menu【中醫問答】：切換至 TCM 模式，等待使用者下一句提問
+        if user_text == "中醫問答":
+            try:
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), "tcm")
+            except Exception:
+                pass
+            line_bot_api.reply_message(
+                event.reply_token,
+                text_with_quick_reply("已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"),
+            )
             return
 
         if user_text == "口說練習":
