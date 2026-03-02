@@ -1013,37 +1013,22 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理
+        # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理（非阻塞）
         if get_user_state(redis, user_id) == STATE_QUIZ_WAITING:
             set_user_state(redis, user_id, STATE_NORMAL)
             clear_quiz_data(redis, user_id)
             clear_quiz_pending(redis, user_id)
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在分析中..."))
+            mode = _safe_get_mode(user_id)
+            immediate_msg = "正在為您查詢中醫典籍，請稍候..." if mode == "tcm" else "正在分析中..."
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
             vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
             base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
             cron_secret = os.getenv("CRON_SECRET", "")
-            if base_url and cron_secret:
-                try:
-                    requests.post(
-                        f"{base_url}/api/process-text-async",
-                        json={"user_id": user_id, "text": user_text, "task": "assistant"},
-                        headers={"Authorization": f"Bearer {cron_secret}"},
-                        timeout=0.8,
-                    )
-                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
-                    pass
-                except Exception:
-                    threading.Thread(
-                        target=_run_text_background,
-                        args=(user_id, user_text, "assistant", base_url, cron_secret),
-                        daemon=True,
-                    ).start()
-            else:
-                threading.Thread(
-                    target=_run_text_background,
-                    args=(user_id, user_text, "assistant", base_url, cron_secret),
-                    daemon=True,
-                ).start()
+            threading.Thread(
+                target=_run_text_background,
+                args=(user_id, user_text, "assistant", base_url, cron_secret),
+                daemon=True,
+            ).start()
             return
 
         # 主動複習：使用者選擇「要複習筆記」
@@ -1119,35 +1104,26 @@ def handle_message(event):
             return
 
         mode = _safe_get_mode(user_id)
-        print(f"[MODE] handle_message -> process_ai_request (current_mode={mode!r}, not REVISION_MODE)")
-        mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
+        print(f"[MODE] handle_message -> async AI (current_mode={mode!r}, not REVISION_MODE)")
 
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
+        # 中醫問答：專屬提示；其餘模式維持原樣
+        if mode == "tcm":
+            immediate_msg = "正在為您查詢中醫典籍，請稍候..."
+        else:
+            mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
+            immediate_msg = f"正在以【{mode_name}】模式分析中..."
+
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
+
+        # 非阻塞：一律以背景執行 AI，避免 webhook 阻塞
         vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
         base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
         cron_secret = os.getenv("CRON_SECRET", "")
-        if base_url and cron_secret:
-            try:
-                requests.post(
-                    f"{base_url}/api/process-text-async",
-                    json={"user_id": user_id, "text": user_text, "task": "assistant"},
-                    headers={"Authorization": f"Bearer {cron_secret}"},
-                    timeout=0.8,
-                )
-            except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
-                pass
-            except Exception:
-                threading.Thread(
-                    target=_run_text_background,
-                    args=(user_id, user_text, "assistant", base_url, cron_secret),
-                    daemon=True,
-                ).start()
-        else:
-            threading.Thread(
-                target=_run_text_background,
-                args=(user_id, user_text, "assistant", base_url, cron_secret),
-                daemon=True,
-            ).start()
+        threading.Thread(
+            target=_run_text_background,
+            args=(user_id, user_text, "assistant", base_url, cron_secret),
+            daemon=True,
+        ).start()
     except Exception as e:
         traceback.print_exc()
         err_msg = str(e).strip()[:100]
