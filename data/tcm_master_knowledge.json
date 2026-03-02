@@ -1,0 +1,94 @@
+{
+  "knowledge_module": "TCM_Foundations_Philosophy_and_Etiology",
+  "data_density": "High",
+  "knowledge_points": [
+    {
+      "category": "整體觀 (The Holistic Concept)",
+      "core_logic": "人體內部各臟腑、組織、器官是一個有機整體，彼此聯繫。同時，人體與外在環境（季節、氣候、地理）也是統一的。治療時不只看局部，而須考慮全身平衡。",
+      "student_qa": [
+        "中醫和西醫最大的不同是什麼？：中醫強調『整體觀』，不只治療疾病本身，更重視調整整個人體的平衡與人與自然的和諧。",
+        "為什麼季節變換會影響身體？：因為中醫認為人與自然相應，環境的邪氣（如春季的風）會直接影響體內臟腑的運作。"
+      ]
+    },
+    {
+      "category": "陰陽學說 (Yin-Yang Theory)",
+      "core_logic": "宇宙間一切事物都存在著對立統一的兩面。陽代表向上、明亮、溫暖、活動；陰代表向下、黑暗、寒冷、靜止。兩者互根互用，消長平衡。",
+      "yin_yang_mapping": {
+        "Yang": ["男", "天", "日", "背部", "腑 (臟腑中的腑)", "氣", "功能性"],
+        "Yin": ["女", "地", "月", "腹部", "臟 (臟腑中的臟)", "血/津液", "物質性"]
+      },
+      "student_qa": [
+        "什麼是陰虛？：指體內滋潤、降火的物質（陰）不足，導致陽氣相對偏亢，出現虛熱、口乾、盜汗等症狀。",
+        "陰陽平衡是什麼意思？：生理狀態下，陰與陽維持動態平衡；若平衡破壞，即產生疾病（陰勝則寒，陽勝則熱）。"
+      ]
+    },
+    {
+      "category": "五行學說 (Five Phases/Elements)",
+      "mechanism": "以木、火、土、金、水五種物質的特性來類比人體臟腑與自然界，並透過『相生』與『相剋』解釋生理聯繫與病理傳變。",
+      "five_elements_table": [
+        { "element": "木 (Wood)", "organ": "肝", "season": "春", "color": "綠/青", "emotion": "怒", "sensory": "目", "body": "筋" },
+        { "element": "火 (Fire)", "organ": "心", "season": "夏", "color": "紅/赤", "emotion": "喜", "sensory": "舌", "body": "脈" },
+        { "element": "土 (Earth)", "organ": "脾", "season": "長夏", "color": "黃", "emotion": "思", "sensory": "口", "body": "肉" },
+        { "element": "金 (Metal)", "organ": "肺", "season": "秋", "color": "白", "emotion": "悲/憂", "sensory": "鼻", "body": "皮毛" },
+        { "element": "水 (Water)", "organ": "腎", "season": "冬", "color": "黑", "emotion": "恐", "sensory": "耳", "body": "骨" }
+      ],
+      "interactions": {
+        "Generating (相生)": "木生火 -> 火生土 -> 土生金 -> 金生水 -> 水生木 (循環支持)",
+        "Overcoming (相剋)": "木剋土 -> 土剋水 -> 水剋火 -> 火剋金 -> 金剋木 (循環制約)"
+      }
+    },
+    {
+      "category": "氣的本質與運動 (Qi Theory)",
+      "core_logic": "氣是生命能量，具備升、降、出、入四種運動模式。氣在體內負責推動、溫煦、防禦與固攝。",
+      "physiological_structure": {
+        "Physical": "肉體（緻密核心）",
+        "Emotional": "情感體（流體介面）",
+        "Subtle": "微妙體（心靈精神散發）"
+      },
+      "student_qa": [
+        "氣是什麼？：氣是維持生命的能量實體，具有物質與能量轉化的特徵（如煮飯產生的蒸氣）。",
+        "氣在體內怎麼動？：透過升降出入，維持臟腑功能的動態平衡。"
+      ]
+    },
+    {
+      "category": "內傷病因：七情 (Seven Affects)",
+      "mechanism": "情緒過度會直接干擾氣機與臟腑，導致特定病理狀態。",
+      "causal_relationships": [
+        { "emotion": "怒 (Anger)", "impact": "氣上", "symptoms": "面紅耳赤、暈厥", "target_organ": "肝" },
+        { "emotion": "喜 (Joy)", "impact": "氣緩", "symptoms": "注意力不集中、神散", "target_organ": "心" },
+        { "emotion": "思 (Thought)", "impact": "氣結", "symptoms": "腹脹、食積、消化不良", "target_organ": "脾" },
+        { "emotion": "悲/憂 (Sorrow)", "impact": "氣消", "symptoms": "氣短、疲勞、聲音微弱", "target_organ": "肺" },
+        { "emotion": "恐 (Fear)", "impact": "氣下", "symptoms": "二便失禁、遺精", "target_organ": "腎" },
+        { "emotion": "驚 (Fright)", "impact": "氣亂", "symptoms": "心悸、心神不安", "target_organ": "心/腎" }
+      ]
+    },
+    {
+      "category": "外感病因：六邪 (Six Evils)",
+      "mechanism": "自然界氣候變化異常或人體抵抗力下降時，六氣轉為六邪致病。",
+      "pathological_features": [
+        { "evil": "風 (Wind)", "features": "百病之長、遊走性、變化快", "symptoms": "遊走性關節痛、皮膚癢" },
+        { "evil": "寒 (Cold)", "features": "陰邪、易傷陽氣、收引凝滯", "symptoms": "劇烈疼痛、畏寒" },
+        { "evil": "暑 (Summerheat)", "features": "陽邪、耗氣傷津、多夾濕", "symptoms": "高熱、口渴、脈洪大" },
+        { "evil": "濕 (Dampness)", "features": "陰邪、重濁、黏滯、下向性", "symptoms": "頭重如裹、肢體沉重" },
+        { "evil": "燥 (Dryness)", "features": "傷津液、易傷肺", "symptoms": "口鼻乾燥、乾咳、皮燥" },
+        { "evil": "火 (Fire)", "features": "陽邪、易炎上、擾心神、傷陰", "symptoms": "紅腫熱痛、失眠、狂躁" }
+      ]
+    },
+    {
+      "category": "不內外因 (Neutral Causes)",
+      "core_logic": "非情緒也非氣候，而是個人行為導致。包含飲食不節（過食生冷、辛辣、肥甘）、勞倦（過勞）、房事不節、跌打損傷。",
+      "student_qa": [
+        "為什麼過食生冷會生病？：會損傷脾胃陽氣，導致寒濕內生。",
+        "什麼是勞倦？：指身體過度勞動或長期處於壓力下，耗損正氣。"
+      ]
+    },
+    {
+      "category": "八段錦 (Ba-Duan-Jin Qigong)",
+      "core_logic": "一種結合呼吸與肢體動作的氣功，旨在透過拉伸經絡、調理臟腑來達到平衡氣血的效果。",
+      "student_qa": [
+        "練八段錦有什麼好處？：能促進氣的循環（氣機），強化五臟功能，提高身體的自我修復能力。",
+        "為什麼練完會覺得身體發熱？：因為運動激發了體內的『氣』與『血』，推動了能量的運轉。"
+      ]
+    }
+  ]
+}

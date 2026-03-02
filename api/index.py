@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import io
+import glob
 import os
 import re
 import threading
@@ -9,6 +10,7 @@ import json
 import secrets
 import tempfile
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, request, abort, Response
 import requests
 from linebot import LineBotApi, WebhookHandler
@@ -128,6 +130,160 @@ except ImportError:
 GEMINI_FLASH = "gemini-1.5-flash"
 GEMINI_PRO = "gemini-1.5-pro"
 
+# TCM 本地知識庫：Local First，遍歷 data/tcm_*.json
+_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+_TCM_JSON_GLOB = os.path.join(_DATA_DIR, "tcm_*.json")
+_TCM_LOCAL_CACHE = None
+_TCM_CACHE_LOCK = threading.Lock()
+_EMOTION_KEYWORDS = ("怒", "喜", "思", "悲", "憂", "恐", "驚", "生氣", "憤怒", "快樂", "悲傷", "擔心", "憂鬱", "害怕", "恐懼", "驚嚇", "驚恐", "情緒")
+_CLIMATE_KEYWORDS = ("風", "寒", "暑", "濕", "燥", "火", "濕氣", "燥熱", "風邪", "寒邪", "暑邪", "濕邪", "燥邪", "火邪", "六邪")
+
+
+def _load_all_tcm_json():
+    """
+    非同步平行載入 data/tcm_*.json（使用 ThreadPoolExecutor 避免阻塞）。
+    快取於模組層級，首次呼叫後 <1s 完成。
+    """
+    global _TCM_LOCAL_CACHE
+    with _TCM_CACHE_LOCK:
+        if _TCM_LOCAL_CACHE is not None:
+            return _TCM_LOCAL_CACHE
+
+    def _read_one(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return path, json.load(f)
+        except Exception:
+            return path, {}
+
+    paths = glob.glob(_TCM_JSON_GLOB)
+    result = []
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(paths)))) as ex:
+        futures = [ex.submit(_read_one, p) for p in paths]
+        for fut in as_completed(futures):
+            try:
+                p, data = fut.result()
+                if data and isinstance(data, dict):
+                    result.append(data)
+            except Exception:
+                pass
+
+    with _TCM_CACHE_LOCK:
+        _TCM_LOCAL_CACHE = result
+    return _TCM_LOCAL_CACHE
+
+
+def _extract_kp_keywords(kp):
+    """從 knowledge_point 萃取可匹配的關鍵字。"""
+    terms = set()
+    cat = (kp.get("category") or "").strip()
+    if cat:
+        terms.add(cat.split("(")[0].strip())
+        for part in re.split(r"[(\s,，、；;]+", cat):
+            if len(part) >= 2:
+                terms.add(part)
+    for key in ("keywords",):
+        arr = kp.get(key)
+        if isinstance(arr, list):
+            for x in arr:
+                if isinstance(x, str) and len(x) >= 2:
+                    terms.add(x.strip())
+    for cr in (kp.get("causal_relationships") or []):
+        if isinstance(cr, dict):
+            for k in ("emotion", "target_organ"):
+                v = cr.get(k)
+                if isinstance(v, str):
+                    terms.update(re.split(r"[/\s,]+", v))
+    for pf in (kp.get("pathological_features") or []):
+        if isinstance(pf, dict):
+            v = pf.get("evil")
+            if isinstance(v, str):
+                terms.update(re.split(r"[\s(]+", v))
+    for row in (kp.get("five_elements_table") or []):
+        if isinstance(row, dict):
+            for k in ("element", "organ", "emotion"):
+                v = row.get(k)
+                if isinstance(v, str):
+                    terms.add(v.split("(")[0].strip())
+    core = (kp.get("core_logic") or "")[:80]
+    for m in re.findall(r"[\u4e00-\u9fff]{2,4}", core):
+        terms.add(m)
+    return terms
+
+
+def _build_kp_context(kp):
+    """從 knowledge_point 建構可注入的 context（core_logic 或 causal_relationships）。"""
+    parts = []
+    if kp.get("core_logic"):
+        parts.append(kp["core_logic"])
+    if kp.get("mechanism"):
+        parts.append(kp["mechanism"])
+    cr = kp.get("causal_relationships")
+    if cr:
+        lines = [f"{r.get('emotion','')}→{r.get('impact','')}：{r.get('symptoms','')}（{r.get('target_organ','')}）" for r in cr if isinstance(r, dict)]
+        parts.append("[七情致病] " + "；".join(lines))
+    pf = kp.get("pathological_features")
+    if pf:
+        lines = [f"{r.get('evil','')}：{r.get('features','')}，症狀如{r.get('symptoms','')}" for r in pf if isinstance(r, dict)]
+        parts.append("[六邪致病] " + "；".join(lines))
+    return "\n".join(parts) if parts else ""
+
+
+def _local_first_tcm_context(user_text):
+    """
+    Local First：遍歷 tcm_*.json，關鍵字比對 category/keywords。
+    回傳 (context_str, matched: bool)。若 matched 則 context 可注入。
+    """
+    if not (user_text or "").strip():
+        return "", False
+    text = user_text.strip()
+    all_data = _load_all_tcm_json()
+    matched_kps = []
+    for data in all_data:
+        kps = data.get("knowledge_points") or []
+        for kp in kps:
+            terms = _extract_kp_keywords(kp)
+            if any(t in text for t in terms if len(t) >= 2):
+                matched_kps.append(kp)
+    if not matched_kps:
+        return "", False
+    contexts = [_build_kp_context(kp) for kp in matched_kps if _build_kp_context(kp)]
+    context = "\n\n".join(contexts)[:2000] if contexts else ""
+    return context, bool(context)
+
+
+def _get_tcm_injected_knowledge(user_text):
+    """
+    若使用者提到情緒或氣候，回傳 causal_relationships 或 pathological_features 的結構化文字。
+    Local First 有匹配時優先使用；此函數保留作為 emotion/climate 專用補充。
+    """
+    if not (user_text or "").strip():
+        return ""
+    text = user_text.strip()
+    all_data = _load_all_tcm_json()
+    kps = []
+    for data in all_data:
+        kps.extend(data.get("knowledge_points") or [])
+    out = []
+    need_emotion = any(kw in text for kw in _EMOTION_KEYWORDS)
+    need_climate = any(kw in text for kw in _CLIMATE_KEYWORDS)
+    for kp in kps:
+        if need_emotion:
+            cr = kp.get("causal_relationships")
+            if cr:
+                lines = [f"{r.get('emotion','')}→{r.get('impact','')}：{r.get('symptoms','')}（{r.get('target_organ','')}）" for r in cr if isinstance(r, dict)]
+                out.append("[七情致病] " + "；".join(lines))
+                need_emotion = False
+        if need_climate:
+            pf = kp.get("pathological_features")
+            if pf:
+                lines = [f"{r.get('evil','')}：{r.get('features','')}，症狀如{r.get('symptoms','')}" for r in pf if isinstance(r, dict)]
+                out.append("[六邪致病] " + "；".join(lines))
+                need_climate = False
+        if not need_emotion and not need_climate:
+            break
+    return "\n".join(out) if out else ""
+
 # Redis：全域單例，Upstash REST API 無需連線池，模組載入時建立一次
 kv_url = os.getenv("KV_REST_API_URL")
 kv_token = os.getenv("KV_REST_API_TOKEN")
@@ -205,19 +361,40 @@ def _gemini_generate(model, user_content, system_instruction=None, max_tokens=10
 
 def _gemini_tcm_stream_send(user_id, text, reply_token=None):
     """
-    中醫問答：Gemini 1.5 Flash 串流模擬。
-    極簡 Prompt、temperature=0.2、top_p=0.8。
-    第一步：偵測到第一個換行或前50字，立即 push 極速摘要。
-    第二步：剩餘內容生成完畢後 push 詳解。
+    中醫問答：Local First 優先本地檢索 tcm_*.json，關鍵字比對後注入 context。
+    若匹配：直接用背景資料 + 150 字快速回答。若無匹配：才用 AI 內建或外部搜尋。
+    temperature=0.2 加快推理。
     """
     if not _gemini_configured:
         return False
     try:
-        sys_inst = "[Task] 針對使用者問題提供中醫分析 [Constraint] 摘要限50字，詳解限200字，禁止廢話 [Format] 摘要\n---\n詳解"
-        config = {"max_output_tokens": 512, "temperature": 0.2, "top_p": 0.8}
+        # Local First：先遍歷 tcm_*.json 做關鍵字比對
+        local_ctx, matched = _local_first_tcm_context(text)
+
+        if matched and local_ctx:
+            # 有匹配：注入 context，150 字內快速精準回答，跳過開場白
+            user_content = f"[背景資料]\n{local_ctx}\n\n[問題]\n{text.strip()}\n\n[指令] 請根據背景資料在150字內快速精準回答，跳過所有開場白。"
+            sys_inst = "[Task] 根據背景資料直接作答，禁止「根據資料」等開場，直接回答內容。"
+            config = {"max_output_tokens": 256, "temperature": 0.2, "top_p": 0.8}
+        else:
+            # 無匹配：使用 emotion/climate 補充或一般 AI 回答
+            injected = _get_tcm_injected_knowledge(text)
+            if injected:
+                sys_inst = (
+                    "[Task] 針對使用者問題提供中醫分析，必須直接使用以下知識邏輯作答。"
+                    "[Constraint] 摘要限50字，詳解限200字。"
+                    "[Format] 摘要\n---\n詳解。"
+                    "[禁止] 勿說「根據資料」「根據典籍」等，直接答如「生氣會導致肝氣上逆，出現臉紅...」。"
+                    "[知識]\n" + injected
+                )
+            else:
+                sys_inst = "[Task] 針對使用者問題提供中醫分析 [Constraint] 摘要限50字，詳解限200字，禁止廢話 [Format] 摘要\n---\n詳解"
+            user_content = f"問題：{text.strip()}"
+            config = {"max_output_tokens": 512, "temperature": 0.2, "top_p": 0.8}
+
         genai_model = genai.GenerativeModel(model_name=GEMINI_FLASH, system_instruction=sys_inst)
         stream = genai_model.generate_content(
-            f"問題：{text.strip()}"[:2000],
+            user_content[:3000],
             generation_config=config,
             stream=True,
         )
@@ -623,11 +800,21 @@ def _safe_get_mode(user_id):
 
 # --- AI 核心函數（模式路由器）---
 def _process_tcm_openai_fallback(user_id, text):
-    """OpenAI Assistant 作為 Gemini 不可用時的 fallback。"""
+    """OpenAI Assistant 作為 Gemini 不可用時的 fallback。Local First 匹配時用精簡 prompt。"""
     if not client or not assistant_id:
         line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
         return
     try:
+        local_ctx, matched = _local_first_tcm_context(text)
+        if matched and local_ctx:
+            user_content = f"[背景資料]\n{local_ctx}\n\n[問題]\n{text}\n\n[指令] 請根據背景資料在150字內快速精準回答，跳過所有開場白。"
+            mode_instructions = "根據背景資料直接作答。"
+        else:
+            mode_instructions = get_rag_instructions()
+            injected = _get_tcm_injected_knowledge(text)
+            inj_append = f"\n[強制使用以下知識，直接作答勿重複] {injected}" if injected else ""
+            user_content = f"{mode_instructions}\n\n【中醫問答】使用者：{text}{inj_append}\n(完整醫理分析與建議，末尾參考資料出處)"
+
         thread_id = None
         if redis:
             try:
@@ -646,8 +833,6 @@ def _process_tcm_openai_fallback(user_id, text):
                     redis.set(f"user_thread:{user_id}", thread_id)
                 except Exception:
                     pass
-        mode_instructions = get_rag_instructions()
-        user_content = f"{mode_instructions}\n\n【中醫問答】使用者：{text}\n(完整醫理分析與建議，末尾參考資料出處)"
         client.beta.threads.messages.create(thread_id=thread_id, role="user", content=user_content)
         run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
         start_time = time.time()
