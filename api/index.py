@@ -24,8 +24,7 @@ from upstash_redis import Redis
 from openai import OpenAI
 import httpx
 from httpx_retries import RetryTransport, Retry
-import cloudinary
-import cloudinary.uploader
+# cloudinary 改為 lazy import（_upload_tts_to_cloudinary 內），避免 TCM 純文字路徑載入
 
 try:
     from api.syllabus import (
@@ -117,19 +116,16 @@ _http_client = httpx.Client(
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
-# Gemini：google-genai SDK（lazy init 減少 cold start，全域單例）
-_gemini_client = None
-_gemini_init_done = False
+# Gemini：google-genai SDK 全域單例重用（lazy init 避免 webhook cold start 載入）
 GEMINI_FLASH = "gemini-1.5-flash"
 GEMINI_PRO = "gemini-1.5-pro"
-
+_gemini_client = None
 
 def _get_gemini_client():
-    """Lazy init：首次呼叫時才載入 google-genai，避免 webhook cold start 卡頓。"""
-    global _gemini_client, _gemini_init_done
-    if _gemini_init_done:
+    """全域實例重用：首次 TCM 問答時初始化，之後秒速調用。不依賴 cloudinary 等大型庫。"""
+    global _gemini_client
+    if _gemini_client is not None:
         return _gemini_client
-    _gemini_init_done = True
     try:
         from google import genai as _genai_module
         _key = (os.getenv("GEMINI_API_KEY") or "").strip()
@@ -322,18 +318,12 @@ _mode_cache = {}
 _MODE_CACHE_TTL = 180
 _MODE_CACHE_MAX = 1000
 
-# Cloudinary 設定（TTS 語音檔雲端儲存）
+# Cloudinary：僅檢查 env（lazy import 於 _upload_tts_to_cloudinary 內，TCM 純文字路徑不載入）
 _cloudinary_configured = bool(
     os.getenv("CLOUDINARY_CLOUD_NAME")
     and os.getenv("CLOUDINARY_API_KEY")
     and os.getenv("CLOUDINARY_API_SECRET")
 )
-if _cloudinary_configured:
-    cloudinary.config(
-        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-        api_key=os.getenv("CLOUDINARY_API_KEY"),
-        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-    )
 
 # 安全聲明：涉及中醫診斷之回覆必須附加
 SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
@@ -377,6 +367,7 @@ def _gemini_tcm_stream_send(user_id, text, reply_token=None):
     中醫問答：Local First 優先本地檢索 tcm_*.json，關鍵字比對後注入 context。
     若匹配：直接用背景資料 + 150 字快速回答。若無匹配：才用 AI 內建或外部搜尋。
     temperature=0.2 加快推理。使用 google-genai SDK。
+    純文字回應：僅 line_bot_api.push_message，不觸發檔案儲存或上傳。
     """
     gc = _get_gemini_client()
     if not gc:
@@ -516,11 +507,23 @@ def _evaluate_speech(transcript):
         traceback.print_exc()
     return "Correct", "", ""
 
+_cloudinary_config_done = False
+
 def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
-    """上傳 TTS 語音至 Cloudinary（BytesIO 串流、video 資源型別優化音訊），回傳 (secure_url, duration_ms)。"""
+    """上傳 TTS 語音至 Cloudinary（BytesIO 串流、video 資源型別優化音訊），回傳 (secure_url, duration_ms)。Lazy import。"""
+    global _cloudinary_config_done
     if not _cloudinary_configured or not audio_bytes:
         return (None, 0)
     try:
+        import cloudinary
+        import cloudinary.uploader
+        if not _cloudinary_config_done:
+            cloudinary.config(
+                cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+                api_key=os.getenv("CLOUDINARY_API_KEY"),
+                api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+            )
+            _cloudinary_config_done = True
         result = cloudinary.uploader.upload(
             io.BytesIO(audio_bytes),
             resource_type="video",  # 音訊用 video 型別，支援轉碼與 CDN 優化
