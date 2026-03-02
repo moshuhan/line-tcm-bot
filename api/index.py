@@ -325,6 +325,74 @@ def quick_reply_review_ask():
 def text_with_quick_reply_review_ask(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_review_ask())
 
+# --- 寫作修訂模式：獨立處理，不使用 Assistant API / RAG ---
+REVISION_MODE = "writing"
+REVISION_MODE_PROMPT = "你已在【✍️ 寫作修訂】模式～請貼上要修改的段落。"
+REDIS_KEY_USER_MODE = "user_mode"
+
+# 寫作模式 prompt：回覆自然內容，不要輸出【】標題給使用者
+_REVISION_PROMPT = (
+    "你是專業溫暖的語言老師。回覆時請自然融入以下內容，不要輸出【】標題："
+    "（1）鼓勵／正面肯定；"
+    "（2）若有錯誤：需修改的原因＋修正後的版本（用 **粗體** 標示修改處）；若無誤則稱讚原文道地；"
+    "（3）鼓勵繼續發問、貼上其他句子練習。"
+    "語氣溫暖，段落分明易讀。"
+)
+
+def _revision_handler(user_id, text):
+    """寫作修訂：gpt-4o-mini + Chat Completion，結果以 push_message 送出。"""
+    if not user_id or not str(user_id).strip():
+        print(f"[REVISION] ERROR: user_id invalid or empty user_id={repr(user_id)}")
+        return
+    if not (text or "").strip():
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply_writing("請貼上要修改的段落。"))
+        except Exception as e:
+            print(f"[REVISION] push_message failed (empty text branch) err={e}")
+            traceback.print_exc()
+        return
+    try:
+        print(f"[REVISION] start user_id={user_id} text_len={len(text)}")
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("[REVISION] ERROR: OPENAI_API_KEY not set")
+            line_bot_api.push_message(user_id, text_with_quick_reply_writing("系統設定錯誤，請稍後再試。"))
+            return
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _REVISION_PROMPT},
+                {"role": "user", "content": f"分析以下句子或段落：\n{text[:1000]}"},
+            ],
+            max_tokens=600,
+        )
+        reply = (resp.choices[0].message.content or "").strip()
+        if not reply:
+            reply = "已收到你的練習！歡迎繼續貼上其他句子～"
+        print(f"[REVISION] done user_id={user_id} reply_len={len(reply)}")
+        line_bot_api.push_message(user_id, text_with_quick_reply_writing(reply))
+    except Exception as e:
+        print(f"[REVISION] CRITICAL err={e}")
+        traceback.print_exc()
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply_writing("處理時發生錯誤，請再試一次。"))
+        except Exception as push_err:
+            print(f"[REVISION] push_message (error fallback) failed err={push_err}")
+
+def quick_reply_writing():
+    """寫作修訂模式：僅繼續練習按鈕。"""
+    return QuickReply(
+        items=[
+            QuickReplyButton(action=MessageAction(label="繼續練習", text="繼續練習")),
+        ]
+    )
+
+def text_with_quick_reply_writing(content):
+    return TextSendMessage(text=content, quick_reply=quick_reply_writing())
+
+def _redis_user_mode_key(user_id):
+    return f"{REDIS_KEY_USER_MODE}:{user_id}"
+
 # --- 中醫問答：本地 JSON 關鍵字匹配 + Gemini（輕量、扁平）---
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 _TCM_JSON_CACHE = None
@@ -424,7 +492,7 @@ def _safe_get_mode(user_id):
     try:
         if not redis:
             return "tcm"
-        mode_val = redis.get(f"user_mode:{user_id}")
+        mode_val = redis.get(_redis_user_mode_key(user_id))
         if mode_val is None:
             return "tcm"
         if hasattr(mode_val, "decode"):
@@ -435,9 +503,12 @@ def _safe_get_mode(user_id):
 
 # --- AI 核心函數（模式路由器）---
 def process_ai_request(event, user_id, text, is_voice=False):
-    """State-Based Router：依 user_state (mode) 切換 System Prompt。"""
+    """State-Based Router：寫作模式走 _revision_handler，其餘走 Assistant API。"""
     try:
         mode = _safe_get_mode(user_id)
+        if mode == REVISION_MODE:
+            _revision_handler(user_id, text)
+            return
         tag = "🩺 中醫問答"
         if mode == "speaking":
             tag = "🗣️ 口說練習"
@@ -581,6 +652,10 @@ def _process_voice_sync(user_id, message_id):
 
         mode = _safe_get_mode(user_id)
 
+        if mode == REVISION_MODE:
+            _revision_handler(user_id, transcript_text)
+            print(f"[VOICE] done revision path")
+            return
         if mode == "speaking":
             status, feedback, corrected_text = _evaluate_speech(transcript_text)
             if status == "Correct":
@@ -690,14 +765,20 @@ def handle_postback(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
         # mode=tcm / mode=speaking / mode=writing
-        mode = data.split("=")[1] if "=" in data else "tcm"
+        mode = data.split("=")[1].strip() if "=" in data else "tcm"
         try:
             if redis:
-                redis.set(f"user_mode:{user_id}", mode)
+                redis.set(_redis_user_mode_key(user_id), mode)
         except Exception:
             pass
         mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
-        line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"已切換至【{mode_map.get(mode, mode)}】模式"))
+        if mode == REVISION_MODE:
+            msg = REVISION_MODE_PROMPT
+            if not redis:
+                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
+        else:
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"已切換至【{mode_map.get(mode, mode)}】模式"))
     except Exception as e:
         traceback.print_exc()
         try:
@@ -713,6 +794,41 @@ def handle_message(event):
         # 課務查詢／本週重點：統一以 Flex Message 回傳
         if is_course_inquiry_intent(user_text):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
+            return
+
+        # 寫作修訂／寫作修改：切換到寫作模式
+        if user_text in ("寫作修改", "寫作修訂"):
+            try:
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
+            except Exception:
+                pass
+            msg = REVISION_MODE_PROMPT
+            if not redis:
+                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
+            return
+
+        # 寫作修訂模式隔離：優先判斷，跳過中醫邏輯
+        current_mode = _safe_get_mode(user_id)
+        if current_mode == REVISION_MODE:
+            if user_text in ("寫作修改", "寫作修訂"):
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    text_with_quick_reply_writing(REVISION_MODE_PROMPT),
+                )
+                return
+            if user_text == "繼續練習":
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    text_with_quick_reply_writing("請貼上要修改的段落。"),
+                )
+                return
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
+            )
+            _revision_handler(user_id, user_text)
             return
 
         # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理
@@ -773,18 +889,10 @@ def handle_message(event):
         if user_text == "口說練習":
             try:
                 if redis:
-                    redis.set(f"user_mode:{user_id}", "speaking")
+                    redis.set(_redis_user_mode_key(user_id), "speaking")
             except Exception:
                 pass
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
-            return
-        if user_text == "寫作修改":
-            try:
-                if redis:
-                    redis.set(f"user_mode:{user_id}", "writing")
-            except Exception:
-                pass
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【✍️ 寫作修訂】模式，請貼上要修改的段落。"))
             return
         if user_text == "練習下一句":
             mode = _safe_get_mode(user_id)
@@ -797,7 +905,7 @@ def handle_message(event):
         if user_text == "結束練習":
             try:
                 if redis:
-                    redis.set(f"user_mode:{user_id}", "tcm")
+                    redis.set(_redis_user_mode_key(user_id), "tcm")
             except Exception:
                 pass
             line_bot_api.reply_message(
