@@ -922,6 +922,44 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
     try:
+        # --- Rich Menu 按鈕：立即回覆，避免延遲 ---
+        if user_text == "中醫問答":
+            try:
+                _set_cached_mode(user_id, "tcm")
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), "tcm")
+            except Exception:
+                pass
+            line_bot_api.reply_message(
+                event.reply_token,
+                text_with_quick_reply("已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"),
+            )
+            return
+        if user_text == "口說練習":
+            try:
+                _set_cached_mode(user_id, "speaking")
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), "speaking")
+            except Exception:
+                pass
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
+            return
+        if user_text in ("寫作修改", "寫作修訂"):
+            try:
+                _set_cached_mode(user_id, REVISION_MODE)
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
+            except Exception:
+                pass
+            msg = REVISION_MODE_PROMPT
+            if not redis:
+                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
+            return
+        if user_text == "課務查詢":
+            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
+            return
+
         # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
         current_mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
@@ -1054,46 +1092,6 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        if user_text == "中醫問答":
-            try:
-                _set_cached_mode(user_id, "tcm")
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), "tcm")
-            except Exception:
-                pass
-            line_bot_api.reply_message(
-                event.reply_token,
-                text_with_quick_reply("已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"),
-            )
-            return
-
-        if user_text == "口說練習":
-            try:
-                _set_cached_mode(user_id, "speaking")
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), "speaking")
-            except Exception:
-                pass
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
-            return
-        if user_text in ("寫作修改", "寫作修訂"):
-            try:
-                _set_cached_mode(user_id, REVISION_MODE)
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
-                    v = redis.get(_redis_user_mode_key(user_id))
-                    v_str = (v.decode("utf-8").strip() if isinstance(v, bytes) else str(v or "").strip()).lower()
-                    verified = v_str == REVISION_MODE
-                    print(f"[MODE] 寫作修改 user_id={user_id} set_mode=writing verified={verified} raw={v_str!r}")
-                else:
-                    print(f"[MODE] 寫作修改 user_id={user_id} redis_none mode_not_persisted")
-            except Exception as e:
-                print(f"[MODE] 寫作修改 user_id={user_id} redis_set_failed err={e}")
-            msg = REVISION_MODE_PROMPT
-            if not redis:
-                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
-            return
         if user_text == "練習下一句":
             mode = _safe_get_mode(user_id)
             if mode == "speaking":

@@ -4,6 +4,7 @@
 
 - 時區：Asia/Taipei (UTC+8)，精確至小時分鐘。
 - 資料源：優先 config/syllabus_full.json（含 start_time/end_time/has_handout）；否則 syllabus.json。
+- AI 重點：優先 data/ai_weekly_summary.json（Gemini 預處理），無則即時呼叫 OpenAI。
 - 當週 vs 下週：以當週 end_time 為分界，過後即自動顯示下一週資訊。
 - Flex Message：當週課程、AI 重點（has_handout 時）、下週預告、評量、重要日期。
 - 精準過濾：僅對「完全與中醫/醫療學術無關」之問題回覆「本機器人僅供學業使用」。
@@ -21,6 +22,7 @@ TAIPEI_TZ = timezone(timedelta(hours=8))
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _CONFIG_PATH = os.path.join(_ROOT, "config", "syllabus.json")
 _SYLLABUS_FULL_PATH = os.path.join(_ROOT, "config", "syllabus_full.json")
+_AI_WEEKLY_SUMMARY_PATH = os.path.join(_ROOT, "data", "ai_weekly_summary.json")
 _LECTURE_FOLDER_ENV = "LECTURE_FOLDER"
 
 # 預設當週課程結束時間（syllabus_full 無 end_time 時使用）
@@ -52,6 +54,20 @@ def _load_syllabus_full_config():
         return None
     try:
         with open(_SYLLABUS_FULL_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _load_ai_weekly_summary():
+    """
+    載入 data/ai_weekly_summary.json（Gemini 預處理的 AI 重點）。
+    回傳 dict 或 None。格式：{"highlights_by_date": {"2026-03-07": ["1. ...", "2. ...", "3. ..."], ...}}
+    """
+    if not os.path.isfile(_AI_WEEKLY_SUMMARY_PATH):
+        return None
+    try:
+        with open(_AI_WEEKLY_SUMMARY_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return None
@@ -243,6 +259,21 @@ def get_display_week_lectures(now=None):
     return display, None, False
 
 
+def _get_ai_highlights_from_json(date_str):
+    """
+    從 data/ai_weekly_summary.json 依日期取得預處理的 AI 重點。
+    回傳 list[str] 或 []（找不到或為空則回傳 []）。
+    """
+    data = _load_ai_weekly_summary()
+    if not data:
+        return []
+    by_date = data.get("highlights_by_date") or {}
+    highlights = by_date.get((date_str or "").strip())
+    if not highlights or not isinstance(highlights, list):
+        return []
+    return [str(h).strip() for h in highlights if str(h).strip()][:10]
+
+
 def generate_ai_weekly_highlights(openai_client, lecture_title, max_points=3):
     """
     若該週有講義，調用 OpenAI 根據主題生成 3 個重點。
@@ -270,6 +301,18 @@ def generate_ai_weekly_highlights(openai_client, lecture_title, max_points=3):
         return lines
     except Exception:
         return []
+
+
+def get_ai_weekly_highlights(date_str, lecture_title, openai_client, max_points=3):
+    """
+    取得當週 AI 重點：優先從 data/ai_weekly_summary.json 讀取，若無則呼叫 OpenAI 即時生成。
+    以優化課務查詢速度。
+    回傳 list[str]。
+    """
+    highlights = _get_ai_highlights_from_json(date_str)
+    if highlights:
+        return highlights[:max_points]
+    return generate_ai_weekly_highlights(openai_client, lecture_title, max_points)
 
 
 def _get_course_inquiry_config():
@@ -331,10 +374,12 @@ def build_course_inquiry_flex(openai_client, now=None):
         body_contents.append({"type": "separator"})
 
     # ---- AI 本週重點（僅當 has_handout / has_lecture_materials 時）----
+    # 優先從 data/ai_weekly_summary.json 讀取，無則呼叫 OpenAI（優化查詢速度）
     has_handout = display_lec and display_lec.get("has_lecture_materials", False)
     topic_for_ai = (display_lec or {}).get("title", "")
-    if has_handout and openai_client and topic_for_ai and topic_for_ai != "（待填入）":
-        highlights = generate_ai_weekly_highlights(openai_client, topic_for_ai)
+    date_str = (display_lec or {}).get("date_str", "")
+    if has_handout and topic_for_ai and topic_for_ai != "（待填入）":
+        highlights = get_ai_weekly_highlights(date_str, topic_for_ai, openai_client)
         if highlights:
             hi_lines = [{"type": "text", "text": h, "wrap": True, "size": "xs"} for h in highlights]
             body_contents.append({
