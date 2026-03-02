@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import glob
 import io
 import os
 import re
@@ -21,7 +20,7 @@ from linebot.models import (
 from linebot.models.send_messages import AudioSendMessage
 from upstash_redis import Redis
 from openai import OpenAI
-# cloudinary 改為 lazy import（_upload_tts_to_cloudinary 內），TCM 純文字路徑不載入
+# cloudinary 改為 lazy import（_upload_tts_to_cloudinary 內），避免 TCM 純文字路徑載入
 
 try:
     from api.syllabus import (
@@ -111,7 +110,7 @@ kv_url = os.getenv("KV_REST_API_URL")
 kv_token = os.getenv("KV_REST_API_TOKEN")
 redis = Redis(url=kv_url, token=kv_token) if kv_url and kv_token else None
 
-# Cloudinary：僅檢查 env，lazy import 於 _upload_tts_to_cloudinary 內
+# Cloudinary：僅檢查 env（lazy import 於 _upload_tts_to_cloudinary 內）
 _cloudinary_configured = bool(
     os.getenv("CLOUDINARY_CLOUD_NAME")
     and os.getenv("CLOUDINARY_API_KEY")
@@ -120,87 +119,6 @@ _cloudinary_configured = bool(
 
 # 安全聲明：涉及中醫診斷之回覆必須附加
 SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
-
-# TCM 本地 JSON 知識庫：關鍵字匹配，扁平結構
-_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-_TCM_JSON_CACHE = None
-
-def _load_tcm_json():
-    """載入 data/tcm_*.json，快取。"""
-    global _TCM_JSON_CACHE
-    if _TCM_JSON_CACHE is not None:
-        return _TCM_JSON_CACHE
-    _TCM_JSON_CACHE = []
-    for path in glob.glob(os.path.join(_DATA_DIR, "tcm_*.json")):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    _TCM_JSON_CACHE.append(data)
-        except Exception:
-            pass
-    return _TCM_JSON_CACHE
-
-def _get_tcm_context(user_text):
-    """
-    關鍵字匹配：若問題含 category 或情緒/六邪關鍵字，回傳對應 core_logic / causal_relationships / pathological_features。
-    回傳 (context_str, matched)。
-    """
-    if not (user_text or "").strip():
-        return "", False
-    text = user_text.strip()
-    out = []
-    for data in _load_tcm_json():
-        for kp in data.get("knowledge_points") or []:
-            cat = (kp.get("category") or "").split("(")[0].strip()
-            if cat and len(cat) >= 2 and cat in text:
-                part = kp.get("core_logic") or kp.get("mechanism") or ""
-                if part:
-                    out.append(part)
-            cr = kp.get("causal_relationships") or []
-            if cr and any(k in text for k in ("怒", "喜", "思", "悲", "憂", "恐", "驚", "生氣", "害怕")):
-                for r in cr:
-                    if isinstance(r, dict):
-                        out.append(f"{r.get('emotion','')}→{r.get('impact','')}：{r.get('symptoms','')}")
-            pf = kp.get("pathological_features") or []
-            if pf and any(k in text for k in ("風", "寒", "暑", "濕", "燥", "火", "濕氣", "燥熱")):
-                for r in pf:
-                    if isinstance(r, dict):
-                        out.append(f"{r.get('evil','')}：{r.get('features','')}，{r.get('symptoms','')}")
-    ctx = "\n".join(out)[:1500] if out else ""
-    return ctx, bool(ctx)
-
-def _gemini_tcm_reply(user_id, text, context):
-    """Gemini 回覆（有 context 時）。Lazy import google-genai。"""
-    try:
-        from google import genai
-        from google.genai import types
-        key = (os.getenv("GEMINI_API_KEY") or "").strip()
-        if not key:
-            return False
-        gc = genai.Client(api_key=key)
-        cfg = types.GenerateContentConfig(
-            max_output_tokens=400,
-            temperature=0.2,
-            system_instruction="根據背景資料直接回答，勿重複「根據資料」等開場。",
-        )
-        content = f"[背景資料]\n{context}\n\n[問題]\n{text}\n\n請在150字內精準回答。"
-        resp = gc.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=content,
-            config=cfg,
-        )
-        ai_text = (getattr(resp, "text", None) or "").strip()
-        if ai_text:
-            ai_reply = ai_text.rstrip() + SAFETY_DISCLAIMER
-            log_question(redis, user_id, text)
-            set_last_question(redis, user_id, text)
-            set_last_assistant_message(redis, user_id, ai_reply)
-            line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
-            return True
-    except Exception:
-        traceback.print_exc()
-    return False
 
 VOICE_COACH_TTS_VOICE = "shimmer"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
@@ -252,18 +170,23 @@ def _evaluate_speech(transcript):
         traceback.print_exc()
     return "Correct", "", ""
 
+_cloudinary_config_done = False
+
 def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
-    """上傳 TTS 語音至 Cloudinary。Lazy import cloudinary。"""
+    """上傳 TTS 語音至 Cloudinary。Lazy import。"""
+    global _cloudinary_config_done
     if not _cloudinary_configured or not audio_bytes:
         return (None, 0)
     try:
         import cloudinary
         import cloudinary.uploader
-        cloudinary.config(
-            cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-            api_key=os.getenv("CLOUDINARY_API_KEY"),
-            api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-        )
+        if not _cloudinary_config_done:
+            cloudinary.config(
+                cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+                api_key=os.getenv("CLOUDINARY_API_KEY"),
+                api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+            )
+            _cloudinary_config_done = True
         result = cloudinary.uploader.upload(
             io.BytesIO(audio_bytes),
             resource_type="video",  # 音訊用 video 型別，支援轉碼與 CDN 優化
@@ -402,6 +325,100 @@ def quick_reply_review_ask():
 def text_with_quick_reply_review_ask(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_review_ask())
 
+# --- 中醫問答：本地 JSON 關鍵字匹配 + Gemini（輕量、扁平）---
+_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+_TCM_JSON_CACHE = None
+
+def _load_tcm_json():
+    """載入 data/tcm_*.json，快取。"""
+    global _TCM_JSON_CACHE
+    if _TCM_JSON_CACHE is not None:
+        return _TCM_JSON_CACHE
+    import glob
+    paths = glob.glob(os.path.join(_DATA_DIR, "tcm_*.json"))
+    out = []
+    for p in paths:
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                if d and isinstance(d, dict):
+                    out.append(d)
+        except Exception:
+            pass
+    _TCM_JSON_CACHE = out
+    return _TCM_JSON_CACHE
+
+def _tcm_keyword_match_and_gemini(user_id, text):
+    """
+    關鍵字匹配 tcm_*.json，若匹配則將內容餵給 Gemini 回覆。
+    回傳 True 若已回覆，False 則 fallback 至 process_ai_request。
+    """
+    if not (text or "").strip():
+        return False
+    txt = text.strip()
+    # 從 JSON 萃取關鍵字並匹配
+    all_data = _load_tcm_json()
+    ctx_parts = []
+    for data in all_data:
+        for kp in data.get("knowledge_points") or []:
+            cat = (kp.get("category") or "").split("(")[0].strip()
+            terms = [cat] if len(cat) >= 2 else []
+            for cr in (kp.get("causal_relationships") or []):
+                if isinstance(cr, dict):
+                    for k in ("emotion", "target_organ"):
+                        v = cr.get(k, "")
+                        if isinstance(v, str) and len(v) >= 1:
+                            terms.extend(v.replace("/", " ").split())
+            for pf in (kp.get("pathological_features") or []):
+                if isinstance(pf, dict):
+                    v = pf.get("evil", "")
+                    if isinstance(v, str):
+                        terms.append(v.split("(")[0].strip())
+            for row in (kp.get("five_elements_table") or []):
+                if isinstance(row, dict):
+                    for k in ("organ", "element"):
+                        v = row.get(k, "")
+                        if isinstance(v, str) and len(v) >= 2:
+                            terms.append(v)
+            if any(t in txt for t in terms if len(t) >= 2):
+                if kp.get("core_logic"):
+                    ctx_parts.append(kp["core_logic"])
+                if kp.get("mechanism"):
+                    ctx_parts.append(kp["mechanism"])
+                cr = kp.get("causal_relationships")
+                if cr:
+                    lines = [f"{r.get('emotion','')}→{r.get('impact','')}：{r.get('symptoms','')}" for r in cr if isinstance(r, dict)]
+                    ctx_parts.append("；".join(lines))
+                pf = kp.get("pathological_features")
+                if pf:
+                    lines = [f"{r.get('evil','')}：{r.get('features','')}" for r in pf if isinstance(r, dict)]
+                    ctx_parts.append("；".join(lines))
+    if not ctx_parts:
+        return False
+    ctx = "\n".join(ctx_parts)[:1500]
+    try:
+        from google import genai
+        from google.genai import types
+        key = (os.getenv("GEMINI_API_KEY") or "").strip()
+        if not key:
+            return False
+        gc = genai.Client(api_key=key)
+        resp = gc.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料在150字內精準回答，跳過開場白。",
+            config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=256),
+        )
+        if resp and getattr(resp, "text", None):
+            ai_reply = resp.text.strip()[:500] + SAFETY_DISCLAIMER
+            log_question(redis, user_id, text)
+            set_last_question(redis, user_id, text)
+            set_last_assistant_message(redis, user_id, ai_reply)
+            line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
+            return True
+    except Exception:
+        pass
+    return False
+
 def _safe_get_mode(user_id):
     """安全取得使用者模式，Redis 失敗時回傳 tcm。"""
     try:
@@ -418,15 +435,9 @@ def _safe_get_mode(user_id):
 
 # --- AI 核心函數（模式路由器）---
 def process_ai_request(event, user_id, text, is_voice=False):
-    """State-Based Router：依 user_state (mode) 切換。TCM：JSON 匹配則 Gemini，否則 Assistant。"""
+    """State-Based Router：依 user_state (mode) 切換 System Prompt。"""
     try:
         mode = _safe_get_mode(user_id)
-        # TCM 模式：優先本地 JSON 關鍵字匹配 + Gemini
-        if mode == "tcm":
-            ctx, matched = _get_tcm_context(text)
-            if matched and ctx and _gemini_tcm_reply(user_id, text, ctx):
-                return
-
         tag = "🩺 中醫問答"
         if mode == "speaking":
             tag = "🗣️ 口說練習"
@@ -803,9 +814,14 @@ def handle_message(event):
         mode = _safe_get_mode(user_id)
         mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
 
-        # 立即回覆「正在查詢中...」，再同步執行 AI
-        msg = "正在為您查詢中醫典籍，請稍候..." if mode == "tcm" else f"正在以【{mode_name}】模式分析中..."
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+        # 立即回覆：正在查詢中...（不依賴 AI 套件）
+        if mode == "tcm":
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查詢中醫典籍，請稍候..."))
+        else:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
+        # TCM：若 JSON 關鍵字匹配則用 Gemini，否則 fallback OpenAI Assistant
+        if mode == "tcm" and _tcm_keyword_match_and_gemini(user_id, user_text):
+            return
         process_ai_request(event, user_id, user_text, is_voice=False)
     except Exception as e:
         traceback.print_exc()
