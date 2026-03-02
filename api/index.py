@@ -514,18 +514,135 @@ def _safe_get_mode(user_id):
         return "tcm"
 
 # --- AI 核心函數（模式路由器）---
-def _process_assistant_sync(user_id, text):
+def _generate_tcm_quick_summary(text, max_chars=200):
+    """
+    階段一：Chat Completion 生成 200 字以內核心摘要。
+    回傳 str 或空字串（失敗時）。
+    """
+    if not (text or "").strip() or not client:
+        return ""
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你是中醫課程助教。請先針對問題提供精簡的直接回答，不超過 200 字。不需引用、不需參考資料，僅核心要點。",
+                },
+                {"role": "user", "content": f"問題：{text.strip()}"},
+            ],
+            max_tokens=300,
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        if len(content) > max_chars:
+            content = content[:max_chars].rsplit("。", 1)[0] + "。" if "。" in content[:max_chars] else content[:max_chars]
+        return content
+    except Exception as e:
+        print(f"[TCM] quick summary failed: {e}")
+        return ""
+
+
+def _process_tcm_two_stage(user_id, text, reply_token=None):
+    """
+    中醫問答兩階段回應：
+    階段一：快速摘要（reply 或 push）→ 提示 → 階段二：完整詳解（push）
+    """
+    try:
+        # 階段一：快速摘要（Chat Completion，較快）
+        summary = _generate_tcm_quick_summary(text)
+        if summary:
+            try:
+                summary_msg = TextSendMessage(text=summary)
+                sent_via_reply = False
+                if reply_token:
+                    try:
+                        line_bot_api.reply_message(reply_token, summary_msg)
+                        sent_via_reply = True
+                    except Exception as e:
+                        print(f"[TCM] reply_message failed (token expired?): {e}")
+                if not sent_via_reply:
+                    line_bot_api.push_message(user_id, summary_msg)
+            except Exception as e:
+                print(f"[TCM] stage1 send failed: {e}")
+
+        try:
+            line_bot_api.push_message(user_id, TextSendMessage(text="💡 正在為您整理更詳細的醫籍資料..."))
+        except Exception as e:
+            print(f"[TCM] interim prompt send failed: {e}")
+
+        # 階段二：完整詳解（Assistant API + RAG）
+        thread_id = None
+        try:
+            if redis:
+                t_id = redis.get(f"user_thread:{user_id}")
+                if t_id is not None:
+                    thread_id = t_id.decode("utf-8") if hasattr(t_id, "decode") else str(t_id)
+                    if thread_id == "None" or not thread_id.strip():
+                        thread_id = None
+        except Exception:
+            pass
+
+        if not thread_id:
+            new_thread = client.beta.threads.create()
+            thread_id = new_thread.id
+            try:
+                if redis:
+                    redis.set(f"user_thread:{user_id}", thread_id)
+            except Exception:
+                pass
+
+        mode_instructions = get_rag_instructions()
+        user_content = (
+            f"{mode_instructions}\n\n【🩺 中醫問答】\n"
+            f"使用者的話：{text}\n"
+            "(提醒：請提供完整且詳細的醫理分析與建議，回答末尾請提供參考資料出處)"
+        )
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=user_content,
+        )
+        run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
+
+        start_time = time.time()
+        while run.status in ['queued', 'in_progress']:
+            if time.time() - start_time > TIMEOUT_SECONDS:
+                break
+            time.sleep(1)
+            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+
+        if run.status == 'completed':
+            messages = client.beta.threads.messages.list(thread_id=thread_id)
+            ai_reply = messages.data[0].content[0].text.value.rstrip() + SAFETY_DISCLAIMER
+            log_question(redis, user_id, text)
+            set_last_question(redis, user_id, text)
+            set_last_assistant_message(redis, user_id, ai_reply)
+            line_bot_api.push_message(
+                user_id,
+                text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"),
+            )
+        else:
+            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+    except Exception as e:
+        print(f"CRITICAL ERROR [TCM two-stage]: {traceback.format_exc()}")
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+        except Exception:
+            pass
+
+
+def _process_assistant_sync(user_id, text, reply_token=None):
     """Assistant API 邏輯：Thread/Run/RAG，完成後 push_message。供 process-text-async 背景呼叫。"""
     try:
         mode = _safe_get_mode(user_id)
         if mode == REVISION_MODE:
             _revision_handler(user_id, text)
             return
-        tag = "🩺 中醫問答"
-        if mode == "speaking":
-            tag = "🗣️ 口說練習"
-        elif mode == "writing":
-            tag = "✍️ 寫作修訂"
+        if mode == "tcm":
+            _process_tcm_two_stage(user_id, text, reply_token=reply_token)
+            return
+
+        tag = "🗣️ 口說練習" if mode == "speaking" else "✍️ 寫作修訂"
 
         thread_id = None
         try:
@@ -547,14 +664,8 @@ def _process_assistant_sync(user_id, text):
             except Exception:
                 pass
 
-        if mode == "writing":
-            mode_instructions = get_writing_mode_instructions()
-        else:
-            mode_instructions = get_rag_instructions()
-
+        mode_instructions = get_writing_mode_instructions() if mode == "writing" else get_rag_instructions()
         user_content = f"{mode_instructions}\n\n【{tag}】\n使用者的話：{text}"
-        if mode == "tcm":
-            user_content += "\n(提醒：回答末尾請提供參考資料出處)"
 
         client.beta.threads.messages.create(
             thread_id=thread_id,
@@ -573,15 +684,10 @@ def _process_assistant_sync(user_id, text):
         if run.status == 'completed':
             messages = client.beta.threads.messages.list(thread_id=thread_id)
             ai_reply = messages.data[0].content[0].text.value
-            if mode == "tcm":
-                ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
             set_last_assistant_message(redis, user_id, ai_reply)
-            if mode == "tcm":
-                line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
-            else:
-                line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
+            line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
         else:
             line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
     except Exception as e:
@@ -597,22 +703,26 @@ def process_ai_request(event, user_id, text, is_voice=False):
         if mode == REVISION_MODE:
             _revision_handler(user_id, text)
             return
-        _process_assistant_sync(user_id, text)
+        reply_token = (event.reply_token if event and hasattr(event, "reply_token") else None) or None
+        _process_assistant_sync(user_id, text, reply_token=reply_token)
     except Exception as e:
         print(f"CRITICAL ERROR: {traceback.format_exc()}")
         line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
 
 
-def _run_text_background(user_id, text, task, base_url, cron_secret):
+def _run_text_background(user_id, text, task, base_url, cron_secret, reply_token=None):
     """Background Task：觸發 process-text-async 或本地執行，不阻塞 webhook。"""
     print(f"[TEXT_BG] start user_id={user_id} task={task} has_base={bool(base_url)} has_secret={bool(cron_secret)}")
+    payload = {"user_id": user_id, "text": text, "task": task}
+    if reply_token:
+        payload["reply_token"] = reply_token
     if base_url and cron_secret:
         try:
             r = requests.post(
                 f"{base_url}/api/process-text-async",
-                json={"user_id": user_id, "text": text, "task": task},
+                json=payload,
                 headers={"Authorization": f"Bearer {cron_secret}"},
-                timeout=30,
+                timeout=120,
             )
             print(f"[TEXT_BG] POST result status={r.status_code}")
         except Exception as e:
@@ -622,7 +732,7 @@ def _run_text_background(user_id, text, task, base_url, cron_secret):
                 if task == "revision":
                     _revision_handler(user_id, text)
                 else:
-                    _process_assistant_sync(user_id, text)
+                    _process_assistant_sync(user_id, text, reply_token=reply_token)
             except Exception as inner:
                 print(f"[TEXT_BG] fallback handler failed err={inner}")
                 traceback.print_exc()
@@ -631,7 +741,7 @@ def _run_text_background(user_id, text, task, base_url, cron_secret):
             if task == "revision":
                 _revision_handler(user_id, text)
             else:
-                _process_assistant_sync(user_id, text)
+                _process_assistant_sync(user_id, text, reply_token=reply_token)
         except Exception as e:
             print(f"[TEXT_BG] direct handler failed err={e}")
             traceback.print_exc()
@@ -823,13 +933,14 @@ def process_text_async():
         user_id = (data.get("user_id") or "").strip()
         text = (data.get("text") or "").strip()
         task = (data.get("task") or "assistant").strip().lower()
-        print(f"[process-text-async] received user_id={user_id!r} task={task} text_len={len(text)}")
+        reply_token = (data.get("reply_token") or "").strip() or None
+        print(f"[process-text-async] received user_id={user_id!r} task={task} text_len={len(text)} has_reply_token={bool(reply_token)}")
         if not user_id:
             return "Missing user_id", 400
         if task == "revision":
             _revision_handler(user_id, text)
         else:
-            _process_assistant_sync(user_id, text)
+            _process_assistant_sync(user_id, text, reply_token=reply_token)
         print(f"[process-text-async] done task={task}")
         return "OK", 200
     except Exception as e:
@@ -1026,7 +1137,7 @@ def handle_message(event):
             cron_secret = os.getenv("CRON_SECRET", "")
             threading.Thread(
                 target=_run_text_background,
-                args=(user_id, user_text, "assistant", base_url, cron_secret),
+                args=(user_id, user_text, "assistant", base_url, cron_secret, event.reply_token),
                 daemon=True,
             ).start()
             return
@@ -1115,13 +1226,13 @@ def handle_message(event):
 
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
 
-        # 非阻塞：一律以背景執行 AI，避免 webhook 阻塞
+        # 非阻塞：一律以背景執行 AI，避免 webhook 阻塞（傳 reply_token 供中醫問答兩階段快速摘要使用）
         vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
         base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
         cron_secret = os.getenv("CRON_SECRET", "")
         threading.Thread(
             target=_run_text_background,
-            args=(user_id, user_text, "assistant", base_url, cron_secret),
+            args=(user_id, user_text, "assistant", base_url, cron_secret, event.reply_token),
             daemon=True,
         ).start()
     except Exception as e:
