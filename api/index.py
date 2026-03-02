@@ -428,7 +428,7 @@ def _redis_user_mode_key(user_id):
     """統一的 Redis Key，與 Postback/切換按鈕寫入處完全一致。"""
     return f"{REDIS_KEY_USER_MODE}:{user_id}"
 
-# --- 中醫問答：tcm_master_knowledge.json 關鍵字匹配 + Gemini（方案一加速）---
+# --- 中醫問答：tcm_master_knowledge.json + OpenAI gpt-4o-mini（純 OpenAI）---
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 _TCM_JSON_CACHE = None
 
@@ -481,15 +481,24 @@ def _build_full_tcm_context():
                 parts.append("\n".join(block))
     return "\n\n".join(parts) if parts else ""
 
-def _tcm_gemini_reply(user_id, text):
+_TCM_SYSTEM_PROMPT = (
+    "你是中醫課程助教。請根據提供的背景資料回答學生的問題。"
+    "回答須簡潔（約150字內），跳過開場白，必要時提供參考。"
+    "若背景資料無法回答，請友善說明並建議可提問的方向。"
+)
+
+def _tcm_openai_reply(user_id, text):
     """
-    以 tcm_master_knowledge.json 為 context，用 Gemini 生成回覆。
+    以 tcm_master_knowledge.json 為 context，用 OpenAI gpt-4o-mini 生成回覆。
     先關鍵字匹配，有匹配用精簡 context；無匹配用完整 JSON。不經過 Assistant API。
-    回傳 True 若已回覆，False 若失敗（如無 GEMINI_API_KEY）。
+    回傳 True 若已回覆，False 若失敗。
     """
     if not (text or "").strip():
         return False
     txt = text.strip()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return False
     all_data = _load_tcm_json()
     ctx_parts = []
     for data in all_data:
@@ -538,27 +547,23 @@ def _tcm_gemini_reply(user_id, text):
     if not ctx or not ctx.strip():
         return False
     try:
-        from google import genai
-        from google.genai import types
-        key = (os.getenv("GEMINI_API_KEY") or "").strip()
-        if not key:
-            return False
-        gc = genai.Client(api_key=key)
-        resp = gc.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料在150字內精準回答，跳過開場白。",
-            config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=256),
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _TCM_SYSTEM_PROMPT},
+                {"role": "user", "content": f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料在150字內精準回答，跳過開場白。"},
+            ],
+            max_tokens=400,
+            temperature=0.2,
         )
-        if resp and getattr(resp, "text", None):
-            ai_reply = resp.text.strip()[:500] + SAFETY_DISCLAIMER
-            log_question(redis, user_id, text)
-            set_last_question(redis, user_id, text)
-            set_last_assistant_message(redis, user_id, ai_reply)
-            line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
-            return True
+        ai_reply = (resp.choices[0].message.content or "").strip()[:500] + SAFETY_DISCLAIMER
+        log_question(redis, user_id, text)
+        set_last_question(redis, user_id, text)
+        set_last_assistant_message(redis, user_id, ai_reply)
+        line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
+        return True
     except Exception:
-        pass
-    return False
+        return False
 
 def _get_cached_mode(user_id):
     """Redis 失敗時從本地快取讀取最近一次成功的模式。"""
@@ -1155,10 +1160,10 @@ def handle_message(event):
             immediate_msg = "正在查找資料，請稍候... ✨" if mode == "tcm" else "正在分析中..."
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
             if mode == "tcm":
-                if _tcm_gemini_reply(user_id, user_text):
+                if _tcm_openai_reply(user_id, user_text):
                     return
                 try:
-                    line_bot_api.push_message(user_id, text_with_quick_reply("暫無法回答，請確認已設定 GEMINI_API_KEY 或稍後再試。"))
+                    line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
                 except Exception:
                     pass
                 return
@@ -1247,7 +1252,7 @@ def handle_message(event):
         mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message -> async AI (current_mode={mode!r}, not REVISION_MODE)")
 
-        # 中醫問答：全程用 tcm_master_knowledge.json + Gemini，不經過 Assistant API
+        # 中醫問答：全程用 tcm_master_knowledge.json + OpenAI gpt-4o-mini，不經過 Assistant API
         if mode == "tcm":
             immediate_msg = "正在查找資料，請稍候... ✨"
         else:
@@ -1257,10 +1262,10 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
 
         if mode == "tcm":
-            if _tcm_gemini_reply(user_id, user_text):
+            if _tcm_openai_reply(user_id, user_text):
                 return
             try:
-                line_bot_api.push_message(user_id, text_with_quick_reply("暫無法回答，請確認已設定 GEMINI_API_KEY 或稍後再試。"))
+                line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
             except Exception:
                 pass
             return
