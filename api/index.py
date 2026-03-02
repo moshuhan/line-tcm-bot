@@ -394,6 +394,30 @@ def text_with_quick_reply_writing(content):
 def _redis_user_mode_key(user_id):
     return f"{REDIS_KEY_USER_MODE}:{user_id}"
 
+_PENDING_WRITING_KEY = "user_pending_writing"
+_PENDING_WRITING_TTL = 300  # 5 分鐘內下一則訊息視為寫作內容（避免 Redis 模式未持久化時誤走 TCM）
+
+def _set_pending_writing(user_id):
+    """切換至寫作模式時設置，供下一則訊息 fallback 辨識。"""
+    try:
+        if redis:
+            redis.set(f"{_PENDING_WRITING_KEY}:{user_id}", "1", ex=_PENDING_WRITING_TTL)
+    except Exception:
+        pass
+
+def _pop_pending_writing(user_id):
+    """若存在 pending，刪除並回傳 True；否則回傳 False。"""
+    try:
+        if not redis:
+            return False
+        key = f"{_PENDING_WRITING_KEY}:{user_id}"
+        if redis.get(key) is not None:
+            redis.delete(key)
+            return True
+    except Exception:
+        pass
+    return False
+
 # --- 中醫問答：本地 JSON 關鍵字匹配 + Gemini（輕量、扁平）---
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 _TCM_JSON_CACHE = None
@@ -512,6 +536,7 @@ def handle_writing_correction(user_id, user_text, reply_token):
                 redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
         except Exception:
             pass
+        _set_pending_writing(user_id)  # 避免 Redis 未持久化時，下一則訊息誤走 TCM
         msg = REVISION_MODE_PROMPT
         if not redis:
             msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
@@ -520,6 +545,25 @@ def handle_writing_correction(user_id, user_text, reply_token):
 
     current_mode = _safe_get_mode(user_id)
     if current_mode != REVISION_MODE:
+        # Redis 可能未持久化：若剛切換過寫作模式，仍以寫作流程處理
+        if _pop_pending_writing(user_id):
+            try:
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
+            except Exception:
+                pass
+            if user_text == "繼續練習":
+                line_bot_api.reply_message(
+                    reply_token,
+                    text_with_quick_reply_writing("請貼上要修改的段落。"),
+                )
+                return True
+            line_bot_api.reply_message(
+                reply_token,
+                TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
+            )
+            _revision_handler(user_id, user_text)
+            return True
         return False
 
     if user_text == "繼續練習":
@@ -818,6 +862,7 @@ def handle_postback(event):
             pass
         mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
         if mode == REVISION_MODE:
+            _set_pending_writing(user_id)
             msg = REVISION_MODE_PROMPT
             if not redis:
                 msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
