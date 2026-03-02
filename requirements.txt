@@ -1,6 +1,7 @@
 line-bot-sdk
 flask
 openai
+google-generativeai
 upstash-redis
 httpx-retries
 python-dotenv

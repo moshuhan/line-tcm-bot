@@ -115,6 +115,19 @@ _http_client = httpx.Client(
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
+# Gemini：模型動態路由（中醫問答→Flash 低延遲 / 口說練習→Pro 語感品質）
+_gemini_configured = False
+try:
+    import google.generativeai as genai
+    _gemini_key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    if _gemini_key:
+        genai.configure(api_key=_gemini_key)
+        _gemini_configured = True
+except ImportError:
+    pass
+GEMINI_FLASH = "gemini-1.5-flash"
+GEMINI_PRO = "gemini-1.5-pro"
+
 # Redis：全域單例，Upstash REST API 無需連線池，模組載入時建立一次
 kv_url = os.getenv("KV_REST_API_URL")
 kv_token = os.getenv("KV_REST_API_TOKEN")
@@ -164,35 +177,48 @@ VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 
-# --- 口說練習：糾錯與分析大腦 ---
+# --- Gemini 模型路由 Helper ---
+def _gemini_generate(model, user_content, system_instruction=None, max_tokens=1024):
+    """Gemini 生成，回傳 (content: str, ok: bool)。Non-blocking，無 Middleware 阻塞。"""
+    if not _gemini_configured:
+        return "", False
+    try:
+        config = {"max_output_tokens": max_tokens}
+        genai_model = genai.GenerativeModel(
+            model_name=model,
+            system_instruction=(system_instruction or ""),
+        )
+        resp = genai_model.generate_content(
+            user_content[:8000],
+            generation_config=config,
+        )
+        if resp and resp.text:
+            return (resp.text.strip(), True)
+    except Exception as e:
+        print(f"[GEMINI] {model} generate failed: {e}")
+    return "", False
+
+
+# --- 口說練習：糾錯與分析（Gemini 1.5 Pro 保證語感品質）---
 def _evaluate_speech(transcript):
     """
     糾錯與分析：檢查語法、拼寫、用詞、語義完整性。
     回傳 (status: "Correct"|"NeedsImprovement", feedback_text: str, corrected_text: str 用於 TTS)。
+    使用 Gemini 1.5 Pro 以保證語感品質。
     """
     if not (transcript or "").strip():
         return "Correct", "", ""
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "你是英文發音與文法助教。分析學生語音辨識文字，執行：\n"
-                        "1. 檢查語法錯誤、單字拼寫錯誤、用詞不當\n"
-                        "2. 評估語義是否完整\n"
-                        "回傳 JSON：\n"
-                        '{"status": "Correct" 或 "NeedsImprovement", "feedback": "簡短回饋（需改進處或鼓勵）", "corrected": "修正後的正確文本（若 status 為 Correct 則為空字串）"}\n'
-                        "Status: Correct = 完全正確且自然；NeedsImprovement = 有任何細微錯誤。"
-                    ),
-                },
-                {"role": "user", "content": f"學生說出的內容：{transcript[:500]}"},
-            ],
-            max_tokens=250,
-        )
-        raw_text = (resp.choices[0].message.content or "").strip()
-        for block in (raw_text.split("```"), [raw_text]):
+    sys_inst = (
+        "你是英文發音與文法助教。分析學生語音辨識文字，執行：\n"
+        "1. 檢查語法錯誤、單字拼寫錯誤、用詞不當\n"
+        "2. 評估語義是否完整\n"
+        "回傳 JSON（僅一行）：\n"
+        '{"status":"Correct"或"NeedsImprovement","feedback":"簡短回饋","corrected":"修正後文本(Correct時空字串)"}\n'
+        "Correct=完全正確且自然；NeedsImprovement=有細微錯誤。"
+    )
+    content, ok = _gemini_generate(GEMINI_PRO, f"學生說出的內容：{transcript[:500]}", sys_inst, max_tokens=250)
+    if ok and content:
+        for block in (content.split("```"), [content]):
             for raw in block:
                 raw = raw.strip()
                 if raw.startswith("{"):
@@ -204,6 +230,30 @@ def _evaluate_speech(transcript):
                         feedback = (obj.get("feedback") or "").strip()[:400]
                         corrected = (obj.get("corrected") or "").strip()[:500]
                         return status, feedback, corrected
+                    except Exception:
+                        pass
+    # Fallback to OpenAI when Gemini not configured
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": sys_inst},
+                {"role": "user", "content": f"學生說出的內容：{transcript[:500]}"},
+            ],
+            max_tokens=250,
+        )
+        raw_text = (resp.choices[0].message.content or "").strip()
+        for block in (raw_text.split("```"), [raw_text]):
+            for r in block:
+                raw = r.strip() if isinstance(r, str) else ""
+                if raw.startswith("{"):
+                    try:
+                        obj = json.loads(raw.split("\n")[0])
+                        return (
+                            (obj.get("status") or "Correct").strip()[:20] or "Correct",
+                            (obj.get("feedback") or "").strip()[:400],
+                            (obj.get("corrected") or "").strip()[:500],
+                        )
                     except Exception:
                         pass
     except Exception:
@@ -516,36 +566,87 @@ def _safe_get_mode(user_id):
 # --- AI 核心函數（模式路由器）---
 def _generate_tcm_quick_summary(text, max_chars=200):
     """
-    階段一：Chat Completion 生成 200 字以內核心摘要。
-    回傳 str 或空字串（失敗時）。
+    階段一（極速摘要）：Gemini 1.5 Flash 生成 200 字以內核心重點。
+    Prompt 極簡化以加速解析。回傳 str 或空字串。
     """
-    if not (text or "").strip() or not client:
+    if not (text or "").strip():
         return ""
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "你是中醫課程助教。請先針對問題提供精簡的直接回答，不超過 200 字。不需引用、不需參考資料，僅核心要點。",
-                },
-                {"role": "user", "content": f"問題：{text.strip()}"},
-            ],
-            max_tokens=300,
-        )
-        content = (resp.choices[0].message.content or "").strip()
+    # 極簡化、結構化 Prompt，刪除冗餘以加速
+    sys_inst = "中醫助教。精簡直接回答，≤200字，僅核心要點，無引用。"
+    content, ok = _gemini_generate(GEMINI_FLASH, f"問題：{text.strip()}", sys_inst, max_tokens=300)
+    if ok and content:
         if len(content) > max_chars:
             content = content[:max_chars].rsplit("。", 1)[0] + "。" if "。" in content[:max_chars] else content[:max_chars]
         return content
+    # Fallback: OpenAI
+    if client:
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "system", "content": sys_inst}, {"role": "user", "content": f"問題：{text.strip()}"}],
+                max_tokens=300,
+            )
+            c = (resp.choices[0].message.content or "").strip()
+            if len(c) > max_chars:
+                c = c[:max_chars].rsplit("。", 1)[0] + "。" if "。" in c[:max_chars] else c[:max_chars]
+            return c
+        except Exception as e:
+            print(f"[TCM] quick summary fallback failed: {e}")
+    return ""
+
+
+def _process_tcm_stage2_openai_fallback(user_id, text):
+    """OpenAI Assistant 作為 Gemini 不可用時的 fallback。"""
+    if not client or not assistant_id:
+        line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+        return
+    try:
+        thread_id = None
+        if redis:
+            try:
+                t_id = redis.get(f"user_thread:{user_id}")
+                if t_id is not None:
+                    thread_id = t_id.decode("utf-8") if hasattr(t_id, "decode") else str(t_id)
+                    if thread_id in ("None", "") or not thread_id.strip():
+                        thread_id = None
+            except Exception:
+                pass
+        if not thread_id:
+            new_thread = client.beta.threads.create()
+            thread_id = new_thread.id
+            if redis:
+                try:
+                    redis.set(f"user_thread:{user_id}", thread_id)
+                except Exception:
+                    pass
+        mode_instructions = get_rag_instructions()
+        user_content = f"{mode_instructions}\n\n【中醫問答】使用者：{text}\n(完整醫理分析與建議，末尾參考資料出處)"
+        client.beta.threads.messages.create(thread_id=thread_id, role="user", content=user_content)
+        run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
+        start_time = time.time()
+        while run.status in ('queued', 'in_progress'):
+            if time.time() - start_time > TIMEOUT_SECONDS:
+                break
+            time.sleep(1)
+            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+        if run.status == 'completed':
+            messages = client.beta.threads.messages.list(thread_id=thread_id)
+            ai_reply = messages.data[0].content[0].text.value.rstrip() + SAFETY_DISCLAIMER
+            log_question(redis, user_id, text)
+            set_last_question(redis, user_id, text)
+            set_last_assistant_message(redis, user_id, ai_reply)
+            line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
+        else:
+            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
     except Exception as e:
-        print(f"[TCM] quick summary failed: {e}")
-        return ""
+        print(f"[TCM] OpenAI fallback err: {e}")
+        line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
 
 
 def _process_tcm_two_stage(user_id, text, reply_token=None):
     """
-    中醫問答兩階段回應：
-    階段一：快速摘要（reply 或 push）→ 提示 → 階段二：完整詳解（push）
+    中醫問答兩階段回應（Gemini 1.5 Flash 極速）：
+    階段一：極速摘要（reply/push）→ 提示 → 階段二：詳盡分析（push）
     """
     try:
         # 階段一：快速摘要（Chat Completion，較快）
@@ -570,50 +671,14 @@ def _process_tcm_two_stage(user_id, text, reply_token=None):
         except Exception as e:
             print(f"[TCM] interim prompt send failed: {e}")
 
-        # 階段二：完整詳解（Assistant API + RAG）
-        thread_id = None
-        try:
-            if redis:
-                t_id = redis.get(f"user_thread:{user_id}")
-                if t_id is not None:
-                    thread_id = t_id.decode("utf-8") if hasattr(t_id, "decode") else str(t_id)
-                    if thread_id == "None" or not thread_id.strip():
-                        thread_id = None
-        except Exception:
-            pass
-
-        if not thread_id:
-            new_thread = client.beta.threads.create()
-            thread_id = new_thread.id
-            try:
-                if redis:
-                    redis.set(f"user_thread:{user_id}", thread_id)
-            except Exception:
-                pass
-
+        # 階段二：詳盡分析（Gemini 1.5 Flash，背景非同步，完成後 push）
         mode_instructions = get_rag_instructions()
-        user_content = (
-            f"{mode_instructions}\n\n【🩺 中醫問答】\n"
-            f"使用者的話：{text}\n"
-            "(提醒：請提供完整且詳細的醫理分析與建議，回答末尾請提供參考資料出處)"
-        )
-        client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=user_content,
-        )
-        run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
+        sys_inst = f"{mode_instructions}\n提供完整醫理分析與建議，末尾提供參考資料出處。"
+        user_content = f"【中醫問答】使用者問題：{text}"
 
-        start_time = time.time()
-        while run.status in ['queued', 'in_progress']:
-            if time.time() - start_time > TIMEOUT_SECONDS:
-                break
-            time.sleep(1)
-            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-
-        if run.status == 'completed':
-            messages = client.beta.threads.messages.list(thread_id=thread_id)
-            ai_reply = messages.data[0].content[0].text.value.rstrip() + SAFETY_DISCLAIMER
+        ai_reply, ok = _gemini_generate(GEMINI_FLASH, user_content, sys_inst, max_tokens=4096)
+        if ok and ai_reply:
+            ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
             set_last_assistant_message(redis, user_id, ai_reply)
@@ -622,7 +687,8 @@ def _process_tcm_two_stage(user_id, text, reply_token=None):
                 text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"),
             )
         else:
-            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+            # Fallback: OpenAI Assistant API（Gemini 不可用時）
+            _process_tcm_stage2_openai_fallback(user_id, text)
     except Exception as e:
         print(f"CRITICAL ERROR [TCM two-stage]: {traceback.format_exc()}")
         try:
@@ -642,8 +708,19 @@ def _process_assistant_sync(user_id, text, reply_token=None):
             _process_tcm_two_stage(user_id, text, reply_token=reply_token)
             return
 
-        tag = "🗣️ 口說練習" if mode == "speaking" else "✍️ 寫作修訂"
-
+        # 口說練習：Gemini 1.5 Pro 保證語感品質
+        if mode == "speaking":
+            sys_inst = get_rag_instructions()
+            content, ok = _gemini_generate(GEMINI_PRO, f"【口說練習】使用者：{text}", sys_inst, max_tokens=2048)
+            if ok and content:
+                log_question(redis, user_id, text)
+                set_last_question(redis, user_id, text)
+                set_last_assistant_message(redis, user_id, content)
+                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(content))
+                return
+            tag = "🗣️ 口說練習"
+        else:
+            tag = "✍️ 寫作修訂"
         thread_id = None
         try:
             if redis:
