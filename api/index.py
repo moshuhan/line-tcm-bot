@@ -21,7 +21,10 @@ from linebot.models import (
 from linebot.models.send_messages import AudioSendMessage
 from upstash_redis import Redis
 from openai import OpenAI
-# cloudinary 改為 lazy import（_upload_tts_to_cloudinary 內），避免 TCM 純文字路徑載入
+import httpx
+from httpx_retries import RetryTransport, Retry
+import cloudinary
+import cloudinary.uploader
 
 try:
     from api.syllabus import (
@@ -104,24 +107,61 @@ except ImportError:
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 line_webhook_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# 使用 httpx + RetryTransport 緩解 Vercel 上 Errno 16 "Device or resource busy" 等瞬斷
+_retry = Retry(total=3, backoff_factor=0.5)
+_http_client = httpx.Client(
+    transport=RetryTransport(retry=_retry),
+    limits=httpx.Limits(max_keepalive_connections=5, max_connections=20),
+)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
+# Redis：全域單例，Upstash REST API 無需連線池，模組載入時建立一次
 kv_url = os.getenv("KV_REST_API_URL")
 kv_token = os.getenv("KV_REST_API_TOKEN")
-redis = Redis(url=kv_url, token=kv_token) if kv_url and kv_token else None
+redis = None
+if kv_url and kv_token:
+    try:
+        redis = Redis(
+            url=kv_url,
+            token=kv_token,
+            rest_retries=5,
+            rest_retry_interval=2,
+        )
+    except TypeError:
+        try:
+            redis = Redis(url=kv_url, token=kv_token)
+        except Exception as e:
+            print(f"[REDIS] init failed err={e}")
+            redis = None
+    except Exception as e:
+        print(f"[REDIS] init failed err={e}")
+        redis = None
 
-# Cloudinary：僅檢查 env（lazy import 於 _upload_tts_to_cloudinary 內）
+# 模式快取：Redis 瞬斷時使用，key=user_id -> (mode, timestamp)
+_mode_cache = {}
+_MODE_CACHE_TTL = 180
+_MODE_CACHE_MAX = 1000
+
+# Cloudinary 設定（TTS 語音檔雲端儲存）
 _cloudinary_configured = bool(
     os.getenv("CLOUDINARY_CLOUD_NAME")
     and os.getenv("CLOUDINARY_API_KEY")
     and os.getenv("CLOUDINARY_API_SECRET")
 )
+if _cloudinary_configured:
+    cloudinary.config(
+        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        api_key=os.getenv("CLOUDINARY_API_KEY"),
+        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    )
 
 # 安全聲明：涉及中醫診斷之回覆必須附加
 SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
 
 VOICE_COACH_TTS_VOICE = "shimmer"
+TTS_SPEED = 0.8  # shadowing 語音 0.8 倍速，較慢易於跟讀
+VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 
@@ -171,23 +211,11 @@ def _evaluate_speech(transcript):
         traceback.print_exc()
     return "Correct", "", ""
 
-_cloudinary_config_done = False
-
 def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
-    """上傳 TTS 語音至 Cloudinary。Lazy import。"""
-    global _cloudinary_config_done
+    """上傳 TTS 語音至 Cloudinary（BytesIO 串流、video 資源型別優化音訊），回傳 (secure_url, duration_ms)。"""
     if not _cloudinary_configured or not audio_bytes:
         return (None, 0)
     try:
-        import cloudinary
-        import cloudinary.uploader
-        if not _cloudinary_config_done:
-            cloudinary.config(
-                cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-                api_key=os.getenv("CLOUDINARY_API_KEY"),
-                api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-            )
-            _cloudinary_config_done = True
         result = cloudinary.uploader.upload(
             io.BytesIO(audio_bytes),
             resource_type="video",  # 音訊用 video 型別，支援轉碼與 CDN 優化
@@ -197,7 +225,8 @@ def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
         )
         url = result.get("secure_url")
         if url:
-            duration_ms = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+            base_dur = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+            duration_ms = int(base_dur / TTS_SPEED)
             return (url, duration_ms)
     except Exception:
         traceback.print_exc()
@@ -220,9 +249,11 @@ def _generate_tts_and_store(sentence, voice=None):
             model="tts-1",
             voice=voice,
             input=sentence[:4096],
+            speed=TTS_SPEED,
         )
         audio_bytes = resp.content
-        duration_ms = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+        base_dur = max(1000, int(len(sentence.split()) / 2.2 * 1000))
+        duration_ms = int(base_dur / TTS_SPEED)
 
         # 優先上傳 Cloudinary，取得 HTTPS Secure URL
         if _cloudinary_configured:
@@ -326,22 +357,24 @@ def quick_reply_review_ask():
 def text_with_quick_reply_review_ask(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_review_ask())
 
-# --- 寫作修訂模式：獨立處理，不使用 Assistant API / RAG ---
+# --- 寫作修訂模式：獨立處理，不經過 Assistant API / RAG ---
 REVISION_MODE = "writing"
 REVISION_MODE_PROMPT = "你已在【✍️ 寫作修訂】模式～請貼上要修改的段落。"
-REDIS_KEY_USER_MODE = "user_mode"
+REDIS_KEY_USER_MODE = "user_mode"  # 與 Postback/切換按鈕寫入的 Key 完全一致：user_mode:{user_id}
 
-# 寫作模式 prompt：回覆自然內容，不要輸出【】標題給使用者
+# 寫作模式 prompt：回饋需含下列內容，但不要輸出標題給使用者
 _REVISION_PROMPT = (
     "你是專業溫暖的語言老師。回覆時請自然融入以下內容，不要輸出【】標題："
-    "（1）鼓勵／正面肯定；"
-    "（2）若有錯誤：需修改的原因＋修正後的版本（用 **粗體** 標示修改處）；若無誤則稱讚原文道地；"
-    "（3）鼓勵繼續發問、貼上其他句子練習。"
+    "（1）鼓勵／正面肯定"
+    "（2）若有錯誤：需修改的原因＋修正後的版本（用 **粗體** 標示修改處）；若無誤則稱讚原文道地"
+    "（3）鼓勵繼續發問、貼上其他句子練習"
     "語氣溫暖，段落分明易讀。"
 )
 
 def _revision_handler(user_id, text):
-    """寫作修訂：gpt-4o-mini + Chat Completion，結果以 push_message 送出。"""
+    """
+    寫作修訂：gpt-4o-mini + Chat Completion，非串流以加速。結果以 push_message 送出。
+    """
     if not user_id or not str(user_id).strip():
         print(f"[REVISION] ERROR: user_id invalid or empty user_id={repr(user_id)}")
         return
@@ -381,7 +414,7 @@ def _revision_handler(user_id, text):
             print(f"[REVISION] push_message (error fallback) failed err={push_err}")
 
 def quick_reply_writing():
-    """寫作修訂模式：僅繼續練習按鈕。"""
+    """寫作修訂模式：僅繼續練習按鈕（已取消離開模式）。"""
     return QuickReply(
         items=[
             QuickReplyButton(action=MessageAction(label="繼續練習", text="繼續練習")),
@@ -392,31 +425,8 @@ def text_with_quick_reply_writing(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_writing())
 
 def _redis_user_mode_key(user_id):
+    """統一的 Redis Key，與 Postback/切換按鈕寫入處完全一致。"""
     return f"{REDIS_KEY_USER_MODE}:{user_id}"
-
-_PENDING_WRITING_KEY = "user_pending_writing"
-_PENDING_WRITING_TTL = 300  # 5 分鐘內下一則訊息視為寫作內容（避免 Redis 模式未持久化時誤走 TCM）
-
-def _set_pending_writing(user_id):
-    """切換至寫作模式時設置，供下一則訊息 fallback 辨識。"""
-    try:
-        if redis:
-            redis.set(f"{_PENDING_WRITING_KEY}:{user_id}", "1", ex=_PENDING_WRITING_TTL)
-    except Exception:
-        pass
-
-def _pop_pending_writing(user_id):
-    """若存在 pending，刪除並回傳 True；否則回傳 False。"""
-    try:
-        if not redis:
-            return False
-        key = f"{_PENDING_WRITING_KEY}:{user_id}"
-        if redis.get(key) is not None:
-            redis.delete(key)
-            return True
-    except Exception:
-        pass
-    return False
 
 # --- 中醫問答：本地 JSON 關鍵字匹配 + Gemini（輕量、扁平）---
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -443,12 +453,11 @@ def _load_tcm_json():
 def _tcm_keyword_match_and_gemini(user_id, text):
     """
     關鍵字匹配 tcm_*.json，若匹配則將內容餵給 Gemini 回覆。
-    回傳 True 若已回覆，False 則 fallback 至 process_ai_request。
+    回傳 True 若已回覆，False 則 fallback 至 process-text-async。
     """
     if not (text or "").strip():
         return False
     txt = text.strip()
-    # 從 JSON 萃取關鍵字並匹配
     all_data = _load_tcm_json()
     ctx_parts = []
     for data in all_data:
@@ -511,88 +520,95 @@ def _tcm_keyword_match_and_gemini(user_id, text):
         pass
     return False
 
+def _get_cached_mode(user_id):
+    """Redis 失敗時從本地快取讀取最近一次成功的模式。"""
+    now = time.time()
+    if user_id in _mode_cache:
+        mode, ts = _mode_cache[user_id]
+        if now - ts < _MODE_CACHE_TTL:
+            return mode
+        try:
+            del _mode_cache[user_id]
+        except KeyError:
+            pass
+    return None
+
+def _set_cached_mode(user_id, mode):
+    """寫入模式快取，供 Redis 瞬斷時 fallback。"""
+    now = time.time()
+    while len(_mode_cache) >= _MODE_CACHE_MAX:
+        try:
+            oldest = min(_mode_cache.items(), key=lambda x: x[1][1])
+            del _mode_cache[oldest[0]]
+        except (ValueError, KeyError):
+            break
+    _mode_cache[user_id] = (mode, now)
+
 def _safe_get_mode(user_id):
-    """安全取得使用者模式，Redis 失敗時回傳 tcm。"""
+    """
+    安全取得使用者模式。Key 與 Postback 寫入處一致。
+    快取優先：有有效快取時直接回傳，減少 Redis 讀取與 Device/resource busy 風險。
+    Redis 失敗時：先嘗試本地快取，僅在快取也無效時才 fallback 至 tcm。
+    """
     try:
+        cached = _get_cached_mode(user_id)
+        if cached:
+            return cached
         if not redis:
+            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=redis_none")
             return "tcm"
-        mode_val = redis.get(_redis_user_mode_key(user_id))
+        key = _redis_user_mode_key(user_id)
+        mode_val = None
+        for attempt in range(3):
+            try:
+                mode_val = redis.get(key)
+                break
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(0.2 * (attempt + 1))
+                    continue
+                # Redis 重試後仍失敗：嘗試快取
+                cached = _get_cached_mode(user_id)
+                if cached:
+                    err_detail = f"errno={getattr(e, 'errno', 'N/A')} type={type(e).__name__}"
+                    print(f"[MODE] _safe_get_mode user_id={user_id} redis_fail using_cache={cached} {err_detail}")
+                    return cached
+                err_detail = f"errno={getattr(e, 'errno', 'N/A')} type={type(e).__name__}"
+                print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception_after_retry {err_detail} err={e}")
+                traceback.print_exc()
+                return "tcm"
         if mode_val is None:
+            cached = _get_cached_mode(user_id)
+            if cached:
+                print(f"[MODE] _safe_get_mode user_id={user_id} key_missing using_cache={cached}")
+                return cached
+            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=key_missing_or_null")
             return "tcm"
-        if hasattr(mode_val, "decode"):
-            return mode_val.decode("utf-8").strip() or "tcm"
-        return str(mode_val).strip() or "tcm"
-    except Exception:
+        if isinstance(mode_val, bytes):
+            mode_str = mode_val.decode("utf-8", errors="replace").strip()
+        else:
+            mode_str = str(mode_val).strip()
+        if not mode_str:
+            cached = _get_cached_mode(user_id)
+            if cached:
+                return cached
+            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=empty_value raw={repr(mode_val)}")
+            return "tcm"
+        result = mode_str.lower()
+        _set_cached_mode(user_id, result)
+        return result
+    except Exception as e:
+        cached = _get_cached_mode(user_id)
+        if cached:
+            print(f"[MODE] _safe_get_mode user_id={user_id} outer_exception using_cache={cached} err={e}")
+            return cached
+        print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception err={e}")
         return "tcm"
 
-def handle_writing_correction(user_id, user_text, reply_token):
-    """
-    寫作修訂獨立處理：切換模式、繼續練習、或執行修訂。
-    回傳 True 若已處理，False 則交由其他 handler。
-    """
-    if user_text in ("寫作修改", "寫作修訂"):
-        try:
-            if redis:
-                redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
-        except Exception:
-            pass
-        _set_pending_writing(user_id)  # 避免 Redis 未持久化時，下一則訊息誤走 TCM
-        msg = REVISION_MODE_PROMPT
-        if not redis:
-            msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
-        line_bot_api.reply_message(reply_token, text_with_quick_reply_writing(msg))
-        return True
-
-    current_mode = _safe_get_mode(user_id)
-    if current_mode != REVISION_MODE:
-        # Redis 可能未持久化：若剛切換過寫作模式，仍以寫作流程處理
-        if _pop_pending_writing(user_id):
-            try:
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
-            except Exception:
-                pass
-            if user_text == "繼續練習":
-                line_bot_api.reply_message(
-                    reply_token,
-                    text_with_quick_reply_writing("請貼上要修改的段落。"),
-                )
-                return True
-            line_bot_api.reply_message(
-                reply_token,
-                TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
-            )
-            _revision_handler(user_id, user_text)
-            return True
-        return False
-
-    if user_text == "繼續練習":
-        line_bot_api.reply_message(
-            reply_token,
-            text_with_quick_reply_writing("請貼上要修改的段落。"),
-        )
-        return True
-
-    line_bot_api.reply_message(
-        reply_token,
-        TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
-    )
-    _revision_handler(user_id, user_text)
-    return True
-
-def handle_tcm_qa(event, user_id, user_text):
-    """
-    中醫問答獨立處理：JSON RAG 關鍵字匹配 + Gemini，無匹配則 fallback Assistant。
-    僅於 mode == tcm 時呼叫。
-    """
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查找資料..."))
-    if _tcm_keyword_match_and_gemini(user_id, user_text):
-        return
-    process_ai_request(event, user_id, user_text, is_voice=False)
-
 # --- AI 核心函數（模式路由器）---
-def process_ai_request(event, user_id, text, is_voice=False):
-    """State-Based Router：寫作模式走 _revision_handler，其餘走 Assistant API。"""
+def _process_assistant_sync(user_id, text):
+    """Assistant API 邏輯：Thread/Run/RAG，完成後 push_message。供 process-text-async 背景呼叫。"""
     try:
         mode = _safe_get_mode(user_id)
         if mode == REVISION_MODE:
@@ -665,6 +681,54 @@ def process_ai_request(event, user_id, text, is_voice=False):
         print(f"CRITICAL ERROR: {traceback.format_exc()}")
         line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
 
+
+def process_ai_request(event, user_id, text, is_voice=False):
+    """State-Based Router：依 user_state (mode) 切換。寫作模式走 revision_handler，其餘走 Assistant API。"""
+    try:
+        mode = _safe_get_mode(user_id)
+        print(f"[MODE] process_ai_request user_id={user_id} mode={mode} routing={'revision' if mode == REVISION_MODE else 'assistant'}")
+        if mode == REVISION_MODE:
+            _revision_handler(user_id, text)
+            return
+        _process_assistant_sync(user_id, text)
+    except Exception as e:
+        print(f"CRITICAL ERROR: {traceback.format_exc()}")
+        line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+
+
+def _run_text_background(user_id, text, task, base_url, cron_secret):
+    """Background Task：觸發 process-text-async 或本地執行，不阻塞 webhook。"""
+    print(f"[TEXT_BG] start user_id={user_id} task={task} has_base={bool(base_url)} has_secret={bool(cron_secret)}")
+    if base_url and cron_secret:
+        try:
+            r = requests.post(
+                f"{base_url}/api/process-text-async",
+                json={"user_id": user_id, "text": text, "task": task},
+                headers={"Authorization": f"Bearer {cron_secret}"},
+                timeout=30,
+            )
+            print(f"[TEXT_BG] POST result status={r.status_code}")
+        except Exception as e:
+            print(f"[TEXT_BG] POST failed, fallback local err={e}")
+            traceback.print_exc()
+            try:
+                if task == "revision":
+                    _revision_handler(user_id, text)
+                else:
+                    _process_assistant_sync(user_id, text)
+            except Exception as inner:
+                print(f"[TEXT_BG] fallback handler failed err={inner}")
+                traceback.print_exc()
+    else:
+        try:
+            if task == "revision":
+                _revision_handler(user_id, text)
+            else:
+                _process_assistant_sync(user_id, text)
+        except Exception as e:
+            print(f"[TEXT_BG] direct handler failed err={e}")
+            traceback.print_exc()
+
 # --- 每週報告 Cron（需 CRON_SECRET 驗證）---
 try:
     from api.weekly_report import run_weekly_report
@@ -690,6 +754,12 @@ def cron_weekly_report():
 def home():
     return 'Line Bot Server is running!', 200
 
+@app.route("/favicon.ico", methods=['GET'])
+@app.route("/favicon.png", methods=['GET'])
+def favicon():
+    """避免瀏覽器/爬蟲請求 favicon 產生 404 日誌。"""
+    return "", 204
+
 def _run_voice_background(user_id, message_id, base_url, cron_secret):
     """Background Task：語音轉錄、GPT 分析、TTS、Cloudinary 上傳。不阻塞 webhook 回傳。"""
     if base_url and cron_secret:
@@ -713,8 +783,15 @@ def _run_voice_background(user_id, message_id, base_url, cron_secret):
 
 
 def _process_voice_sync(user_id, message_id):
-    """本機/缺少 VERCEL_URL 時同步執行語音處理（避免非同步觸發失敗時無回應）。"""
+    """
+    語音處理：Whisper 辨識 -> GPT 評估 -> TTS -> Cloudinary。
+    一律用 push_message 回傳，錯誤時主動 push 友善提示。
+    """
+    if not user_id or not str(user_id).strip():
+        print(f"[VOICE] ERROR: user_id invalid user_id={repr(user_id)}")
+        return
     try:
+        print(f"[VOICE] start user_id={user_id} message_id={message_id}")
         message_content = line_bot_api.get_message_content(message_id)
         tmp_dir = tempfile.gettempdir()
         temp_path = os.path.join(tmp_dir, f"{message_id}.m4a")
@@ -752,13 +829,18 @@ def _process_voice_sync(user_id, message_id):
                     user_id,
                     text_with_quick_reply_speak_practice("發音非常標準！太棒了！\n\n要再練習下一句嗎？"),
                 )
-            else:
-                text_for_tts = corrected_text.strip() if corrected_text else transcript_text
-                # 先推文字，降低體感等待；TTS + Cloudinary 在後
-                line_bot_api.push_message(
-                    user_id,
-                    text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}\n\n🔊 請跟著唸：「{text_for_tts}」"),
-                )
+                print(f"[VOICE] done speaking Correct")
+                return
+            line_bot_api.push_message(
+                user_id,
+                text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"),
+            )
+            text_for_tts = corrected_text.strip() if corrected_text else transcript_text
+            line_bot_api.push_message(
+                user_id,
+                TextSendMessage(text=f"🔊 請跟著唸：「{text_for_tts}」"),
+            )
+            try:
                 audio_url, duration_ms = _generate_tts_and_store(text_for_tts, voice=VOICE_COACH_TTS_VOICE)
                 if audio_url and duration_ms:
                     line_bot_api.push_message(
@@ -770,23 +852,28 @@ def _process_voice_sync(user_id, message_id):
                         text_with_quick_reply_speak_practice("示範語音已送上，要再練習下一句嗎？"),
                     )
                 else:
-                    line_bot_api.push_message(
-                        user_id,
-                        text_with_quick_reply_speak_practice(
-                            f"修正文本：{text_for_tts}\n\n要再練習下一句嗎？"
-                        ),
-                    )
+                    line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(VOICE_ERROR_MSG))
+            except Exception as tts_err:
+                print(f"[VOICE] TTS/Cloudinary err={tts_err}")
+                traceback.print_exc()
+                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(VOICE_ERROR_MSG))
+            print(f"[VOICE] done speaking NeedsImprovement")
+            return
+        if is_course_inquiry_intent(transcript_text):
+            line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
+            send_course_inquiry_flex(user_id)
+        elif is_off_topic(transcript_text):
+            line_bot_api.push_message(user_id, text_with_quick_reply(OFF_TOPIC_REPLY))
         else:
-            if is_course_inquiry_intent(transcript_text):
-                line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
-                send_course_inquiry_flex(user_id)
-            elif is_off_topic(transcript_text):
-                line_bot_api.push_message(user_id, text_with_quick_reply(OFF_TOPIC_REPLY))
-            else:
-                process_ai_request(None, user_id, transcript_text, is_voice=True)
-    except Exception:
+            process_ai_request(None, user_id, transcript_text, is_voice=True)
+        print(f"[VOICE] done other mode")
+    except Exception as e:
+        print(f"[VOICE] CRITICAL err={e}")
         traceback.print_exc()
-        line_bot_api.push_message(user_id, text_with_quick_reply("❌ 語音辨識失敗，請再試一次。"))
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply("❌ 語音辨識失敗，請再試一次。"))
+        except Exception:
+            pass
 
 
 @app.route("/api/process-voice-async", methods=["POST"])
@@ -816,6 +903,40 @@ def process_voice_async():
         return str(e)[:200], 500
 
 
+@app.route("/api/process-text-async", methods=["POST"])
+def process_text_async():
+    """Background Task：接收文字 AI 任務，執行寫作修訂或 Assistant RAG，完成後 push_message。"""
+    secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
+    expected = os.getenv("CRON_SECRET", "")
+    if expected and secret not in (expected, "Bearer " + expected):
+        print(f"[process-text-async] 401 Unauthorized")
+        return "Unauthorized", 401
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        user_id = (data.get("user_id") or "").strip()
+        text = (data.get("text") or "").strip()
+        task = (data.get("task") or "assistant").strip().lower()
+        print(f"[process-text-async] received user_id={user_id!r} task={task} text_len={len(text)}")
+        if not user_id:
+            return "Missing user_id", 400
+        if task == "revision":
+            _revision_handler(user_id, text)
+        else:
+            _process_assistant_sync(user_id, text)
+        print(f"[process-text-async] done task={task}")
+        return "OK", 200
+    except Exception as e:
+        print(f"[process-text-async] CRITICAL err={e}")
+        traceback.print_exc()
+        try:
+            uid = (request.get_json(force=True, silent=True) or {}).get("user_id", "")
+            if uid:
+                line_bot_api.push_message(uid, text_with_quick_reply(TIMEOUT_MESSAGE))
+        except Exception as push_err:
+            print(f"[process-text-async] push error fallback failed err={push_err}")
+        return str(e)[:200], 500
+
+
 @app.route("/audio/<token>", methods=['GET'])
 def serve_audio(token):
     """提供 TTS 音檔給 LINE 播放（Redis 暫存，TTL 約 10 分鐘）。"""
@@ -833,6 +954,7 @@ def serve_audio(token):
 
 @app.route("/callback", methods=['POST'])
 def callback():
+    """LINE Webhook 唯一入口（Vercel rewrite → 本檔）。Postback / Message 皆由此處理。"""
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
     try:
@@ -853,22 +975,34 @@ def handle_postback(event):
         if data == "action=course" or data == "action=weekly":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
-        # mode=tcm / mode=speaking / mode=writing
+        # mode=tcm / mode=speaking / mode=writing（Rich Menu 切換）
         mode = data.split("=")[1].strip() if "=" in data else "tcm"
+        mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
+        _set_cached_mode(user_id, mode)
+        redis_ok = False
         try:
             if redis:
                 redis.set(_redis_user_mode_key(user_id), mode)
-        except Exception:
-            pass
-        mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
+                redis_ok = True
+                # 寫入後立即讀回驗證（供除錯）
+                verify = redis.get(_redis_user_mode_key(user_id))
+                v = verify.decode("utf-8").strip() if isinstance(verify, bytes) else str(verify or "").strip()
+                verified = (v == mode)
+                print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_ok={redis_ok} verified={verified}")
+        except Exception as e:
+            print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_set_failed err={e}")
+        # 與 CLI/文字指令一致的切換訊息（寫作修訂需含操作指引）
         if mode == REVISION_MODE:
-            _set_pending_writing(user_id)
             msg = REVISION_MODE_PROMPT
             if not redis:
                 msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
+        elif mode == "speaking":
+            msg = "已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(msg))
         else:
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"已切換至【{mode_map.get(mode, mode)}】模式"))
+            msg = f"已切換至【{mode_map.get(mode, mode)}】模式"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(msg))
     except Exception as e:
         traceback.print_exc()
         try:
@@ -881,13 +1015,95 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
     try:
-        # 課務查詢／本週重點：統一以 Flex Message 回傳
-        if is_course_inquiry_intent(user_text):
+        # --- Rich Menu 按鈕：立即回覆，避免延遲 ---
+        if user_text == "中醫問答":
+            try:
+                _set_cached_mode(user_id, "tcm")
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), "tcm")
+            except Exception:
+                pass
+            line_bot_api.reply_message(
+                event.reply_token,
+                text_with_quick_reply("已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"),
+            )
+            return
+        if user_text == "口說練習":
+            try:
+                _set_cached_mode(user_id, "speaking")
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), "speaking")
+            except Exception:
+                pass
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
+            return
+        if user_text in ("寫作修改", "寫作修訂"):
+            try:
+                _set_cached_mode(user_id, REVISION_MODE)
+                if redis:
+                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
+            except Exception:
+                pass
+            msg = REVISION_MODE_PROMPT
+            if not redis:
+                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
+            return
+        if user_text == "課務查詢":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 寫作修訂：獨立 handler（切換模式／繼續練習／修訂）
-        if handle_writing_correction(user_id, user_text, event.reply_token):
+        # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
+        current_mode = _safe_get_mode(user_id)
+        print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
+        if current_mode == REVISION_MODE:
+            print(f"[MODE] handle_message -> REVISION_MODE branch, skipping TCM Assistant")
+            if user_text in ("寫作修改", "寫作修訂"):
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    text_with_quick_reply_writing(REVISION_MODE_PROMPT),
+                )
+                return
+            if user_text == "繼續練習":
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    text_with_quick_reply_writing("請貼上要修改的段落。"),
+                )
+                return
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
+            )
+            vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+            base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+            cron_secret = os.getenv("CRON_SECRET", "")
+            async_ok = False
+            if base_url and cron_secret:
+                try:
+                    r = requests.post(
+                        f"{base_url}/api/process-text-async",
+                        json={"user_id": user_id, "text": user_text, "task": "revision"},
+                        headers={"Authorization": f"Bearer {cron_secret}"},
+                        timeout=5,
+                    )
+                    if r.status_code == 200:
+                        async_ok = True
+                        print(f"[REVISION] async POST ok status=200")
+                    else:
+                        print(f"[REVISION] async POST non-2xx status={r.status_code} body={r.text[:200]}")
+                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
+                    print(f"[REVISION] async POST timeout - fallback sync to guarantee response err={e}")
+                except Exception as e:
+                    print(f"[REVISION] async POST failed - fallback sync err={e}")
+                    traceback.print_exc()
+            if not async_ok:
+                print(f"[REVISION] running synchronously user_id={user_id}")
+                _revision_handler(user_id, user_text)
+            return
+
+        # 課務查詢／本週重點：統一以 Flex Message 回傳
+        if is_course_inquiry_intent(user_text):
+            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
         # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理
@@ -895,8 +1111,20 @@ def handle_message(event):
             set_user_state(redis, user_id, STATE_NORMAL)
             clear_quiz_data(redis, user_id)
             clear_quiz_pending(redis, user_id)
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在分析中..."))
-            process_ai_request(event, user_id, user_text, is_voice=False)
+            mode = _safe_get_mode(user_id)
+            immediate_msg = "正在查找資料..." if mode == "tcm" else "正在分析中..."
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
+            # TCM：先試 JSON RAG，無匹配再走 async Assistant
+            if mode == "tcm" and _tcm_keyword_match_and_gemini(user_id, user_text):
+                return
+            vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+            base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+            cron_secret = os.getenv("CRON_SECRET", "")
+            threading.Thread(
+                target=_run_text_background,
+                args=(user_id, user_text, "assistant", base_url, cron_secret),
+                daemon=True,
+            ).start()
             return
 
         # 主動複習：使用者選擇「要複習筆記」
@@ -945,27 +1173,6 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # Rich Menu【中醫問答】：切換至 TCM 模式，等待使用者下一句提問
-        if user_text == "中醫問答":
-            try:
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), "tcm")
-            except Exception:
-                pass
-            line_bot_api.reply_message(
-                event.reply_token,
-                text_with_quick_reply("已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"),
-            )
-            return
-
-        if user_text == "口說練習":
-            try:
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), "speaking")
-            except Exception:
-                pass
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
-            return
         if user_text == "練習下一句":
             mode = _safe_get_mode(user_id)
             if mode == "speaking":
@@ -976,6 +1183,7 @@ def handle_message(event):
                 return
         if user_text == "結束練習":
             try:
+                _set_cached_mode(user_id, "tcm")
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), "tcm")
             except Exception:
@@ -991,24 +1199,31 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply(OFF_TOPIC_REPLY))
             return
 
-        # 主路由：明確 if/elif 解耦
         mode = _safe_get_mode(user_id)
+        print(f"[MODE] handle_message -> async AI (current_mode={mode!r}, not REVISION_MODE)")
+
+        # 中醫問答：專屬提示「正在查找資料...」；先試 JSON RAG，無匹配再走 async Assistant
         if mode == "tcm":
-            handle_tcm_qa(event, user_id, user_text)
-            return
-        elif mode == "speaking":
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="正在以【🗣️ 口說練習】模式分析中..."),
-            )
-            process_ai_request(event, user_id, user_text, is_voice=False)
-            return
+            immediate_msg = "正在查找資料..."
         else:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="正在分析中..."),
-            )
-            process_ai_request(event, user_id, user_text, is_voice=False)
+            mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
+            immediate_msg = f"正在以【{mode_name}】模式分析中..."
+
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
+
+        # TCM：JSON RAG 匹配則已 push，無匹配則走 async Assistant
+        if mode == "tcm" and _tcm_keyword_match_and_gemini(user_id, user_text):
+            return
+
+        # 非阻塞：背景執行 AI，避免 webhook 阻塞
+        vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+        base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+        cron_secret = os.getenv("CRON_SECRET", "")
+        threading.Thread(
+            target=_run_text_background,
+            args=(user_id, user_text, "assistant", base_url, cron_secret),
+            daemon=True,
+        ).start()
     except Exception as e:
         traceback.print_exc()
         err_msg = str(e).strip()[:100]
@@ -1022,39 +1237,45 @@ def handle_message(event):
 
 @line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
-    """口說教練：Webhook 須在 2 秒內回傳 200；語音轉錄／GPT／TTS／Cloudinary 全在 Background 執行。"""
+    """口說教練：立即回覆釋放 token，背景/同步處理語音。"""
     user_id = event.source.user_id
     message_id = event.message.id
 
-    # 1. 立即回覆使用者（唯一必要的阻塞呼叫，通常 <1.5s）
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🎙️ 正在轉換語音..."))
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text="正在轉換語音，請稍候... 🎙️"),
+    )
 
-    # 2. 觸發 Background Task（語音轉錄、GPT、TTS、Cloudinary 在 /api/process-voice-async 獨立執行）
     vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
     base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
     cron_secret = os.getenv("CRON_SECRET", "")
+    async_ok = False
 
     if base_url and cron_secret:
-        # Vercel：同步 fire POST，timeout=0.8s，請求送出即觸發新 invocation，不阻塞
         try:
-            requests.post(
+            r = requests.post(
                 f"{base_url}/api/process-voice-async",
                 json={"user_id": user_id, "message_id": message_id},
                 headers={"Authorization": f"Bearer {cron_secret}"},
-                timeout=0.8,
+                timeout=5,
             )
-        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
-            pass  # 預期：async 已觸發，本函數不等待其完成
-        except Exception:
-            threading.Thread(
-                target=_run_voice_background,
-                args=(user_id, message_id, base_url, cron_secret),
-                daemon=True,
-            ).start()  # 連線失敗時由 thread 執行 fallback
-    else:
-        # 本機：thread 中執行，避免阻塞
-        threading.Thread(
-            target=_run_voice_background,
-            args=(user_id, message_id, base_url, cron_secret),
-            daemon=True,
-        ).start()
+            if r.status_code == 200:
+                async_ok = True
+                print("[VOICE] async POST ok status=200")
+            else:
+                print(f"[VOICE] async POST non-2xx status={r.status_code}")
+        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
+            print(f"[VOICE] async POST timeout - fallback sync err={e}")
+        except Exception as e:
+            print(f"[VOICE] async POST failed - fallback sync err={e}")
+            traceback.print_exc()
+
+    if not async_ok:
+        print(f"[VOICE] running synchronously user_id={user_id}")
+        _process_voice_sync(user_id, message_id)
+
+
+if __name__ == "__main__":
+    # 本地快速測試：python -m api.index 或 python api/index.py（從專案根目錄）
+    # 再開一個終端執行 ngrok http 5000，並將 LINE Webhook 改為 https://YOUR-NGROK-URL/callback
+    app.run(host="0.0.0.0", port=5000, debug=True)
