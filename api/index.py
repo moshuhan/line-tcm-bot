@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import io
+import glob
 import os
 import re
 import threading
@@ -402,7 +403,6 @@ def _load_tcm_json():
     global _TCM_JSON_CACHE
     if _TCM_JSON_CACHE is not None:
         return _TCM_JSON_CACHE
-    import glob
     paths = glob.glob(os.path.join(_DATA_DIR, "tcm_*.json"))
     out = []
     for p in paths:
@@ -500,6 +500,51 @@ def _safe_get_mode(user_id):
         return str(mode_val).strip() or "tcm"
     except Exception:
         return "tcm"
+
+def handle_writing_correction(user_id, user_text, reply_token):
+    """
+    寫作修訂獨立處理：切換模式、繼續練習、或執行修訂。
+    回傳 True 若已處理，False 則交由其他 handler。
+    """
+    if user_text in ("寫作修改", "寫作修訂"):
+        try:
+            if redis:
+                redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
+        except Exception:
+            pass
+        msg = REVISION_MODE_PROMPT
+        if not redis:
+            msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
+        line_bot_api.reply_message(reply_token, text_with_quick_reply_writing(msg))
+        return True
+
+    current_mode = _safe_get_mode(user_id)
+    if current_mode != REVISION_MODE:
+        return False
+
+    if user_text == "繼續練習":
+        line_bot_api.reply_message(
+            reply_token,
+            text_with_quick_reply_writing("請貼上要修改的段落。"),
+        )
+        return True
+
+    line_bot_api.reply_message(
+        reply_token,
+        TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
+    )
+    _revision_handler(user_id, user_text)
+    return True
+
+def handle_tcm_qa(event, user_id, user_text):
+    """
+    中醫問答獨立處理：JSON RAG 關鍵字匹配 + Gemini，無匹配則 fallback Assistant。
+    僅於 mode == tcm 時呼叫。
+    """
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查詢中醫典籍，請稍候..."))
+    if _tcm_keyword_match_and_gemini(user_id, user_text):
+        return
+    process_ai_request(event, user_id, user_text, is_voice=False)
 
 # --- AI 核心函數（模式路由器）---
 def process_ai_request(event, user_id, text, is_voice=False):
@@ -796,39 +841,8 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 寫作修訂／寫作修改：切換到寫作模式
-        if user_text in ("寫作修改", "寫作修訂"):
-            try:
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
-            except Exception:
-                pass
-            msg = REVISION_MODE_PROMPT
-            if not redis:
-                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
-            return
-
-        # 寫作修訂模式隔離：優先判斷，跳過中醫邏輯
-        current_mode = _safe_get_mode(user_id)
-        if current_mode == REVISION_MODE:
-            if user_text in ("寫作修改", "寫作修訂"):
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_with_quick_reply_writing(REVISION_MODE_PROMPT),
-                )
-                return
-            if user_text == "繼續練習":
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_with_quick_reply_writing("請貼上要修改的段落。"),
-                )
-                return
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
-            )
-            _revision_handler(user_id, user_text)
+        # 寫作修訂：獨立 handler（切換模式／繼續練習／修訂）
+        if handle_writing_correction(user_id, user_text, event.reply_token):
             return
 
         # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理
@@ -919,18 +933,24 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply(OFF_TOPIC_REPLY))
             return
 
+        # 主路由：明確 if/elif 解耦
         mode = _safe_get_mode(user_id)
-        mode_name = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
-
-        # 立即回覆：正在查詢中...（不依賴 AI 套件）
         if mode == "tcm":
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查詢中醫典籍，請稍候..."))
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
-        # TCM：若 JSON 關鍵字匹配則用 Gemini，否則 fallback OpenAI Assistant
-        if mode == "tcm" and _tcm_keyword_match_and_gemini(user_id, user_text):
+            handle_tcm_qa(event, user_id, user_text)
             return
-        process_ai_request(event, user_id, user_text, is_voice=False)
+        elif mode == "speaking":
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="正在以【🗣️ 口說練習】模式分析中..."),
+            )
+            process_ai_request(event, user_id, user_text, is_voice=False)
+            return
+        else:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="正在分析中..."),
+            )
+            process_ai_request(event, user_id, user_text, is_voice=False)
     except Exception as e:
         traceback.print_exc()
         err_msg = str(e).strip()[:100]
