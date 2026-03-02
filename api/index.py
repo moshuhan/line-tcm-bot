@@ -117,18 +117,29 @@ _http_client = httpx.Client(
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
-# Gemini：模型動態路由（中醫問答→Flash 低延遲 / 口說練習→Pro 語感品質）
-_gemini_configured = False
-try:
-    import google.generativeai as genai
-    _gemini_key = (os.getenv("GEMINI_API_KEY") or "").strip()
-    if _gemini_key:
-        genai.configure(api_key=_gemini_key)
-        _gemini_configured = True
-except ImportError:
-    pass
+# Gemini：google-genai SDK（lazy init 減少 cold start，全域單例）
+_gemini_client = None
+_gemini_init_done = False
 GEMINI_FLASH = "gemini-1.5-flash"
 GEMINI_PRO = "gemini-1.5-pro"
+
+
+def _get_gemini_client():
+    """Lazy init：首次呼叫時才載入 google-genai，避免 webhook cold start 卡頓。"""
+    global _gemini_client, _gemini_init_done
+    if _gemini_init_done:
+        return _gemini_client
+    _gemini_init_done = True
+    try:
+        from google import genai as _genai_module
+        _key = (os.getenv("GEMINI_API_KEY") or "").strip()
+        if _key:
+            _gemini_client = _genai_module.Client(api_key=_key)
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return _gemini_client
 
 # TCM 本地知識庫：Local First，遍歷 data/tcm_*.json
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -333,26 +344,28 @@ VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 
-# --- Gemini 模型路由 Helper ---
+# --- Gemini 模型路由 Helper（google-genai SDK）---
 def _gemini_generate(model, user_content, system_instruction=None, max_tokens=1024, temperature=None, top_p=None):
-    """Gemini 生成，回傳 (content: str, ok: bool)。Non-blocking，無 Middleware 阻塞。"""
-    if not _gemini_configured:
+    """Gemini 生成，回傳 (content: str, ok: bool)。使用 google-genai Client。"""
+    gc = _get_gemini_client()
+    if not gc:
         return "", False
     try:
-        config = {"max_output_tokens": max_tokens}
-        if temperature is not None:
-            config["temperature"] = temperature
-        if top_p is not None:
-            config["top_p"] = top_p
-        genai_model = genai.GenerativeModel(
-            model_name=model,
+        from google.genai import types
+        cfg = types.GenerateContentConfig(
+            max_output_tokens=max_tokens,
             system_instruction=(system_instruction or ""),
         )
-        resp = genai_model.generate_content(
-            user_content[:8000],
-            generation_config=config,
+        if temperature is not None:
+            cfg.temperature = temperature
+        if top_p is not None:
+            cfg.top_p = top_p
+        resp = gc.models.generate_content(
+            model=model,
+            contents=user_content[:8000],
+            config=cfg,
         )
-        if resp and resp.text:
+        if resp and hasattr(resp, "text") and resp.text:
             return (resp.text.strip(), True)
     except Exception:
         pass
@@ -363,9 +376,10 @@ def _gemini_tcm_stream_send(user_id, text, reply_token=None):
     """
     中醫問答：Local First 優先本地檢索 tcm_*.json，關鍵字比對後注入 context。
     若匹配：直接用背景資料 + 150 字快速回答。若無匹配：才用 AI 內建或外部搜尋。
-    temperature=0.2 加快推理。
+    temperature=0.2 加快推理。使用 google-genai SDK。
     """
-    if not _gemini_configured:
+    gc = _get_gemini_client()
+    if not gc:
         return False
     try:
         # Local First：先遍歷 tcm_*.json 做關鍵字比對
@@ -392,17 +406,24 @@ def _gemini_tcm_stream_send(user_id, text, reply_token=None):
             user_content = f"問題：{text.strip()}"
             config = {"max_output_tokens": 512, "temperature": 0.2, "top_p": 0.8}
 
-        genai_model = genai.GenerativeModel(model_name=GEMINI_FLASH, system_instruction=sys_inst)
-        stream = genai_model.generate_content(
-            user_content[:3000],
-            generation_config=config,
-            stream=True,
+        from google.genai import types
+        cfg = types.GenerateContentConfig(
+            system_instruction=sys_inst,
+            max_output_tokens=config["max_output_tokens"],
+            temperature=config.get("temperature", 0.2),
+            top_p=config.get("top_p", 0.8),
+        )
+        stream = gc.models.generate_content_stream(
+            model=GEMINI_FLASH,
+            contents=user_content[:3000],
+            config=cfg,
         )
         buffer = ""
         first_sent = False
         for chunk in stream:
-            if chunk.text:
-                buffer += chunk.text
+            txt = getattr(chunk, "text", None) or ""
+            if txt:
+                buffer += txt
                 if not first_sent and (("\n" in buffer) or len(buffer) >= 50):
                     first_part = (buffer.split("\n", 1)[0] + "\n") if "\n" in buffer else buffer[:50]
                     if first_part.strip():
@@ -1383,9 +1404,15 @@ def handle_message(event):
             set_user_state(redis, user_id, STATE_NORMAL)
             clear_quiz_data(redis, user_id)
             clear_quiz_pending(redis, user_id)
-            mode = _safe_get_mode(user_id)
-            immediate_msg = "正在為您查詢中醫典籍，請稍候..." if mode == "tcm" else "正在分析中..."
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
+            try:
+                mode = _safe_get_mode(user_id)
+                immediate_msg = "正在為您查詢中醫典籍，請稍候..." if mode == "tcm" else "正在分析中..."
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
+            except Exception:
+                try:
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在處理中，請稍候..."))
+                except Exception:
+                    pass
             vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
             base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
             cron_secret = os.getenv("CRON_SECRET", "")
@@ -1486,18 +1513,24 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply(OFF_TOPIC_REPLY))
             return
 
-        mode = _safe_get_mode(user_id)
+        # 立即回覆（第一個 try-except，完全不依賴 AI 套件，避免冷啟動卡頓）
+        mode = "tcm"  # 預設
+        try:
+            mode = _safe_get_mode(user_id)
+            if mode == "tcm":
+                immediate_msg = "正在為您查詢中醫典籍，請稍候..."
+            else:
+                mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
+                immediate_msg = f"正在以【{mode_name}】模式分析中..."
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
+        except Exception:
+            try:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在處理中，請稍候..."))
+            except Exception:
+                pass
+
         if mode != "tcm":
             print(f"[MODE] handle_message async AI mode={mode!r}")
-
-        # 中醫問答：專屬提示；其餘模式維持原樣
-        if mode == "tcm":
-            immediate_msg = "正在為您查詢中醫典籍，請稍候..."
-        else:
-            mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
-            immediate_msg = f"正在以【{mode_name}】模式分析中..."
-
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
 
         # 觸發 process-text-async：直接 POST（fire-and-forget）確保 Vercel 上一定被呼叫
         # threading 在 serverless 回傳後可能被凍結，導致 AI 永不執行
