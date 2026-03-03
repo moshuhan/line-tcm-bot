@@ -350,7 +350,9 @@ def build_quiz_flex_message(question):
     return FlexSendMessage(alt_text=alt, contents=bubble)
 
 # --- 時間解鎖小測驗：沿用 syllabus 時間邏輯 ---
-_QUIZ_ALL_PATH = os.path.join(_DATA_DIR, "tcm_quiz_all.json")
+# 使用 __file__ 取得安全路徑，避免 Vercel 上 cwd 或 _DATA_DIR 未定義導致 500
+_QUIZ_ALL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "tcm_quiz_all.json")
+_QUIZ_ALL_PATH = os.path.normpath(os.path.abspath(_QUIZ_ALL_PATH))
 # 模組解鎖日（台灣日期）：即日起 p0，2026-03-14 起 p1，2026-03-21 起 p2，以此類推
 _QUIZ_UNLOCK_DATES = {
     "p0": date(2000, 1, 1),
@@ -364,14 +366,20 @@ _TCM_QUIZ_ALL_CACHE = None
 def _load_timed_quiz_pool():
     """載入 data/tcm_quiz_all.json，依 get_now_taipei() 篩選已解鎖題目，回傳 list[dict]。"""
     global _TCM_QUIZ_ALL_CACHE
-    now = get_now_taipei()
-    today = now.date() if hasattr(now, "date") else date(now.year, now.month, now.day)
+    try:
+        now = get_now_taipei()
+        today = now.date() if hasattr(now, "date") else date(now.year, now.month, now.day)
+    except Exception as e:
+        traceback.print_exc()
+        today = date.today()
     if _TCM_QUIZ_ALL_CACHE is None:
         try:
             with open(_QUIZ_ALL_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
             _TCM_QUIZ_ALL_CACHE = (data.get("questions") or [])
-        except Exception:
+        except Exception as e:
+            traceback.print_exc()
+            print(f"[QUIZ] Failed to load {_QUIZ_ALL_PATH!r}: {e}")
             _TCM_QUIZ_ALL_CACHE = []
     unlocked = []
     for q in _TCM_QUIZ_ALL_CACHE:
@@ -434,21 +442,34 @@ def time_locked_quiz_handler(user_id, reply_token=None):
     """
     時間解鎖小測驗：依 get_now_taipei() 篩選已解鎖題目，隨機抽一題，以 Flex 回覆。
     reply_token 有值則 reply_message，否則 push_message。
+    讀取失敗或異常時回傳友善訊息，避免 500。
     """
-    pool = _load_timed_quiz_pool()
-    if not pool:
-        msg = TextSendMessage(text="目前沒有可用的題目，請稍後再試。")
+    try:
+        pool = _load_timed_quiz_pool()
+        if not pool:
+            msg = TextSendMessage(text="目前沒有可用的題目，請稍後再試。")
+            if reply_token:
+                line_bot_api.reply_message(reply_token, msg)
+            else:
+                line_bot_api.push_message(user_id, msg)
+            return
+        chosen = random.choice(pool)
+        flex_msg = build_timed_quiz_flex_message(chosen)
         if reply_token:
-            line_bot_api.reply_message(reply_token, msg)
+            line_bot_api.reply_message(reply_token, flex_msg)
         else:
-            line_bot_api.push_message(user_id, msg)
-        return
-    chosen = random.choice(pool)
-    flex_msg = build_timed_quiz_flex_message(chosen)
-    if reply_token:
-        line_bot_api.reply_message(reply_token, flex_msg)
-    else:
-        line_bot_api.push_message(user_id, flex_msg)
+            line_bot_api.push_message(user_id, flex_msg)
+    except Exception as e:
+        traceback.print_exc()
+        print(f"[QUIZ] time_locked_quiz_handler error: {e}")
+        try:
+            fallback = TextSendMessage(text="小測驗暫時無法使用，請稍後再試。")
+            if reply_token:
+                line_bot_api.reply_message(reply_token, fallback)
+            else:
+                line_bot_api.push_message(user_id, fallback)
+        except Exception:
+            pass
 
 def quick_reply_review_ask():
     """主動複習：需要幫你整理複習筆記嗎？[要, 不要]。"""
