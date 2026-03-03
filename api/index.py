@@ -353,13 +353,13 @@ def build_quiz_flex_message(question):
 # 使用 __file__ 取得安全路徑，避免 Vercel 上 cwd 或 _DATA_DIR 未定義導致 500
 _QUIZ_ALL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "tcm_quiz_all.json")
 _QUIZ_ALL_PATH = os.path.normpath(os.path.abspath(_QUIZ_ALL_PATH))
-# 模組解鎖日（台灣日期）：即日起 p0，2026-03-14 起 p1，2026-03-21 起 p2，以此類推
+# 模組解鎖日（台灣日期，與 syllabus 對齊）：p0 隨時；p1 2026-03-14；p2 2026-03-21；p3 2026-04-11；p4 2026-05-09
 _QUIZ_UNLOCK_DATES = {
     "p0": date(2000, 1, 1),
     "p1": date(2026, 3, 14),
     "p2": date(2026, 3, 21),
-    "p3": date(2026, 3, 28),
-    "p4": date(2026, 4, 4),
+    "p3": date(2026, 4, 11),
+    "p4": date(2026, 5, 9),
 }
 _TCM_QUIZ_ALL_CACHE = None
 
