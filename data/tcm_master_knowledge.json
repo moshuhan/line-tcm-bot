@@ -89,6 +89,154 @@
         "練八段錦有什麼好處？：能促進氣的循環（氣機），強化五臟功能，提高身體的自我修復能力。",
         "為什麼練完會覺得身體發熱？：因為運動激發了體內的『氣』與『血』，推動了能量的運轉。"
       ]
+    },
+    {
+      "category": "望診總論 (Inspection Overview)",
+      "core_logic": "四診（望聞問切）之首。透過觀察全身與局部的神、色、形、態，判斷臟腑氣血的盛衰。",
+      "inspection_items": [
+        { "item": "望神 (Spirit)", "types": ["得神：有活力", "失神：無精打采", "假神：回光反照", "神昏：意識不清"] },
+        { "item": "望形態 (Form & Bearing)", "logic": "肥胖多痰濕，消瘦多氣血虛；動作躁動多屬熱，遲緩多屬寒。" },
+        { "item": "望色澤 (Complexion)", "logic": "面色與五臟對應：白（肺/虛寒）、黃（脾/濕）、紅（心/熱）、青（肝/痛/瘀）、黑（腎/虛/寒/瘀）。" }
+      ]
+    },
+    {
+      "category": "舌診分區與臟腑對應 (Tongue Topography)",
+      "mapping": {
+        "舌尖 (Tip)": "上焦：心、肺",
+        "舌中 (Middle)": "中焦：脾、胃",
+        "舌根 (Root)": "下焦：腎、膀胱",
+        "舌邊 (Margins)": "肝、膽"
+      }
+    },
+    {
+      "category": "舌質觀察 (Tongue Body Inspection)",
+      "features": [
+        {
+          "type": "舌色 (Color)",
+          "logic": "反映氣血盛衰與寒熱。",
+          "details": [
+            { "color": "淡白", "clinical": "氣血虧虛；若舌胖大且濕潤則為陽虛" },
+            { "color": "紅", "clinical": "實熱或虛熱" },
+            { "color": "絳 (深紅)", "clinical": "熱入營血（重度熱證）" },
+            { "color": "紫/青", "clinical": "血瘀；熱極或寒極均可能見到" }
+          ]
+        },
+        {
+          "type": "舌形 (Shape)",
+          "details": [
+            { "shape": "胖大/齒痕", "clinical": "氣虛或水濕內停" },
+            { "shape": "瘦薄", "clinical": "陰血虧虛" },
+            { "shape": "裂紋", "clinical": "津液虧損或慢性熱證" },
+            { "shape": "芒刺", "clinical": "邪熱亢盛" }
+          ]
+        },
+        {
+          "type": "舌態 (Movement)",
+          "details": [
+            { "bearing": "強硬 (Stiff)", "clinical": "熱入心包、痰阻心竅或肝風內動" },
+            { "bearing": "卷縮 (Curled)", "clinical": "心火、肝熱或熱陷心包" }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "舌苔觀察 (Tongue Coating)",
+      "features": [
+        {
+          "type": "苔質 (Texture)",
+          "details": [
+            { "texture": "薄苔", "clinical": "疾病初期，病邪在表" },
+            { "texture": "厚苔", "clinical": "食積、痰濕或病邪入裡" },
+            { "texture": "膩苔 (Slimy)", "clinical": "濕濁、痰飲或食積" },
+            { "texture": "燥苔 (Dry)", "clinical": "津液受損" }
+          ]
+        },
+        {
+          "type": "苔色 (Color)",
+          "details": [
+            { "color": "白苔", "clinical": "表證、寒證" },
+            { "color": "黃苔", "clinical": "裡證、熱證" },
+            { "color": "灰/黑苔", "clinical": "極熱或極寒之重症" }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "特殊舌象 (Special Patterns)",
+      "items": [
+        { "name": "鏡面舌 (Mirror Tongue)", "logic": "舌面光滑無苔，預示陰液嚴重枯竭" },
+        { "name": "瘀點 (Stasis Speckles)", "logic": "舌面青紫斑點，代表體內有瘀血" }
+      ]
+    },
+    {
+      "category": "聞診 (Listening & Smelling)",
+      "core_logic": "透過聽聲音（語聲、呼吸、咳嗽）與嗅氣味（口氣、體氣、排泄物）來辨識臟腑虛實。",
+      "details": [
+        { "type": "聽聲音", "logic": "聲高氣粗屬實/熱；低微無力屬虛/寒。呼吸急促多為喘（實則氣憋，虛則氣短）。" },
+        { "type": "嗅氣味", "logic": "酸臭代表食積；腐臭代表內有潰爛或熱毒；口氣臭穢多為胃熱。" }
+      ]
+    },
+    {
+      "category": "問診與十問歌 (Inquiry & Ten Questions)",
+      "core_logic": "問診是獲取病史的主觀依據。臨床必背『十問歌』以確保無遺漏。",
+      "ten_questions_logic": [
+        { "item": "一問寒熱", "logic": "惡寒發熱代表表證；但寒不熱代表裡寒；但熱不寒代表裡熱。" },
+        { "item": "二問汗", "logic": "自汗（白日動則汗出）為氣虛；盜汗（半夜睡覺汗出）為陰虛。" },
+        { "item": "三問頭身", "logic": "頭部、軀幹與四肢的疼痛性質（刺痛為瘀、脹痛為氣滯）。" },
+        { "item": "四問便", "logic": "大便稀溏為脾虛或寒；秘結為熱或液虧。小便黃赤為熱，清長為寒。" },
+        { "item": "五問飲食", "logic": "納呆（不想吃）代表脾胃虛弱或食滯；消穀善飢（容易餓）代表胃火。" },
+        { "item": "六問胸腹", "logic": "胸悶、腹脹的定位與感受。" },
+        { "item": "七、八、九、十", "logic": "包含聾（聽力）、渴（飲水）、睡眠、婦科（月經/帶下）及小兒預防接種。" }
+      ]
+    },
+    {
+      "category": "切診：脈診 (Pulse Palpation)",
+      "core_logic": "在橈動脈（寸口脈）感知氣血運行狀態。分寸、關、尺三部對應臟腑。",
+      "pulse_mapping": { "左手": "寸(心)、關(肝)、尺(腎陰)", "右手": "寸(肺)、關(脾)、尺(腎陽/命門)" },
+      "common_pulses": [
+        { "pulse": "浮脈 (Floating)", "logic": "輕取即得。主表證（如感冒初起）。" },
+        { "pulse": "沉脈 (Sunken)", "logic": "重按始得。主裡證。" },
+        { "pulse": "遲脈 (Slow)", "logic": "一息不足四至（慢）。主寒證。" },
+        { "pulse": "數脈 (Rapid)", "logic": "一息五至以上（快）。主熱證。" },
+        { "pulse": "滑脈 (Slippery)", "logic": "如盤走珠。主痰飲、食滯、或妊娠（懷孕）。" },
+        { "pulse": "弦脈 (String-like)", "logic": "端直以長，如按琴弦。主肝膽病、痛症、氣滯。" },
+        { "pulse": "虛/實脈", "logic": "按之無力為虛，按之有力為實。" }
+      ]
+    },
+    {
+      "category": "經絡系統 (Channels and Collaterals)",
+      "core_logic": "經絡是人體運行氣血、聯絡臟腑、溝通內外、調節功能的網絡。",
+      "details": [
+        { "item": "經脈 (Channels)", "logic": "主幹，多循行於深部。包含十二正經與奇經八脈（如任、督二脈）。" },
+        { "item": "絡脈 (Collaterals)", "logic": "分支，縱橫交錯遍佈全身。" },
+        { "item": "氣路邏輯", "logic": "經絡如灌溉系統，氣血在此流動，穴位則是能量進出的『門戶』。" }
+      ]
+    },
+    {
+      "category": "穴位理論 (Acupuncture Points)",
+      "types": [
+        { "name": "十四經穴", "logic": "分佈於十二正經與任、督二脈上的穴位。" },
+        { "name": "奇穴", "logic": "有固定名稱與位置，但不在十四經上的穴位。" },
+        { "name": "阿是穴 (A-Shi Points)", "logic": "『以痛為穴』，無固定位置與名稱。" }
+      ],
+      "functions": "調節臟腑氣血、扶正祛邪、疏通經絡。"
+    },
+    {
+      "category": "刺灸技術 (Techniques)",
+      "methods": [
+        { "name": "針法 (Acupuncture)", "details": "使用不鏽鋼針刺入穴位。強調『得氣』（酸、麻、脹、重感）是產生療效的關鍵。" },
+        { "name": "灸法 (Moxibustion)", "details": "燃燒艾絨燻灼穴位。主要功能：溫經散寒、扶陽固脫、消瘀散結。" },
+        { "name": "放血療法 (Pricking to Bleed)", "details": "點刺特定穴位（如委中、耳尖）流出少量血液。功能：清熱、瀉火、解毒、化瘀。" }
+      ]
+    },
+    {
+      "category": "臨床應用 (Clinical Applications)",
+      "common_conditions": [
+        "各類疼痛 (Pain Management)",
+        "消化系統疾病 (Digestive Disorders)",
+        "失眠與焦慮 (Insomnia & Anxiety)",
+        "中風後復健 (Post-stroke Rehabilitation)"
+      ]
     }
   ]
 }
