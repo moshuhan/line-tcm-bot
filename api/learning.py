@@ -26,15 +26,15 @@ REVIEW_ASK_COOLDOWN_DAYS = 7
 
 
 def log_question(redis_client, user_id, text):
-    """將使用者提問記錄到 Redis list，供每週報告使用。"""
+    """將使用者提問記錄到 Redis list，供每週報告使用。輔助功能，失敗不影響主流程。"""
     if not redis_client or not (text or "").strip():
         return
     try:
         payload = json.dumps({"user_id": user_id, "text": (text or "").strip()[:500], "ts": time.time()})
         redis_client.lpush(QUESTION_LOG_KEY, payload)
         redis_client.ltrim(QUESTION_LOG_KEY, 0, QUESTION_LOG_MAX - 1)
-    except Exception:
-        traceback.print_exc()
+    except Exception as e:
+        print(f"Redis Log Error: {e}")
 
 
 def set_last_question(redis_client, user_id, text):
