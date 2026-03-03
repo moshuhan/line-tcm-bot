@@ -1496,13 +1496,9 @@ def handle_message(event):
         if user_text == "否":
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("沒問題！如果有其他想了解的，歡迎隨時提問。"))
             return
-        # 小測驗：點擊「是」→ 針對剛才討論的主題出題（學生的回答將視為新問題）
+        # 小測驗：點擊「是」→ 依當下時間從 tcm_quiz_all.json 隨機抽一題已解鎖題目（選項＋答案＋解析 Flex）
         if user_text == "是":
-            discussed_topic = get_last_question(redis, user_id)
-            last_ctx = get_last_assistant_message(redis, user_id)
-            question, _, _ = generate_dynamic_quiz(client, discussed_topic=discussed_topic, last_context=last_ctx)
-            flex_msg = build_quiz_flex_message(question)
-            line_bot_api.reply_message(event.reply_token, flex_msg)
+            time_locked_quiz_handler(user_id, reply_token=event.reply_token)
             return
 
         if user_text == "本週重點":
