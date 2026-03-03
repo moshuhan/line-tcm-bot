@@ -2,6 +2,7 @@
 import io
 import glob
 import os
+import random
 import re
 import threading
 import time
@@ -10,6 +11,7 @@ import json
 import secrets
 import tempfile
 import traceback
+from datetime import date
 from flask import Flask, request, abort, Response
 import requests
 from linebot import LineBotApi, WebhookHandler
@@ -33,6 +35,7 @@ try:
         get_writing_mode_instructions,
         is_course_inquiry_intent,
         build_course_inquiry_flex,
+        get_now_taipei,
         OFF_TOPIC_REPLY,
     )
     from api.learning import (
@@ -71,6 +74,7 @@ except ImportError:
         get_writing_mode_instructions,
         is_course_inquiry_intent,
         build_course_inquiry_flex,
+        get_now_taipei,
         OFF_TOPIC_REPLY,
     )
     from learning import (
@@ -345,6 +349,107 @@ def build_quiz_flex_message(question):
         alt += "..."
     return FlexSendMessage(alt_text=alt, contents=bubble)
 
+# --- 時間解鎖小測驗：沿用 syllabus 時間邏輯 ---
+_QUIZ_ALL_PATH = os.path.join(_DATA_DIR, "tcm_quiz_all.json")
+# 模組解鎖日（台灣日期）：即日起 p0，2026-03-14 起 p1，2026-03-21 起 p2，以此類推
+_QUIZ_UNLOCK_DATES = {
+    "p0": date(2000, 1, 1),
+    "p1": date(2026, 3, 14),
+    "p2": date(2026, 3, 21),
+    "p3": date(2026, 3, 28),
+    "p4": date(2026, 4, 4),
+}
+_TCM_QUIZ_ALL_CACHE = None
+
+def _load_timed_quiz_pool():
+    """載入 data/tcm_quiz_all.json，依 get_now_taipei() 篩選已解鎖題目，回傳 list[dict]。"""
+    global _TCM_QUIZ_ALL_CACHE
+    now = get_now_taipei()
+    today = now.date() if hasattr(now, "date") else date(now.year, now.month, now.day)
+    if _TCM_QUIZ_ALL_CACHE is None:
+        try:
+            with open(_QUIZ_ALL_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            _TCM_QUIZ_ALL_CACHE = (data.get("questions") or [])
+        except Exception:
+            _TCM_QUIZ_ALL_CACHE = []
+    unlocked = []
+    for q in _TCM_QUIZ_ALL_CACHE:
+        if not isinstance(q, dict):
+            continue
+        mod = (q.get("module") or "p0").strip().lower()
+        unlock_date = _QUIZ_UNLOCK_DATES.get(mod)
+        if unlock_date is not None and today >= unlock_date:
+            unlocked.append(q)
+    return unlocked
+
+def build_timed_quiz_flex_message(question_obj):
+    """
+    將單題題目封裝為 LINE Flex Message。
+    含：題目、選項、正確答案（背景色區隔）、解析（背景色區隔）。
+    question_obj: dict 含 id, question, options, answer, analysis
+    """
+    q = question_obj.get("question") or ""
+    options = question_obj.get("options") or []
+    ans = (question_obj.get("answer") or "").strip().upper()
+    analysis = (question_obj.get("analysis") or "").strip()
+    body_contents = [
+        {"type": "text", "text": "📝 時間解鎖小測驗", "weight": "bold", "size": "lg"},
+        {"type": "text", "text": q, "wrap": True, "size": "md"},
+    ]
+    for opt in options[:10]:
+        if isinstance(opt, str):
+            body_contents.append({"type": "text", "text": opt, "wrap": True, "size": "sm"})
+    body_contents.append({"type": "separator", "margin": "md"})
+    body_contents.append({
+        "type": "box",
+        "layout": "vertical",
+        "contents": [{"type": "text", "text": f"✅ 正確答案：{ans}", "weight": "bold", "size": "sm"}],
+        "backgroundColor": "#E8F5E9",
+        "paddingAll": "md",
+        "cornerRadius": "sm",
+    })
+    body_contents.append({
+        "type": "box",
+        "layout": "vertical",
+        "contents": [{"type": "text", "text": f"📖 解析：{analysis}", "wrap": True, "size": "sm"}],
+        "backgroundColor": "#E3F2FD",
+        "paddingAll": "md",
+        "cornerRadius": "sm",
+        "margin": "md",
+    })
+    bubble = {
+        "type": "bubble",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "contents": body_contents,
+        },
+    }
+    alt = f"時間解鎖小測驗：{(q or '')[:60]}..."
+    return FlexSendMessage(alt_text=alt, contents=bubble)
+
+def time_locked_quiz_handler(user_id, reply_token=None):
+    """
+    時間解鎖小測驗：依 get_now_taipei() 篩選已解鎖題目，隨機抽一題，以 Flex 回覆。
+    reply_token 有值則 reply_message，否則 push_message。
+    """
+    pool = _load_timed_quiz_pool()
+    if not pool:
+        msg = TextSendMessage(text="目前沒有可用的題目，請稍後再試。")
+        if reply_token:
+            line_bot_api.reply_message(reply_token, msg)
+        else:
+            line_bot_api.push_message(user_id, msg)
+        return
+    chosen = random.choice(pool)
+    flex_msg = build_timed_quiz_flex_message(chosen)
+    if reply_token:
+        line_bot_api.reply_message(reply_token, flex_msg)
+    else:
+        line_bot_api.push_message(user_id, flex_msg)
+
 def quick_reply_review_ask():
     """主動複習：需要幫你整理複習筆記嗎？[要, 不要]。"""
     return QuickReply(
@@ -431,6 +536,7 @@ def _redis_user_mode_key(user_id):
 # --- 中醫問答：tcm_master_knowledge.json + OpenAI gpt-4o-mini（純 OpenAI）---
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 _TCM_JSON_CACHE = None
+_TCM_FULL_CONTEXT_CACHE = None
 
 def _load_tcm_json():
     """載入 data/tcm_master_knowledge.json，快取。"""
@@ -451,7 +557,10 @@ def _load_tcm_json():
     return _TCM_JSON_CACHE
 
 def _build_full_tcm_context():
-    """將 tcm_master_knowledge.json 全部知識點序列化為文字 context。"""
+    """將 tcm_master_knowledge.json 全部知識點序列化為文字 context（快取）。"""
+    global _TCM_FULL_CONTEXT_CACHE
+    if _TCM_FULL_CONTEXT_CACHE is not None:
+        return _TCM_FULL_CONTEXT_CACHE
     parts = []
     for data in _load_tcm_json():
         for kp in data.get("knowledge_points") or []:
@@ -477,15 +586,63 @@ def _build_full_tcm_context():
             if kp.get("interactions"):
                 for k, v in (kp["interactions"] or {}).items():
                     block.append(f"{k}: {v}")
+            for ii in (kp.get("inspection_items") or []):
+                if isinstance(ii, dict):
+                    block.append(ii.get("item", "") + ": " + (ii.get("logic") or ", ".join(ii.get("types", []))))
+            if kp.get("mapping"):
+                for k, v in (kp["mapping"] or {}).items():
+                    block.append(f"{k}: {v}")
+            for feat in (kp.get("features") or []):
+                if isinstance(feat, dict):
+                    block.append(feat.get("type", "") + ": " + (feat.get("logic") or ""))
+                    for d in (feat.get("details") or []):
+                        if isinstance(d, dict):
+                            block.append(json.dumps(d, ensure_ascii=False))
+            for item in (kp.get("items") or []):
+                if isinstance(item, dict):
+                    block.append(f"{item.get('name','')}: {item.get('logic','')}")
+            for d in (kp.get("details") or []):
+                if isinstance(d, dict):
+                    label = d.get("type") or d.get("item", "")
+                    block.append(f"{label}: {d.get('logic','')}")
+            for t in (kp.get("types") or []):
+                if isinstance(t, dict):
+                    block.append(f"{t.get('name','')}: {t.get('logic','')}")
+            if kp.get("functions"):
+                block.append(kp["functions"])
+            for m in (kp.get("methods") or []):
+                if isinstance(m, dict):
+                    block.append(f"{m.get('name','')}: {m.get('details','')}")
+            for cc in (kp.get("common_conditions") or []):
+                if isinstance(cc, str):
+                    block.append(cc)
+            for tq in (kp.get("ten_questions_logic") or []):
+                if isinstance(tq, dict):
+                    block.append(f"{tq.get('item','')}: {tq.get('logic','')}")
+            if kp.get("pulse_mapping"):
+                for k, v in (kp["pulse_mapping"] or {}).items():
+                    block.append(f"{k}: {v}")
+            for cp in (kp.get("common_pulses") or []):
+                if isinstance(cp, dict):
+                    block.append(f"{cp.get('pulse','')}: {cp.get('logic','')}")
             if block:
                 parts.append("\n".join(block))
-    return "\n\n".join(parts) if parts else ""
+    result = "\n\n".join(parts) if parts else ""
+    _TCM_FULL_CONTEXT_CACHE = result
+    return result
 
 _TCM_SYSTEM_PROMPT = (
     "你是中醫課程助教。請根據提供的背景資料回答學生的問題。"
     "回答須簡潔（約150字內），跳過開場白，必要時提供參考。"
     "若背景資料無法回答，請友善說明並建議可提問的方向。"
 )
+
+# 模組載入時預熱 TCM 快取，減少首次問答延遲
+try:
+    _load_tcm_json()
+    _build_full_tcm_context()
+except Exception:
+    pass
 
 def _tcm_openai_reply(user_id, text):
     """
@@ -505,6 +662,8 @@ def _tcm_openai_reply(user_id, text):
         for kp in data.get("knowledge_points") or []:
             cat = (kp.get("category") or "").split("(")[0].strip()
             terms = [cat] if len(cat) >= 2 else []
+            if "五行" in cat:
+                terms.append("五行")
             for cr in (kp.get("causal_relationships") or []):
                 if isinstance(cr, dict):
                     for k in ("emotion", "target_organ"):
@@ -527,6 +686,58 @@ def _tcm_openai_reply(user_id, text):
                     q = qa.split("：", 1)[0].strip().replace("？", "").replace("?", "")
                     if 2 <= len(q) <= 25:
                         terms.append(q)
+            for ii in (kp.get("inspection_items") or []):
+                if isinstance(ii, dict):
+                    v = ii.get("item", "").split("(")[0].strip()
+                    if len(v) >= 2:
+                        terms.append(v)
+            if "望診" in cat or "舌" in cat:
+                terms.extend(["望診", "舌診", "舌"])
+            for k in (kp.get("mapping") or {}):
+                if isinstance(k, str) and len(k) >= 2:
+                    terms.append(k.split("(")[0].strip())
+            for feat in (kp.get("features") or []):
+                if isinstance(feat, dict):
+                    v = feat.get("type", "").split("(")[0].strip()
+                    if len(v) >= 2:
+                        terms.append(v)
+            for item in (kp.get("items") or []):
+                if isinstance(item, dict):
+                    v = item.get("name", "").split("(")[0].strip()
+                    if len(v) >= 2:
+                        terms.append(v)
+            for d in (kp.get("details") or []):
+                if isinstance(d, dict):
+                    v = (d.get("type") or d.get("item", "")).strip()
+                    if len(v) >= 2:
+                        terms.append(v.split("(")[0].strip())
+            for t in (kp.get("types") or []):
+                if isinstance(t, dict):
+                    v = t.get("name", "").split("(")[0].strip()
+                    if len(v) >= 2:
+                        terms.append(v)
+            for m in (kp.get("methods") or []):
+                if isinstance(m, dict):
+                    v = m.get("name", "").split("(")[0].strip()
+                    if len(v) >= 2:
+                        terms.append(v)
+            if "經絡" in cat or "穴位" in cat or "針灸" in cat or "刺灸" in cat:
+                terms.extend(["經絡", "穴位", "針灸", "刺灸", "阿是穴", "得氣", "灸法", "放血"])
+            for tq in (kp.get("ten_questions_logic") or []):
+                if isinstance(tq, dict):
+                    v = tq.get("item", "").split("(")[0].strip()
+                    if len(v) >= 2:
+                        terms.append(v)
+            if "聞診" in cat or "問診" in cat or "十問" in cat or "切診" in cat or "脈" in cat:
+                terms.extend(["聞診", "問診", "十問歌", "切診", "脈診", "脈"])
+            for k in (kp.get("pulse_mapping") or {}):
+                if isinstance(k, str) and len(k) >= 2:
+                    terms.append(k)
+            for cp in (kp.get("common_pulses") or []):
+                if isinstance(cp, dict):
+                    v = cp.get("pulse", "").split("(")[0].strip()
+                    if len(v) >= 2:
+                        terms.append(v)
             if any(t in txt for t in terms if t and len(t) >= 2):
                 if kp.get("core_logic"):
                     ctx_parts.append(kp["core_logic"])
@@ -536,6 +747,12 @@ def _tcm_openai_reply(user_id, text):
                 if cr:
                     lines = [f"{r.get('emotion','')}→{r.get('impact','')}：{r.get('symptoms','')}" for r in cr if isinstance(r, dict)]
                     ctx_parts.append("；".join(lines))
+                for row in (kp.get("five_elements_table") or []):
+                    if isinstance(row, dict):
+                        ctx_parts.append(json.dumps(row, ensure_ascii=False))
+                if kp.get("interactions"):
+                    for k, v in (kp["interactions"] or {}).items():
+                        ctx_parts.append(f"{k}: {v}")
                 pf = kp.get("pathological_features")
                 if pf:
                     lines = [f"{r.get('evil','')}：{r.get('features','')}" for r in pf if isinstance(r, dict)]
@@ -543,6 +760,45 @@ def _tcm_openai_reply(user_id, text):
                 for qa in (kp.get("student_qa") or []):
                     if isinstance(qa, str):
                         ctx_parts.append(qa)
+                for ii in (kp.get("inspection_items") or []):
+                    if isinstance(ii, dict):
+                        ctx_parts.append(ii.get("item", "") + ": " + (ii.get("logic") or ", ".join(ii.get("types", []))))
+                if kp.get("mapping"):
+                    for k, v in (kp["mapping"] or {}).items():
+                        ctx_parts.append(f"{k}: {v}")
+                for feat in (kp.get("features") or []):
+                    if isinstance(feat, dict):
+                        ctx_parts.append(feat.get("type", "") + ": " + (feat.get("logic") or ""))
+                        for d in (feat.get("details") or []):
+                            if isinstance(d, dict):
+                                ctx_parts.append(json.dumps(d, ensure_ascii=False))
+                for item in (kp.get("items") or []):
+                    if isinstance(item, dict):
+                        ctx_parts.append(f"{item.get('name','')}: {item.get('logic','')}")
+                for d in (kp.get("details") or []):
+                    if isinstance(d, dict):
+                        label = d.get("type") or d.get("item", "")
+                        ctx_parts.append(f"{label}: {d.get('logic','')}")
+                for t in (kp.get("types") or []):
+                    if isinstance(t, dict):
+                        ctx_parts.append(f"{t.get('name','')}: {t.get('logic','')}")
+                if kp.get("functions"):
+                    ctx_parts.append(kp["functions"])
+                for m in (kp.get("methods") or []):
+                    if isinstance(m, dict):
+                        ctx_parts.append(f"{m.get('name','')}: {m.get('details','')}")
+                for cc in (kp.get("common_conditions") or []):
+                    if isinstance(cc, str):
+                        ctx_parts.append(cc)
+                for tq in (kp.get("ten_questions_logic") or []):
+                    if isinstance(tq, dict):
+                        ctx_parts.append(f"{tq.get('item','')}: {tq.get('logic','')}")
+                if kp.get("pulse_mapping"):
+                    for k, v in (kp["pulse_mapping"] or {}).items():
+                        ctx_parts.append(f"{k}: {v}")
+                for cp in (kp.get("common_pulses") or []):
+                    if isinstance(cp, dict):
+                        ctx_parts.append(f"{cp.get('pulse','')}: {cp.get('logic','')}")
     ctx = "\n".join(ctx_parts)[:2000] if ctx_parts else _build_full_tcm_context()[:4000]
     if not ctx or not ctx.strip():
         return False
@@ -553,14 +809,17 @@ def _tcm_openai_reply(user_id, text):
                 {"role": "system", "content": _TCM_SYSTEM_PROMPT},
                 {"role": "user", "content": f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料在150字內精準回答，跳過開場白。"},
             ],
-            max_tokens=400,
+            max_tokens=256,
             temperature=0.2,
         )
         ai_reply = (resp.choices[0].message.content or "").strip()[:500] + SAFETY_DISCLAIMER
-        log_question(redis, user_id, text)
-        set_last_question(redis, user_id, text)
-        set_last_assistant_message(redis, user_id, ai_reply)
         line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
+        try:
+            log_question(redis, user_id, text)
+            set_last_question(redis, user_id, text)
+            set_last_assistant_message(redis, user_id, ai_reply)
+        except Exception:
+            pass
         return True
     except Exception:
         return False
@@ -1020,6 +1279,9 @@ def handle_postback(event):
         if data == "action=course" or data == "action=weekly":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
+        if data == "action=timed_quiz":
+            time_locked_quiz_handler(user_id, reply_token=event.reply_token)
+            return
         # mode=tcm / mode=speaking / mode=writing（Rich Menu 切換）
         mode = data.split("=")[1].strip() if "=" in data else "tcm"
         mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
@@ -1096,6 +1358,9 @@ def handle_message(event):
             return
         if user_text == "課務查詢":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
+            return
+        if user_text == "時間解鎖小測驗":
+            time_locked_quiz_handler(user_id, reply_token=event.reply_token)
             return
 
         # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
