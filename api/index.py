@@ -852,35 +852,33 @@ def _tcm_openai_reply(user_id, text):
         except Exception:
             pass
 
-        # 若總耗時仍在安全範圍內，觸發背景小測驗出題任務（避免 60s timeout）
-        elapsed = time.time() - start_ts
-        if elapsed < 30:
-            try:
-                vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
-                base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
-                cron_secret = os.getenv("CRON_SECRET", "")
-                if base_url and cron_secret:
-                    try:
-                        requests.post(
-                            f"{base_url}/api/process-quiz-async",
-                            json={"user_id": user_id, "context": base_reply},
-                            headers={"Authorization": f"Bearer {cron_secret}"},
-                            timeout=5,
-                        )
-                    except Exception:
-                        # 若遠端呼叫失敗，嘗試在同一個進程中同步出題（不再額外重試）
-                        try:
-                            _process_quiz_sync(user_id, base_reply)
-                        except Exception:
-                            traceback.print_exc()
-                else:
-                    # 無 base_url 或 CRON_SECRET 時，本機同步出題
+        # 不論耗時長短，都嘗試觸發背景小測驗出題任務（避免阻塞原 webhook，但確保每題都有測驗）
+        try:
+            vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+            base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+            cron_secret = os.getenv("CRON_SECRET", "")
+            if base_url and cron_secret:
+                try:
+                    requests.post(
+                        f"{base_url}/api/process-quiz-async",
+                        json={"user_id": user_id, "context": base_reply},
+                        headers={"Authorization": f"Bearer {cron_secret}"},
+                        timeout=5,
+                    )
+                except Exception:
+                    # 若遠端呼叫失敗，嘗試在同一個進程中同步出題（不再額外重試）
                     try:
                         _process_quiz_sync(user_id, base_reply)
                     except Exception:
                         traceback.print_exc()
-            except Exception:
-                traceback.print_exc()
+            else:
+                # 無 base_url 或 CRON_SECRET 時，本機同步出題
+                try:
+                    _process_quiz_sync(user_id, base_reply)
+                except Exception:
+                    traceback.print_exc()
+        except Exception:
+            traceback.print_exc()
 
         return True
     except Exception:
