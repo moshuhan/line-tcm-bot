@@ -128,6 +128,105 @@ def set_quiz_data(redis_client, user_id, question, answer_criteria, category):
         pass
 
 
+def set_mcq_quiz_data(redis_client, user_id, question, options, answer, explanation="", category="其他"):
+    """
+    儲存三選一小測驗（MCQ）資料，供 A/B/C 批改使用。
+    options: ["(A) ...", "(B) ...", "(C) ..."]
+    answer: "A"|"B"|"C"
+    """
+    if not redis_client:
+        return
+    try:
+        payload = json.dumps(
+            {
+                "type": "mcq",
+                "question": (question or "")[:500],
+                "options": (options or [])[:3],
+                "answer": (answer or "")[:5],
+                "explanation": (explanation or "")[:1000],
+                "category": (category or "其他")[:30],
+            },
+            ensure_ascii=False,
+        )
+        redis_client.set(f"quiz_data:{user_id}", payload, ex=3600)
+    except Exception:
+        pass
+
+
+def generate_mcq_quiz(openai_client, context):
+    """
+    根據助教剛才的回答內容生成一題三選一小測驗。
+    回傳 dict: {question, options, answer, explanation}
+    """
+    if not (context or "").strip():
+        return None
+    try:
+        prompt = f"""
+你是一位中醫課程助教，剛剛已經用以下「說明內容」回答了學生的問題。
+現在請你「在回答完後，根據上述內容出一題三選一的選擇題」：
+
+[說明內容]
+{(context or "")[:600]}
+
+[要求]
+1. 題目需聚焦在上述說明中的一個關鍵概念或重點。
+2. 選項共三個，標示為 (A)、(B)、(C)，且只有一個正確答案。
+3. 三個選項都要看起來合理，避免太明顯。
+4. 另外提供 1-3 句「詳解」，說明為什麼正確答案是對的、其他選項錯在哪裡。
+5. 回傳格式嚴格為 JSON，不要加入多餘文字，例如：
+{{
+  "question": "……？",
+  "options": ["(A) ……", "(B) ……", "(C) ……"],
+  "answer": "A",
+  "explanation": "……"
+}}
+""".strip()
+
+        resp = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "你是中醫課程助教，負責依照說明內容出選擇題。"},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=300,
+            temperature=0.4,
+        )
+        raw = (resp.choices[0].message.content or "").strip()
+        if not raw:
+            return None
+
+        # 嘗試擷取 JSON 區段
+        json_text = raw
+        if "```" in raw:
+            parts = raw.split("```")
+            for p in parts:
+                p = p.strip()
+                if p.startswith("json"):
+                    json_text = p[4:].strip()
+                    break
+        if "{" in json_text and "}" in json_text:
+            json_text = json_text[json_text.find("{") : json_text.rfind("}") + 1]
+
+        obj = json.loads(json_text)
+        question = (obj.get("question") or "").strip()
+        options = obj.get("options") or []
+        options = [str(x) for x in options] if isinstance(options, list) else []
+        answer = str(obj.get("answer") or "").strip().upper()
+        explanation = str(obj.get("explanation") or obj.get("rationale") or obj.get("reason") or "").strip()
+
+        if not question or len(options) != 3 or answer not in ("A", "B", "C"):
+            return None
+        return {
+            "question": question[:500],
+            "options": [o[:200] for o in options[:3]],
+            "answer": answer,
+            "explanation": explanation[:1000],
+        }
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
 def get_quiz_data(redis_client, user_id):
     """取得暫存的測驗資料。回傳 dict 或 None。"""
     if not redis_client:

@@ -63,9 +63,11 @@ try:
         get_pending_review_category,
         clear_pending_review_category,
         generate_dynamic_quiz,
+        generate_mcq_quiz,
         reveal_quiz_answer,
         judge_quiz_answer,
         generate_review_note,
+        set_mcq_quiz_data,
     )
 except ImportError:
     from syllabus import (
@@ -102,9 +104,11 @@ except ImportError:
         get_pending_review_category,
         clear_pending_review_category,
         generate_dynamic_quiz,
+        generate_mcq_quiz,
         reveal_quiz_answer,
         judge_quiz_answer,
         generate_review_note,
+        set_mcq_quiz_data,
     )
 
 # 1. 初始化（保留原有 upstash_redis 連線設定）
@@ -833,8 +837,51 @@ def _tcm_openai_reply(user_id, text):
             max_tokens=256,
             temperature=0.2,
         )
-        ai_reply = (resp.choices[0].message.content or "").strip()[:500] + SAFETY_DISCLAIMER
-        line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
+        base_reply = (resp.choices[0].message.content or "").strip()[:500]
+        ai_reply = base_reply + SAFETY_DISCLAIMER
+
+        # Node 版行為：回答後直接附上三選一小測驗，並等待 A/B/C 作答
+        quiz = None
+        try:
+            quiz = generate_mcq_quiz(client, base_reply)
+        except Exception:
+            quiz = None
+
+        final_text = ai_reply
+        if quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer"):
+            quiz_text = (
+                "\n\n——\n📝 小測驗\n"
+                + quiz["question"]
+                + "\n"
+                + "\n".join(quiz["options"])
+                + "\n\n(回覆選項來挑戰，或直接輸入新問題繼續學習喔！)"
+            )
+            final_text = ai_reply + quiz_text
+            try:
+                # 進入等待作答狀態（只影響 tcm）
+                set_user_state(redis, user_id, STATE_QUIZ_WAITING)
+                set_mcq_quiz_data(
+                    redis,
+                    user_id,
+                    quiz.get("question", ""),
+                    quiz.get("options", []),
+                    quiz.get("answer", ""),
+                    quiz.get("explanation", ""),
+                    category="其他",
+                )
+                set_quiz_pending(redis, user_id, quiz.get("question", ""))
+            except Exception:
+                pass
+        else:
+            # 若出題失敗，維持原本僅回答（不進入等待作答）
+            try:
+                set_user_state(redis, user_id, STATE_NORMAL)
+                clear_quiz_data(redis, user_id)
+                clear_quiz_pending(redis, user_id)
+            except Exception:
+                pass
+
+        line_bot_api.push_message(user_id, text_with_quick_reply(final_text))
         try:
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
@@ -1347,6 +1394,26 @@ def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
     try:
+        def _parse_mcq_choice(text):
+            t = (text or "").strip()
+            if not t:
+                return None
+            # 移除常見包裹符號與標點
+            norm = re.sub(r'^[\s【\[\(（『「〈《<"\'`，。、．\.\!！\?？；;：:、]+', "", t)
+            norm = re.sub(r'[\s】\]\)）』」〉》>"\'`，。、．\.\!！\?？；;：:、]+$', "", norm)
+            # 全形轉半形
+            norm = norm.replace("Ａ", "A").replace("Ｂ", "B").replace("Ｃ", "C")
+            up = norm.upper()
+            if up in ("A", "B", "C"):
+                return up
+            if re.match(r"^選\s*[ABC]", up):
+                return re.findall(r"[ABC]", up)[0]
+            if re.match(r"^\([ABC]\)", up) or re.match(r"^（[ABC]）", up):
+                return re.findall(r"[ABC]", up)[0]
+            return None
+
+        suppress_yes_no_command = False
+
         # --- Rich Menu 按鈕：立即回覆，避免延遲 ---
         if user_text == "中醫問答":
             try:
@@ -1441,31 +1508,51 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 小測驗後（舊狀態相容）：學生的回答視為新問題，交由 AI 處理
+        # 小測驗等待作答：tcm 模式下支援 A/B/C 批改；非選項則視為新提問（skipped）
         if get_user_state(redis, user_id) == STATE_QUIZ_WAITING:
-            set_user_state(redis, user_id, STATE_NORMAL)
-            clear_quiz_data(redis, user_id)
-            clear_quiz_pending(redis, user_id)
             mode = _safe_get_mode(user_id)
-            immediate_msg = "正在查找資料，請稍候... ✨" if mode == "tcm" else "正在分析中..."
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
-            if mode == "tcm":
-                if _tcm_openai_reply(user_id, user_text):
+            qd = get_quiz_data(redis, user_id) or {}
+            if mode == "tcm" and (qd.get("type") == "mcq"):
+                choice = _parse_mcq_choice(user_text)
+                if choice:
+                    correct = str(qd.get("answer") or "").strip().upper()
+                    explanation = (qd.get("explanation") or "").strip()
+                    if choice == correct:
+                        reply = "恭喜!回答正確!歡迎繼續提問。"
+                    else:
+                        reply = f"回答不正確。\n正確答案：{correct}"
+                        if explanation:
+                            reply += f"\n\n詳解：\n{explanation}"
+                        # 答錯則記弱項（若有概念分類）
+                        try:
+                            record_weak_category(redis, user_id, (qd.get("category") or "其他"))
+                        except Exception:
+                            pass
+                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(reply))
+                    try:
+                        set_user_state(redis, user_id, STATE_NORMAL)
+                        clear_quiz_data(redis, user_id)
+                        clear_quiz_pending(redis, user_id)
+                    except Exception:
+                        pass
                     return
+
+                # 非選項：視為跳過，清狀態後把這則當新提問（且不要把「是/否」當作舊題庫指令）
+                suppress_yes_no_command = True
                 try:
-                    line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
+                    set_user_state(redis, user_id, STATE_NORMAL)
+                    clear_quiz_data(redis, user_id)
+                    clear_quiz_pending(redis, user_id)
                 except Exception:
                     pass
-                return
-            vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
-            base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
-            cron_secret = os.getenv("CRON_SECRET", "")
-            threading.Thread(
-                target=_run_text_background,
-                args=(user_id, user_text, "assistant", base_url, cron_secret),
-                daemon=True,
-            ).start()
-            return
+            else:
+                # 非 tcm 或非 MCQ：維持舊相容邏輯（視為新提問）
+                try:
+                    set_user_state(redis, user_id, STATE_NORMAL)
+                    clear_quiz_data(redis, user_id)
+                    clear_quiz_pending(redis, user_id)
+                except Exception:
+                    pass
 
         # 主動複習：使用者選擇「要複習筆記」
         if user_text == "要複習筆記":
@@ -1496,12 +1583,12 @@ def handle_message(event):
                 )
                 return
 
-        # 小測驗：點擊「否」→ 友善回覆，保持一般問答模式
-        if user_text == "否":
+        # 小測驗（舊題庫）：點擊「否」→ 友善回覆，保持一般問答模式
+        if (not suppress_yes_no_command) and user_text == "否":
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply("沒問題！如果有其他想了解的，歡迎隨時提問。"))
             return
-        # 小測驗：點擊「是」→ 依當下時間從 tcm_quiz_all.json 隨機抽一題已解鎖題目（選項＋答案＋解析 Flex）
-        if user_text == "是":
+        # 小測驗（舊題庫）：點擊「是」→ 時間解鎖題庫
+        if (not suppress_yes_no_command) and user_text == "是":
             time_locked_quiz_handler(user_id, reply_token=event.reply_token)
             return
 
