@@ -831,7 +831,7 @@ def _tcm_openai_reply(user_id, text):
     if not ctx or not ctx.strip():
         return False
     try:
-        resp = client.chat_completions.create(
+        resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": _TCM_SYSTEM_PROMPT},
@@ -896,6 +896,7 @@ def _tcm_openai_reply(user_id, text):
             pass
         return True
     except Exception:
+        traceback.print_exc()
         return False
 
 def _get_cached_mode(user_id):
