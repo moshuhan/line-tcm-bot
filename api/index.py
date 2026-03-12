@@ -843,57 +843,45 @@ def _tcm_openai_reply(user_id, text):
         base_reply = (resp.choices[0].message.content or "").strip()[:500]
         ai_reply = base_reply + SAFETY_DISCLAIMER
 
-        # Node 版行為：回答後直接附上三選一小測驗，並等待 A/B/C 作答
-        # 但為避免超過 Vercel 60s timeout，若前一段已耗時過久則略過出題。
-        elapsed = time.time() - start_ts
-        quiz = None
-        if elapsed < 30:
-            try:
-                quiz = generate_mcq_quiz(client, base_reply)
-            except Exception:
-                quiz = None
-
-        final_text = ai_reply
-        if quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer"):
-            quiz_text = (
-                "\n\n——\n📝 小測驗\n"
-                + quiz["question"]
-                + "\n"
-                + "\n".join(quiz["options"])
-                + "\n\n(回覆選項來挑戰，或直接輸入新問題繼續學習喔！)"
-            )
-            final_text = ai_reply + quiz_text
-            try:
-                # 進入等待作答狀態（只影響 tcm）
-                set_user_state(redis, user_id, STATE_QUIZ_WAITING)
-                set_mcq_quiz_data(
-                    redis,
-                    user_id,
-                    quiz.get("question", ""),
-                    quiz.get("options", []),
-                    quiz.get("answer", ""),
-                    quiz.get("explanation", ""),
-                    category="其他",
-                )
-                set_quiz_pending(redis, user_id, quiz.get("question", ""))
-            except Exception:
-                pass
-        else:
-            # 若出題失敗，維持原本僅回答（不進入等待作答）
-            try:
-                set_user_state(redis, user_id, STATE_NORMAL)
-                clear_quiz_data(redis, user_id)
-                clear_quiz_pending(redis, user_id)
-            except Exception:
-                pass
-
-        line_bot_api.push_message(user_id, text_with_quick_reply(final_text))
+        # 先回中醫答案（避免阻塞 webhook），小測驗改由背景任務補發
+        line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
         try:
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
             set_last_assistant_message(redis, user_id, ai_reply)
         except Exception:
             pass
+
+        # 若總耗時仍在安全範圍內，觸發背景小測驗出題任務（避免 60s timeout）
+        elapsed = time.time() - start_ts
+        if elapsed < 30:
+            try:
+                vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+                base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+                cron_secret = os.getenv("CRON_SECRET", "")
+                if base_url and cron_secret:
+                    try:
+                        requests.post(
+                            f"{base_url}/api/process-quiz-async",
+                            json={"user_id": user_id, "context": base_reply},
+                            headers={"Authorization": f"Bearer {cron_secret}"},
+                            timeout=5,
+                        )
+                    except Exception:
+                        # 若遠端呼叫失敗，嘗試在同一個進程中同步出題（不再額外重試）
+                        try:
+                            _process_quiz_sync(user_id, base_reply)
+                        except Exception:
+                            traceback.print_exc()
+                else:
+                    # 無 base_url 或 CRON_SECRET 時，本機同步出題
+                    try:
+                        _process_quiz_sync(user_id, base_reply)
+                    except Exception:
+                        traceback.print_exc()
+            except Exception:
+                traceback.print_exc()
+
         return True
     except Exception:
         traceback.print_exc()
@@ -1259,6 +1247,45 @@ def _process_voice_sync(user_id, message_id):
             pass
 
 
+def _process_quiz_sync(user_id, context):
+    """
+    依據中醫回答內容 context 產生三選一小測驗並 push 給使用者，
+    同時設定 STATE_QUIZ_WAITING 與 MCQ 測驗資料到 Redis。
+    """
+    if not (context or "").strip():
+        return
+    try:
+        quiz = generate_mcq_quiz(client, context)
+    except Exception:
+        traceback.print_exc()
+        quiz = None
+    if not (quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer")):
+        return
+    try:
+        quiz_text = (
+            "——\n📝 小測驗\n"
+            + quiz["question"]
+            + "\n"
+            + "\n".join(quiz["options"])
+            + "\n\n(回覆選項來挑戰，或直接輸入新問題繼續學習喔！)"
+        )
+        line_bot_api.push_message(user_id, text_with_quick_reply(quiz_text))
+        if redis:
+            set_user_state(redis, user_id, STATE_QUIZ_WAITING)
+            set_mcq_quiz_data(
+                redis,
+                user_id,
+                quiz.get("question", ""),
+                quiz.get("options", []),
+                quiz.get("answer", ""),
+                quiz.get("explanation", ""),
+                category="其他",
+            )
+            set_quiz_pending(redis, user_id, quiz.get("question", ""))
+    except Exception:
+        traceback.print_exc()
+
+
 @app.route("/api/process-voice-async", methods=["POST"])
 def process_voice_async():
     """Background Task：接收語音 message_id，執行 Whisper -> 評估 -> TTS -> Cloudinary -> push。"""
@@ -1317,6 +1344,29 @@ def process_text_async():
                 line_bot_api.push_message(uid, text_with_quick_reply(TIMEOUT_MESSAGE))
         except Exception as push_err:
             print(f"[process-text-async] push error fallback failed err={push_err}")
+        return str(e)[:200], 500
+
+
+@app.route("/api/process-quiz-async", methods=["POST"])
+def process_quiz_async():
+    """
+    Background Task：依據已送出的中醫回答內容產生三選一小測驗並推送。
+    由 _tcm_openai_reply 觸發，不阻塞原本的 webhook。
+    """
+    secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
+    expected = os.getenv("CRON_SECRET", "")
+    if expected and secret not in (expected, "Bearer " + expected):
+        return "Unauthorized", 401
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        user_id = (data.get("user_id") or "").strip()
+        context = (data.get("context") or "").strip()
+        if not user_id or not context:
+            return "Missing user_id or context", 400
+        _process_quiz_sync(user_id, context)
+        return "OK", 200
+    except Exception as e:
+        traceback.print_exc()
         return str(e)[:200], 500
 
 
