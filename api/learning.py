@@ -188,8 +188,8 @@ def generate_mcq_quiz(openai_client, context):
                 {"role": "system", "content": "你是中醫課程助教，負責依照說明內容出選擇題。"},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=300,
-            temperature=0.4,
+            max_tokens=200,
+            temperature=0.2,
         )
         raw = (resp.choices[0].message.content or "").strip()
         if not raw:
