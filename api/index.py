@@ -993,13 +993,17 @@ def _process_assistant_sync(user_id, text):
             ai_reply = messages.data[0].content[0].text.value
             if mode == "tcm":
                 ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
-            log_question(redis, user_id, text)
-            set_last_question(redis, user_id, text)
-            set_last_assistant_message(redis, user_id, ai_reply)
+            # 先回覆使用者，再寫 Redis，避免 Device busy 等 Redis 問題阻塞回覆
             if mode == "tcm":
                 line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
             else:
                 line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
+            try:
+                log_question(redis, user_id, text)
+                set_last_question(redis, user_id, text)
+                set_last_assistant_message(redis, user_id, ai_reply)
+            except Exception:
+                pass
         else:
             line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
     except Exception as e:
