@@ -677,10 +677,13 @@ def _tcm_openai_reply(user_id, text):
     """
     if not (text or "").strip():
         return False
+    import time
+
     txt = text.strip()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return False
+    start_ts = time.time()
     all_data = _load_tcm_json()
     ctx_parts = []
     for data in all_data:
@@ -828,7 +831,7 @@ def _tcm_openai_reply(user_id, text):
     if not ctx or not ctx.strip():
         return False
     try:
-        resp = client.chat.completions.create(
+        resp = client.chat_completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": _TCM_SYSTEM_PROMPT},
@@ -841,11 +844,14 @@ def _tcm_openai_reply(user_id, text):
         ai_reply = base_reply + SAFETY_DISCLAIMER
 
         # Node 版行為：回答後直接附上三選一小測驗，並等待 A/B/C 作答
+        # 但為避免超過 Vercel 60s timeout，若前一段已耗時過久則略過出題。
+        elapsed = time.time() - start_ts
         quiz = None
-        try:
-            quiz = generate_mcq_quiz(client, base_reply)
-        except Exception:
-            quiz = None
+        if elapsed < 30:
+            try:
+                quiz = generate_mcq_quiz(client, base_reply)
+            except Exception:
+                quiz = None
 
         final_text = ai_reply
         if quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer"):
