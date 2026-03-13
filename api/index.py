@@ -13,11 +13,9 @@ import tempfile
 import traceback
 from datetime import date
 
-# Startup ENV check (names only, no values) for Railway/debug
+# Startup ENV check (names only, no values) for Railway
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
 print("ENV CHECK: REDIS_URL exists:", bool(REDIS_URL))
-print("ENV CHECK: KV_REST_API_URL exists:", bool(os.getenv("KV_REST_API_URL")))
-print("ENV CHECK: KV_REST_API_TOKEN exists:", bool(os.getenv("KV_REST_API_TOKEN")))
 print("ENV CHECK: LINE_CHANNEL_ACCESS_TOKEN exists:", bool(os.getenv("LINE_CHANNEL_ACCESS_TOKEN")))
 print("ENV CHECK: LINE_CHANNEL_SECRET exists:", bool(os.getenv("LINE_CHANNEL_SECRET")))
 print("ENV CHECK: OPENAI_API_KEY exists:", bool(os.getenv("OPENAI_API_KEY")))
@@ -31,7 +29,7 @@ from linebot.models import (
     QuickReply, QuickReplyButton, MessageAction, FlexSendMessage,
 )
 from linebot.models.send_messages import AudioSendMessage
-from upstash_redis import Redis
+from redis import Redis as RedisClient
 from openai import OpenAI
 import httpx
 from httpx_retries import RetryTransport, Retry
@@ -121,11 +119,11 @@ except ImportError:
         set_mcq_quiz_data,
     )
 
-# 1. 初始化（保留原有 upstash_redis 連線設定）
+# 1. 初始化
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 line_webhook_handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
-# 使用 httpx + RetryTransport 緩解 Vercel 上 Errno 16 "Device or resource busy" 等瞬斷
+# 使用 httpx + RetryTransport 緩解連線瞬斷
 _retry = Retry(total=3, backoff_factor=0.5)
 _http_client = httpx.Client(
     transport=RetryTransport(retry=_retry),
@@ -134,27 +132,19 @@ _http_client = httpx.Client(
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
-# Redis：Upstash REST 單例，模組載入時建立一次，避免多實例造成 "Device or resource busy"
-# 所有 Redis 存取應透過此單例；_safe_get_mode 內以 lock 序列化讀取，避免並發耗盡連線
-kv_url = os.getenv("KV_REST_API_URL")
-kv_token = os.getenv("KV_REST_API_TOKEN")
+# Redis：Railway 使用 REDIS_URL，標準 redis-py 連線（decode_responses=True 回傳 str）
 redis = None
-if kv_url and kv_token:
+if REDIS_URL:
     try:
-        redis = Redis(
-            url=kv_url,
-            token=kv_token,
-            rest_retries=5,
-            rest_retry_interval=2,
+        redis = RedisClient.from_url(
+            REDIS_URL,
+            decode_responses=True,
+            socket_timeout=5,
         )
-    except TypeError:
-        try:
-            redis = Redis(url=kv_url, token=kv_token)
-        except Exception as e:
-            print(f"[REDIS] init failed err={e}")
-            redis = None
+        redis.ping()
+        print(">>> SUCCESS: Connected to Railway Redis via REDIS_URL <<<")
     except Exception as e:
-        print(f"[REDIS] init failed err={e}")
+        print(f">>> ERROR: Failed to connect to Redis: {e} <<<")
         redis = None
 
 # 模式快取：Redis 瞬斷時使用，key=user_id -> (mode, timestamp)

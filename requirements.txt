@@ -4,10 +4,11 @@ gunicorn
 gevent
 openai
 google-genai
-upstash-redis
+redis
 httpx-retries
 python-dotenv
 requests
 reportlab
 matplotlib
 cloudinary
+httpx
