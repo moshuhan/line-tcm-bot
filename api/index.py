@@ -150,6 +150,8 @@ if kv_url and kv_token:
 _mode_cache = {}
 _MODE_CACHE_TTL = 180
 _MODE_CACHE_MAX = 1000
+# 序列化 Redis 存取，避免多 thread 同時呼叫 Upstash 造成 "Device or resource busy"
+_redis_mode_lock = threading.Lock()
 
 # Cloudinary 設定（TTS 語音檔雲端儲存）
 _cloudinary_configured = bool(
@@ -915,6 +917,7 @@ def _safe_get_mode(user_id):
     """
     安全取得使用者模式。Key 與 Postback 寫入處一致。
     快取優先：有有效快取時直接回傳，減少 Redis 讀取與 Device/resource busy 風險。
+    Redis 存取以 lock 序列化，避免 Upstash REST 並發造成 Errno 16。
     Redis 失敗時：先嘗試本地快取，僅在快取也無效時才 fallback 至 tcm。
     """
     try:
@@ -928,12 +931,13 @@ def _safe_get_mode(user_id):
         mode_val = None
         for attempt in range(3):
             try:
-                mode_val = redis.get(key)
+                with _redis_mode_lock:
+                    mode_val = redis.get(key)
                 break
             except Exception as e:
                 last_err = e
                 if attempt < 2:
-                    time.sleep(0.2 * (attempt + 1))
+                    time.sleep(0.3 * (attempt + 1))
                     continue
                 # Redis 重試後仍失敗：嘗試快取
                 cached = _get_cached_mode(user_id)
@@ -1074,7 +1078,10 @@ def _run_ai_work(user_id, text, is_voice=False):
 
 
 def process_ai_request(event, user_id, text, is_voice=False):
-    """State-Based Router：依 user_state (mode) 切換。立即回傳 200，實際工作在背景 thread 執行以避免 LINE Webhook 逾時。"""
+    """
+    State-Based Router：依 user_state (mode) 切換。不依賴 Flask request，僅用傳入的 user_id/text。
+    立即啟動背景 thread 執行 _run_ai_work，主線回傳，避免 Vercel 60s 逾時。
+    """
     try:
         threading.Thread(
             target=_run_ai_work,
@@ -1427,14 +1434,18 @@ def serve_audio(token):
 
 @app.route("/callback", methods=['POST'])
 def callback():
-    """LINE Webhook 唯一入口（Vercel rewrite → 本檔）。立即回傳 200 避免 Serverless 逾時導致 204，實際處理在背景 thread。"""
-    signature = request.headers.get('X-Line-Signature')
-    body = request.get_data(as_text=True)
-    if not body:
-        return 'OK', 200
+    """
+    LINE Webhook 唯一入口（Vercel rewrite）。必須在回傳前擷取所有 request 資料，
+    因回傳後 request context 會銷毀。以 threading.Thread 執行處理邏輯，主線立即回傳 200 以繞過 Vercel 60s 逾時。
+    """
+    # 在啟動 thread 前擷取所需資料，避免背景 thread 存取已銷毀的 request
+    signature = request.headers.get('X-Line-Signature') or ''
+    body = request.get_data(as_text=True) or ''
 
     def _handle_webhook():
         try:
+            if not body:
+                return
             line_webhook_handler.handle(body, signature)
         except InvalidSignatureError:
             print("[callback] InvalidSignatureError in background thread (200 already sent)")
@@ -1442,7 +1453,7 @@ def callback():
             traceback.print_exc()
 
     threading.Thread(target=_handle_webhook, daemon=True).start()
-    return 'OK', 200
+    return Response('OK', status=200)
 
 # --- 事件處理 ---
 @line_webhook_handler.add(PostbackEvent)
