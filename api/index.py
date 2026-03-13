@@ -167,8 +167,8 @@ if _cloudinary_configured:
         api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     )
 
-# 安全聲明：涉及中醫診斷之回覆必須附加
-SAFETY_DISCLAIMER = "\n\n⚠️ 僅供教學用途，不具醫療建議。"
+# 安全聲明：涉及中醫診斷之回覆必須附加（詳細回答 + 參考出處後加此句）
+SAFETY_DISCLAIMER = "\n\n以上資料僅供參考，若有身體不適請務必尋求專業醫師診斷與建議。"
 
 VOICE_COACH_TTS_VOICE = "shimmer"
 TTS_SPEED = 0.8  # shadowing 語音 0.8 倍速，較慢易於跟讀
@@ -838,12 +838,12 @@ def _tcm_openai_reply(user_id, text):
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": _TCM_SYSTEM_PROMPT},
-                {"role": "user", "content": f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料在150字內精準回答，跳過開場白。"},
+                {"role": "user", "content": f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料精準回答（可適度詳盡），跳過冗長開場白，回答末尾請簡要註明參考資料或出處。"},
             ],
-            max_tokens=256,
+            max_tokens=400,
             temperature=0.2,
         )
-        base_reply = (resp.choices[0].message.content or "").strip()[:500]
+        base_reply = (resp.choices[0].message.content or "").strip()[:800]
         ai_reply = base_reply + SAFETY_DISCLAIMER
 
         line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
@@ -1720,18 +1720,11 @@ def handle_message(event):
             return
 
         mode = _safe_get_mode(user_id)
-        print(f"[MODE] handle_message -> async AI (current_mode={mode!r}, not REVISION_MODE)")
+        print(f"[MODE] handle_message -> AI (current_mode={mode!r})")
 
-        # 中醫問答：全程用 tcm_master_knowledge.json + OpenAI gpt-4o-mini，不經過 Assistant API
-        if mode == "tcm":
-            immediate_msg = "正在查找資料，請稍候... ✨"
-        else:
-            mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, "🩺 中醫問答")
-            immediate_msg = f"正在以【{mode_name}】模式分析中..."
-
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
-
-        if mode == "tcm":
+        # 統一 TCM 問答：tcm / quiz 一律走同一邏輯（詳細回答 + 參考出處 + 免責聲明 + 自動出題）
+        if mode in ("tcm", "quiz"):
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查找資料，請稍候... ✨"))
             if not _tcm_openai_reply(user_id, user_text):
                 try:
                     line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
@@ -1739,7 +1732,9 @@ def handle_message(event):
                     pass
             return
 
-        # Worker 內同步執行 Assistant（/api/worker 為獨立 60s invocation）
+        # 口說 / 寫作：依模式顯示載入訊息並走 Assistant API
+        mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, mode)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
         _run_ai_work(user_id, user_text)
     except Exception as e:
         traceback.print_exc()
