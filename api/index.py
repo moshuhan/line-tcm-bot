@@ -124,7 +124,8 @@ _http_client = httpx.Client(
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
 assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
-# Redis：全域單例，Upstash REST API 無需連線池，模組載入時建立一次
+# Redis：Upstash REST 單例，模組載入時建立一次，避免多實例造成 "Device or resource busy"
+# 所有 Redis 存取應透過此單例；_safe_get_mode 內以 lock 序列化讀取，避免並發耗盡連線
 kv_url = os.getenv("KV_REST_API_URL")
 kv_token = os.getenv("KV_REST_API_TOKEN")
 redis = None
@@ -1027,15 +1028,11 @@ def _process_assistant_sync(user_id, text):
             role="user",
             content=user_content,
         )
-        run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
-
-        start_time = time.time()
-        poll_interval = 0.5  # 較密輪詢以盡快取得完成結果，減少延遲
-        while run.status in ['queued', 'in_progress']:
-            if time.time() - start_time > TIMEOUT_SECONDS:
-                break
-            time.sleep(poll_interval)
-            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+        run = client.beta.threads.runs.create_and_poll(
+            thread_id=thread_id,
+            assistant_id=assistant_id,
+            timeout=TIMEOUT_SECONDS,
+        )
 
         if run.status == 'completed':
             messages = client.beta.threads.messages.list(thread_id=thread_id)
@@ -1079,18 +1076,12 @@ def _run_ai_work(user_id, text, is_voice=False):
 
 def process_ai_request(event, user_id, text, is_voice=False):
     """
-    State-Based Router：依 user_state (mode) 切換。不依賴 Flask request，僅用傳入的 user_id/text。
-    立即啟動背景 thread 執行 _run_ai_work，主線回傳，避免 Vercel 60s 逾時。
+    State-Based Router：依 user_state (mode) 切換。由 /api/worker 同步呼叫，直接執行 _run_ai_work。
     """
     try:
-        threading.Thread(
-            target=_run_ai_work,
-            args=(user_id, text),
-            kwargs={"is_voice": is_voice},
-            daemon=True,
-        ).start()
+        _run_ai_work(user_id, text, is_voice=is_voice)
     except Exception as e:
-        print(f"CRITICAL ERROR (spawn thread): {traceback.format_exc()}")
+        print(f"CRITICAL ERROR: {traceback.format_exc()}")
         try:
             line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
         except Exception:
@@ -1432,27 +1423,68 @@ def serve_audio(token):
     except Exception:
         return "Not Found", 404
 
+@app.route("/api/worker", methods=["POST"])
+def worker():
+    """
+    內部 Worker：由 callback 以 requests.post 轉發 webhook 內容。
+    在此同步執行 handle() 與完整 AI 流程，Vercel 視為獨立 60s 任務，避免回傳後 process 被凍結。
+    """
+    secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
+    expected = os.getenv("CRON_SECRET", "")
+    if expected and secret not in (expected, "Bearer " + expected):
+        print("[worker] 401 Unauthorized")
+        return "Unauthorized", 401
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        body = (data.get("body") or "").strip()
+        signature = (data.get("signature") or "").strip()
+        if not body:
+            return "Missing body", 400
+        line_webhook_handler.handle(body, signature)
+        return "OK", 200
+    except InvalidSignatureError:
+        print("[worker] InvalidSignatureError")
+        return "Invalid signature", 400
+    except Exception as e:
+        traceback.print_exc()
+        return str(e)[:200], 500
+
+
 @app.route("/callback", methods=['POST'])
 def callback():
     """
-    LINE Webhook 唯一入口（Vercel rewrite）。必須在回傳前擷取所有 request 資料，
-    因回傳後 request context 會銷毀。以 threading.Thread 執行處理邏輯，主線立即回傳 200 以繞過 Vercel 60s 逾時。
+    LINE Webhook 唯一入口（Vercel rewrite）。不執行 handle，改以 requests.post 轉發至 /api/worker，
+    立即回傳 200，由 Worker 在獨立 invocation 內同步完成 AI 與 push_message。
     """
-    # 在啟動 thread 前擷取所需資料，避免背景 thread 存取已銷毀的 request
     signature = request.headers.get('X-Line-Signature') or ''
     body = request.get_data(as_text=True) or ''
 
-    def _handle_webhook():
+    vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
+    base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
+    cron_secret = os.getenv("CRON_SECRET", "")
+
+    if body and base_url and cron_secret:
         try:
-            if not body:
-                return
+            requests.post(
+                f"{base_url}/api/worker",
+                json={"body": body, "signature": signature},
+                headers={"Authorization": f"Bearer {cron_secret}", "Content-Type": "application/json"},
+                timeout=3,
+            )
+        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
+            pass
+        except Exception as e:
+            print(f"[callback] worker POST err={e}")
+            traceback.print_exc()
+    elif body and signature:
+        # 本地開發：無 VERCEL_URL 時直接執行 handle，避免無回應
+        try:
             line_webhook_handler.handle(body, signature)
         except InvalidSignatureError:
-            print("[callback] InvalidSignatureError in background thread (200 already sent)")
+            return "Invalid signature", 400
         except Exception as e:
             traceback.print_exc()
 
-    threading.Thread(target=_handle_webhook, daemon=True).start()
     return Response('OK', status=200)
 
 # --- 事件處理 ---
@@ -1589,35 +1621,8 @@ def handle_message(event):
                 event.reply_token,
                 TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
             )
-            vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
-            base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
-            cron_secret = os.getenv("CRON_SECRET", "")
-            async_ok = False
-            if base_url and cron_secret:
-                try:
-                    r = requests.post(
-                        f"{base_url}/api/process-text-async",
-                        json={"user_id": user_id, "text": user_text, "task": "revision"},
-                        headers={"Authorization": f"Bearer {cron_secret}"},
-                        timeout=5,
-                    )
-                    if r.status_code == 200:
-                        async_ok = True
-                        print(f"[REVISION] async POST ok status=200")
-                    else:
-                        print(f"[REVISION] async POST non-2xx status={r.status_code} body={r.text[:200]}")
-                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
-                    print(f"[REVISION] async POST timeout - fallback sync to guarantee response err={e}")
-                except Exception as e:
-                    print(f"[REVISION] async POST failed - fallback sync err={e}")
-                    traceback.print_exc()
-            if not async_ok:
-                print(f"[REVISION] running in background thread user_id={user_id}")
-                threading.Thread(
-                    target=_revision_handler,
-                    args=(user_id, user_text),
-                    daemon=True,
-                ).start()
+            print(f"[REVISION] running sync (worker) user_id={user_id}")
+            _revision_handler(user_id, user_text)
             return
 
         # 課務查詢／本週重點：統一以 Flex Message 回傳
@@ -1752,28 +1757,15 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
 
         if mode == "tcm":
-            def _tcm_reply_background():
+            if not _tcm_openai_reply(user_id, user_text):
                 try:
-                    if not _tcm_openai_reply(user_id, user_text):
-                        line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
-                except Exception as e:
-                    traceback.print_exc()
-                    try:
-                        line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
-                    except Exception:
-                        pass
-            threading.Thread(target=_tcm_reply_background, daemon=True).start()
+                    line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
+                except Exception:
+                    pass
             return
 
-        # 非阻塞：背景執行 AI（speaking 等模式），避免 webhook 阻塞
-        vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
-        base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
-        cron_secret = os.getenv("CRON_SECRET", "")
-        threading.Thread(
-            target=_run_text_background,
-            args=(user_id, user_text, "assistant", base_url, cron_secret),
-            daemon=True,
-        ).start()
+        # Worker 內同步執行 Assistant（/api/worker 為獨立 60s invocation）
+        _run_ai_work(user_id, user_text)
     except Exception as e:
         traceback.print_exc()
         err_msg = str(e).strip()[:100]
@@ -1796,37 +1788,8 @@ def handle_audio(event):
         TextSendMessage(text="正在轉換語音，請稍候... 🎙️"),
     )
 
-    vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
-    base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
-    cron_secret = os.getenv("CRON_SECRET", "")
-    async_ok = False
-
-    if base_url and cron_secret:
-        try:
-            r = requests.post(
-                f"{base_url}/api/process-voice-async",
-                json={"user_id": user_id, "message_id": message_id},
-                headers={"Authorization": f"Bearer {cron_secret}"},
-                timeout=5,
-            )
-            if r.status_code == 200:
-                async_ok = True
-                print("[VOICE] async POST ok status=200")
-            else:
-                print(f"[VOICE] async POST non-2xx status={r.status_code}")
-        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
-            print(f"[VOICE] async POST timeout - fallback sync err={e}")
-        except Exception as e:
-            print(f"[VOICE] async POST failed - fallback sync err={e}")
-            traceback.print_exc()
-
-    if not async_ok:
-        print(f"[VOICE] running in background thread user_id={user_id}")
-        threading.Thread(
-            target=_process_voice_sync,
-            args=(user_id, message_id),
-            daemon=True,
-        ).start()
+    print(f"[VOICE] running sync (worker) user_id={user_id}")
+    _process_voice_sync(user_id, message_id)
 
 
 if __name__ == "__main__":
