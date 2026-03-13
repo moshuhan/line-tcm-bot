@@ -974,6 +974,8 @@ def _safe_get_mode(user_id):
         return "tcm"
 
 # --- AI 核心函數（模式路由器）---
+# _process_assistant_sync / _revision_handler 均在背景 thread 執行，可安全存取模組全域
+#（line_bot_api, redis, client）及 os.environ，無須額外傳遞。
 def _process_assistant_sync(user_id, text):
     """Assistant API 邏輯：Thread/Run/RAG，完成後 push_message。供 process-text-async 背景呼叫。"""
     try:
@@ -1425,16 +1427,21 @@ def serve_audio(token):
 
 @app.route("/callback", methods=['POST'])
 def callback():
-    """LINE Webhook 唯一入口（Vercel rewrite → 本檔）。Postback / Message 皆由此處理。"""
+    """LINE Webhook 唯一入口（Vercel rewrite → 本檔）。立即回傳 200 避免 Serverless 逾時導致 204，實際處理在背景 thread。"""
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
-    try:
-        line_webhook_handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
-    except Exception as e:
-        traceback.print_exc()
-        # 仍回傳 200，避免 LINE 重試造成重複觸發
+    if not body:
+        return 'OK', 200
+
+    def _handle_webhook():
+        try:
+            line_webhook_handler.handle(body, signature)
+        except InvalidSignatureError:
+            print("[callback] InvalidSignatureError in background thread (200 already sent)")
+        except Exception as e:
+            traceback.print_exc()
+
+    threading.Thread(target=_handle_webhook, daemon=True).start()
     return 'OK', 200
 
 # --- 事件處理 ---
@@ -1803,8 +1810,12 @@ def handle_audio(event):
             traceback.print_exc()
 
     if not async_ok:
-        print(f"[VOICE] running synchronously user_id={user_id}")
-        _process_voice_sync(user_id, message_id)
+        print(f"[VOICE] running in background thread user_id={user_id}")
+        threading.Thread(
+            target=_process_voice_sync,
+            args=(user_id, message_id),
+            daemon=True,
+        ).start()
 
 
 if __name__ == "__main__":
