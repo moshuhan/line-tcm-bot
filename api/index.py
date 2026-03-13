@@ -12,6 +12,16 @@ import secrets
 import tempfile
 import traceback
 from datetime import date
+
+# Startup ENV check (names only, no values) for Railway/debug
+REDIS_URL = os.getenv("REDIS_URL", "").strip()
+print("ENV CHECK: REDIS_URL exists:", bool(REDIS_URL))
+print("ENV CHECK: KV_REST_API_URL exists:", bool(os.getenv("KV_REST_API_URL")))
+print("ENV CHECK: KV_REST_API_TOKEN exists:", bool(os.getenv("KV_REST_API_TOKEN")))
+print("ENV CHECK: LINE_CHANNEL_ACCESS_TOKEN exists:", bool(os.getenv("LINE_CHANNEL_ACCESS_TOKEN")))
+print("ENV CHECK: LINE_CHANNEL_SECRET exists:", bool(os.getenv("LINE_CHANNEL_SECRET")))
+print("ENV CHECK: OPENAI_API_KEY exists:", bool(os.getenv("OPENAI_API_KEY")))
+
 from flask import Flask, request, abort, Response
 import requests
 from linebot import LineBotApi, WebhookHandler
@@ -924,9 +934,11 @@ def _safe_get_mode(user_id):
     try:
         cached = _get_cached_mode(user_id)
         if cached:
+            print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
             return cached
         if not redis:
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=redis_none")
+            print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
             return "tcm"
         key = _redis_user_mode_key(user_id)
         mode_val = None
@@ -945,17 +957,21 @@ def _safe_get_mode(user_id):
                 if cached:
                     err_detail = f"errno={getattr(e, 'errno', 'N/A')} type={type(e).__name__}"
                     print(f"[MODE] _safe_get_mode user_id={user_id} redis_fail using_cache={cached} {err_detail}")
+                    print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
                     return cached
                 err_detail = f"errno={getattr(e, 'errno', 'N/A')} type={type(e).__name__}"
                 print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception_after_retry {err_detail} err={e}")
                 traceback.print_exc()
+                print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
                 return "tcm"
         if mode_val is None:
             cached = _get_cached_mode(user_id)
             if cached:
                 print(f"[MODE] _safe_get_mode user_id={user_id} key_missing using_cache={cached}")
+                print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
                 return cached
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=key_missing_or_null")
+            print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
             return "tcm"
         if isinstance(mode_val, bytes):
             mode_str = mode_val.decode("utf-8", errors="replace").strip()
@@ -964,18 +980,23 @@ def _safe_get_mode(user_id):
         if not mode_str:
             cached = _get_cached_mode(user_id)
             if cached:
+                print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
                 return cached
             print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=empty_value raw={repr(mode_val)}")
+            print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
             return "tcm"
         result = mode_str.lower()
         _set_cached_mode(user_id, result)
+        print(f"DEBUG: Fetching mode for {user_id}. Result: {result}")
         return result
     except Exception as e:
         cached = _get_cached_mode(user_id)
         if cached:
             print(f"[MODE] _safe_get_mode user_id={user_id} outer_exception using_cache={cached} err={e}")
+            print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
             return cached
         print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception err={e}")
+        print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
         return "tcm"
 
 # --- AI 核心函數（模式路由器）---
@@ -1488,6 +1509,8 @@ def handle_postback(event):
 def handle_message(event):
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
+    current_mode = _safe_get_mode(user_id)
+    print(f"DEBUG: Received text '{user_text}' from {user_id}. Current Mode from Redis: {current_mode}")
     try:
         def _parse_mcq_choice(text):
             t = (text or "").strip()
@@ -1582,6 +1605,7 @@ def handle_message(event):
 
         # 小測驗等待作答：tcm 模式下支援 A/B/C 批改；非選項則視為新提問（skipped）
         if get_user_state(redis, user_id) == STATE_QUIZ_WAITING:
+            print("DEBUG: Inside Quiz logic block - comparing answer...")
             mode = _safe_get_mode(user_id)
             qd = get_quiz_data(redis, user_id) or {}
             if mode == "tcm" and (qd.get("type") == "mcq"):
