@@ -1,5 +1,7 @@
 line-bot-sdk
 flask
+gunicorn
+gevent
 openai
 google-genai
 upstash-redis

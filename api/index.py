@@ -1058,7 +1058,7 @@ def _process_assistant_sync(user_id, text):
 
 
 def _run_ai_work(user_id, text, is_voice=False):
-    """Background worker：與 process_ai_request 相同邏輯，供 thread 呼叫。push_message 在背景執行安全。"""
+    """依 mode 分派：REVISION_MODE → _revision_handler；其餘 → _process_assistant_sync。"""
     try:
         mode = _safe_get_mode(user_id)
         print(f"[MODE] _run_ai_work user_id={user_id} mode={mode} routing={'revision' if mode == REVISION_MODE else 'assistant'}")
@@ -1076,7 +1076,8 @@ def _run_ai_work(user_id, text, is_voice=False):
 
 def process_ai_request(event, user_id, text, is_voice=False):
     """
-    State-Based Router：依 user_state (mode) 切換。由 /api/worker 同步呼叫，直接執行 _run_ai_work。
+    State-Based Router：依 user_state (mode) 切換，直接執行 AI 邏輯。
+    寫作模式 → _revision_handler；其餘 → _process_assistant_sync（內含 create_and_poll）。
     """
     try:
         _run_ai_work(user_id, text, is_voice=is_voice)
@@ -1423,68 +1424,17 @@ def serve_audio(token):
     except Exception:
         return "Not Found", 404
 
-@app.route("/api/worker", methods=["POST"])
-def worker():
-    """
-    內部 Worker：由 callback 以 requests.post 轉發 webhook 內容。
-    在此同步執行 handle() 與完整 AI 流程，Vercel 視為獨立 60s 任務，避免回傳後 process 被凍結。
-    """
-    secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
-    expected = os.getenv("CRON_SECRET", "")
-    if expected and secret not in (expected, "Bearer " + expected):
-        print("[worker] 401 Unauthorized")
-        return "Unauthorized", 401
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        body = (data.get("body") or "").strip()
-        signature = (data.get("signature") or "").strip()
-        if not body:
-            return "Missing body", 400
-        line_webhook_handler.handle(body, signature)
-        return "OK", 200
-    except InvalidSignatureError:
-        print("[worker] InvalidSignatureError")
-        return "Invalid signature", 400
-    except Exception as e:
-        traceback.print_exc()
-        return str(e)[:200], 500
-
-
 @app.route("/callback", methods=['POST'])
 def callback():
-    """
-    LINE Webhook 唯一入口（Vercel rewrite）。不執行 handle，改以 requests.post 轉發至 /api/worker，
-    立即回傳 200，由 Worker 在獨立 invocation 內同步完成 AI 與 push_message。
-    """
+    """LINE Webhook 唯一入口（Railway 等長連線環境：直接執行 handle，gunicorn timeout 120s）。"""
     signature = request.headers.get('X-Line-Signature') or ''
     body = request.get_data(as_text=True) or ''
-
-    vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
-    base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
-    cron_secret = os.getenv("CRON_SECRET", "")
-
-    if body and base_url and cron_secret:
-        try:
-            requests.post(
-                f"{base_url}/api/worker",
-                json={"body": body, "signature": signature},
-                headers={"Authorization": f"Bearer {cron_secret}", "Content-Type": "application/json"},
-                timeout=3,
-            )
-        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout):
-            pass
-        except Exception as e:
-            print(f"[callback] worker POST err={e}")
-            traceback.print_exc()
-    elif body and signature:
-        # 本地開發：無 VERCEL_URL 時直接執行 handle，避免無回應
-        try:
-            line_webhook_handler.handle(body, signature)
-        except InvalidSignatureError:
-            return "Invalid signature", 400
-        except Exception as e:
-            traceback.print_exc()
-
+    try:
+        line_webhook_handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    except Exception as e:
+        traceback.print_exc()
     return Response('OK', status=200)
 
 # --- 事件處理 ---
