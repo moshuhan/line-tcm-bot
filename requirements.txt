@@ -5,6 +5,7 @@ gevent
 openai
 google-genai
 redis
+pymongo
 httpx-retries
 python-dotenv
 requests

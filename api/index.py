@@ -11,7 +11,7 @@ import json
 import secrets
 import tempfile
 import traceback
-from datetime import date
+from datetime import date, datetime, timezone
 
 # Startup ENV check (names only, no values) for Railway
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
@@ -30,6 +30,7 @@ from linebot.models import (
 )
 from linebot.models.send_messages import AudioSendMessage
 from redis import Redis as RedisClient
+from pymongo import MongoClient
 from openai import OpenAI
 import httpx
 from httpx_retries import RetryTransport, Retry
@@ -146,6 +147,18 @@ if REDIS_URL:
     except Exception as e:
         print(f">>> ERROR: Failed to connect to Redis: {e} <<<")
         redis = None
+
+# MongoDB：Railway 使用 MONGODB_URI，標準 pymongo 連線
+mongo_client = None
+MONGODB_URI = os.getenv("MONGODB_URI", "").strip()
+if MONGODB_URI:
+    try:
+        mongo_client = MongoClient(MONGODB_URI)
+        mongo_client.admin.command("ping")
+        print(">>> SUCCESS: MongoDB Connection Verified <<<")
+    except Exception as e:
+        print(f">>> ERROR: MongoDB Connection Failed: {e} <<<")
+        mongo_client = None
 
 # 模式快取：Redis 瞬斷時使用，key=user_id -> (mode, timestamp)
 _mode_cache = {}
@@ -871,6 +884,23 @@ def _tcm_openai_reply(user_id, text):
             set_last_assistant_message(redis, user_id, ai_reply)
         except Exception:
             pass
+
+        # MongoDB：記錄問答歷史，供 Compass / 分析使用
+        if mongo_client:
+            try:
+                db = mongo_client.get_database("line_tcm_bot")
+                db.chat_history.insert_one(
+                    {
+                        "user_id": user_id,
+                        "question": text,
+                        "answer": ai_reply,
+                        "timestamp": datetime.now(timezone.utc),
+                        "source": "unified_loop",
+                    }
+                )
+                print(f">>> MONGODB: Successfully logged message from {user_id}")
+            except Exception as e:
+                print(f">>> MONGODB ERROR: Failed to log message: {e}")
 
         # QA → Quiz 循環：每次中醫回答後自動出題，形成連續學習
         try:
