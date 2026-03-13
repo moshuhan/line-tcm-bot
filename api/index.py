@@ -854,13 +854,11 @@ def _tcm_openai_reply(user_id, text):
         except Exception:
             pass
 
-        # Railway：同步出題，先寫 state 再送題，避免 A/B/C 回覆時 state 未寫入
-        elapsed = time.time() - start_ts
-        if elapsed < 30:
-            try:
-                _process_quiz_sync(user_id, base_reply)
-            except Exception:
-                traceback.print_exc()
+        # QA → Quiz 循環：每次中醫回答後自動出題，形成連續學習
+        try:
+            _process_quiz_sync(user_id, base_reply)
+        except Exception:
+            traceback.print_exc()
 
         return True
     except Exception:
@@ -1473,7 +1471,7 @@ def handle_postback(event):
         if mode == REVISION_MODE:
             msg = REVISION_MODE_PROMPT
             if not redis:
-                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
+                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 REDIS_URL 環境變數。"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
         elif mode == "speaking":
             msg = "已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"
@@ -1546,7 +1544,7 @@ def handle_message(event):
                 pass
             msg = REVISION_MODE_PROMPT
             if not redis:
-                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 KV_REST_API 環境變數。"
+                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 REDIS_URL 環境變數。"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
             return
         if user_text == "課務查詢":
@@ -1554,6 +1552,15 @@ def handle_message(event):
             return
         if user_text == "時間解鎖小測驗":
             time_locked_quiz_handler(user_id, reply_token=event.reply_token)
+            return
+        if (user_text or "").strip() == "測驗模式":
+            line_bot_api.reply_message(
+                event.reply_token,
+                text_with_quick_reply(
+                    "您現在就在「中醫問答 ＋ 小測驗」循環中～\n\n"
+                    "輸入任何中醫相關問題，我會先回答，再自動出一題小測驗。答完後可繼續問新問題，形成 QA → Quiz → QA → Quiz 的學習循環喔！✨"
+                ),
+            )
             return
 
         # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
@@ -1599,18 +1606,20 @@ def handle_message(event):
                 if choice:
                     correct = str(qd.get("answer") or "").strip().upper()
                     explanation = (qd.get("explanation") or "").strip()
+                    guidance = "希望這能幫助你更了解中醫！隨時可以再輸入新問題，我會繼續為你解答並出題喔！✨"
                     if choice == correct:
-                        reply = "恭喜!回答正確!歡迎繼續提問。"
+                        reply = "恭喜你答對了！👏\n\n你選對了，觀念掌握得不錯。\n\n" + guidance
                     else:
-                        reply = f"回答不正確。\n正確答案：{correct}"
+                        reply = "哎呀，答錯囉！\n\n"
+                        reply += f"【正確答案】{correct}\n\n"
                         if explanation:
-                            reply += f"\n\n詳解：\n{explanation}"
-                        # 答錯則記弱項（若有概念分類）
+                            reply += f"【中醫概念說明】\n{explanation}\n\n"
+                        reply += guidance
                         try:
                             record_weak_category(redis, user_id, (qd.get("category") or "其他"))
                         except Exception:
                             pass
-                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(reply))
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
                     try:
                         set_user_state(redis, user_id, STATE_NORMAL)
                         if redis:
