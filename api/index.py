@@ -148,16 +148,20 @@ if REDIS_URL:
         print(f">>> ERROR: Failed to connect to Redis: {e} <<<")
         redis = None
 
-# MongoDB：Railway 使用 MONGODB_URI，標準 pymongo 連線
+# MongoDB：Railway 使用 MONGODB_URI，標準 pymongo 連線（嚴格避免默認連到 localhost）
 mongo_client = None
 MONGODB_URI = os.getenv("MONGODB_URI", "").strip()
-if MONGODB_URI:
+if not MONGODB_URI:
+    print(">>> CRITICAL ERROR: MONGODB_URI is empty! Check Railway Variables. <<<")
+    mongo_client = None
+else:
     try:
-        mongo_client = MongoClient(MONGODB_URI)
+        # 明確指定 URI 與連線 timeout，避免使用預設 localhost:27017
+        mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
         mongo_client.admin.command("ping")
-        print(">>> SUCCESS: MongoDB Connection Verified <<<")
+        print(">>> SUCCESS: MongoDB Connected to external URI! <<<")
     except Exception as e:
-        print(f">>> ERROR: MongoDB Connection Failed: {e} <<<")
+        print(f">>> ERROR: MongoDB Connection Failed on URI: {e} <<<")
         mongo_client = None
 
 # 模式快取：Redis 瞬斷時使用，key=user_id -> (mode, timestamp)
@@ -888,7 +892,7 @@ def _tcm_openai_reply(user_id, text):
         # MongoDB：記錄問答歷史，供 Compass / 分析使用
         if mongo_client:
             try:
-                db = mongo_client.get_database("line_tcm_bot")
+                db = mongo_client.get_database("line-tcm-bot")
                 db.chat_history.insert_one(
                     {
                         "user_id": user_id,
