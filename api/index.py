@@ -659,11 +659,28 @@ def _build_full_tcm_context():
     _TCM_FULL_CONTEXT_CACHE = result
     return result
 
-_TCM_SYSTEM_PROMPT = (
-    "你是中醫課程助教。請根據提供的背景資料回答學生的問題。"
-    "回答須簡潔（約150字內），跳過開場白，必要時提供參考。"
-    "若背景資料無法回答，請友善說明並建議可提問的方向。"
-)
+_TCM_SYSTEM_PROMPT = """
+你是一位嚴謹的中醫學術助教。在回答任何問題時，請遵循以下原則：
+1. 優先從「課程教材」、「中醫經典文獻（如：黃帝內經、傷寒雜病論、神農本草經）」以及「PubMed 上的現代醫學論文」中提取資訊。
+2. 嚴禁自行推斷或編造未經證實的療效。若資料庫中無相關記載，請誠實告知。
+3. 回答必須結構清晰，並在文末明確列出【資料來源】（包含書名、章節或論文標題）。
+4. 始終保持專業、客觀的語氣，並在結尾附上醫療警語。
+5. 避免產生幻覺，不確定的資訊不要提供。
+
+輸出格式要求：
+- 先給出「回答」內容（條列或分段皆可，務必清楚）。
+- 文末一定要有一段「資料來源：」列出本次回答實際使用的來源（至少 1 條；若無可用來源，請寫明「資料來源：無（資料庫未收錄/不足以支持）」）。
+""".strip()
+
+
+def _ensure_sources_section(text: str) -> str:
+    """確保回覆末尾包含「資料來源：」區段（保底防漏）。"""
+    t = (text or "").strip()
+    if not t:
+        return t
+    if "資料來源：" in t:
+        return t
+    return t + "\n\n資料來源：無（資料庫未收錄/不足以支持）"
 
 # 模組載入時預熱 TCM 快取，減少首次問答延遲
 try:
@@ -844,6 +861,7 @@ def _tcm_openai_reply(user_id, text):
             temperature=0.2,
         )
         base_reply = (resp.choices[0].message.content or "").strip()[:800]
+        base_reply = _ensure_sources_section(base_reply)
         ai_reply = base_reply + SAFETY_DISCLAIMER
 
         line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
