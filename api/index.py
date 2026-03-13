@@ -856,7 +856,6 @@ def _tcm_openai_reply(user_id, text):
         base_reply = (resp.choices[0].message.content or "").strip()[:500]
         ai_reply = base_reply + SAFETY_DISCLAIMER
 
-        # 先回中醫答案（避免阻塞 webhook），小測驗改由背景任務補發
         line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
         try:
             log_question(redis, user_id, text)
@@ -865,33 +864,11 @@ def _tcm_openai_reply(user_id, text):
         except Exception:
             pass
 
-        # 若總耗時仍在安全範圍內，觸發背景小測驗出題任務（避免 60s timeout）
+        # Railway：同步出題，先寫 state 再送題，避免 A/B/C 回覆時 state 未寫入
         elapsed = time.time() - start_ts
         if elapsed < 30:
             try:
-                vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
-                base_url = f"https://{vercel_url}" if vercel_url and not vercel_url.startswith("http") else (vercel_url or "")
-                cron_secret = os.getenv("CRON_SECRET", "")
-                if base_url and cron_secret:
-                    try:
-                        requests.post(
-                            f"{base_url}/api/process-quiz-async",
-                            json={"user_id": user_id, "context": base_reply},
-                            headers={"Authorization": f"Bearer {cron_secret}"},
-                            timeout=5,
-                        )
-                    except Exception:
-                        # 若遠端呼叫失敗，嘗試在同一個進程中同步出題（不再額外重試）
-                        try:
-                            _process_quiz_sync(user_id, base_reply)
-                        except Exception:
-                            traceback.print_exc()
-                else:
-                    # 無 base_url 或 CRON_SECRET 時，本機同步出題
-                    try:
-                        _process_quiz_sync(user_id, base_reply)
-                    except Exception:
-                        traceback.print_exc()
+                _process_quiz_sync(user_id, base_reply)
             except Exception:
                 traceback.print_exc()
 
@@ -1292,8 +1269,8 @@ def _process_voice_sync(user_id, message_id):
 
 def _process_quiz_sync(user_id, context):
     """
-    依據中醫回答內容 context 產生三選一小測驗並 push 給使用者，
-    同時設定 STATE_QUIZ_WAITING 與 MCQ 測驗資料到 Redis。
+    依據中醫回答內容 context 產生三選一小測驗並 push 給使用者。
+    先同步寫入 Redis（STATE_QUIZ_WAITING + MCQ 資料），成功後再送題目，避免使用者回 A/B/C 時 state 尚未寫入。
     """
     if not (context or "").strip():
         return
@@ -1305,14 +1282,7 @@ def _process_quiz_sync(user_id, context):
     if not (quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer")):
         return
     try:
-        quiz_text = (
-            "——\n📝 小測驗\n"
-            + quiz["question"]
-            + "\n"
-            + "\n".join(quiz["options"])
-            + "\n\n(回覆選項來挑戰，或直接輸入新問題繼續學習喔！)"
-        )
-        line_bot_api.push_message(user_id, text_with_quick_reply(quiz_text))
+        # 先寫入 Redis，再送題目，確保回覆 A/B/C 時 state 已存在
         if redis:
             set_user_state(redis, user_id, STATE_QUIZ_WAITING)
             set_mcq_quiz_data(
@@ -1325,6 +1295,15 @@ def _process_quiz_sync(user_id, context):
                 category="其他",
             )
             set_quiz_pending(redis, user_id, quiz.get("question", ""))
+            print(f"DEBUG: Successfully updated {user_id} to quiz mode")
+        quiz_text = (
+            "——\n📝 小測驗\n"
+            + quiz["question"]
+            + "\n"
+            + "\n".join(quiz["options"])
+            + "\n\n(回覆選項來挑戰，或直接輸入新問題繼續學習喔！)"
+        )
+        line_bot_api.push_message(user_id, text_with_quick_reply(quiz_text))
     except Exception:
         traceback.print_exc()
 
@@ -1603,8 +1582,11 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        # 小測驗等待作答：tcm 模式下支援 A/B/C 批改；非選項則視為新提問（skipped）
-        if get_user_state(redis, user_id) == STATE_QUIZ_WAITING:
+        # 小測驗等待作答：A/B/C/D 時再讀一次 state，避免漏掉剛寫入的 quiz 狀態
+        quiz_state = get_user_state(redis, user_id)
+        if (user_text or "").strip().upper() in ("A", "B", "C", "D"):
+            quiz_state = get_user_state(redis, user_id)
+        if quiz_state == STATE_QUIZ_WAITING:
             print("DEBUG: Inside Quiz logic block - comparing answer...")
             mode = _safe_get_mode(user_id)
             qd = get_quiz_data(redis, user_id) or {}
