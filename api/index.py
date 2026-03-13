@@ -904,9 +904,8 @@ def _set_cached_mode(user_id, mode):
 def _safe_get_mode(user_id):
     """
     安全取得使用者模式。Key 與 Postback 寫入處一致。
-    快取優先：有有效快取時直接回傳，減少 Redis 讀取與 Device/resource busy 風險。
-    Redis 存取以 lock 序列化，避免 Upstash REST 並發造成 Errno 16。
-    Redis 失敗時：先嘗試本地快取，僅在快取也無效時才 fallback 至 tcm。
+    回傳 Redis 內的值（含 'tcm'/'speaking'/'writing'/'quiz'），僅在 key 真正缺失或為空時才 fallback 至 tcm。
+    快取優先；Redis 存取以 lock 序列化。
     """
     try:
         cached = _get_cached_mode(user_id)
@@ -1270,7 +1269,7 @@ def _process_voice_sync(user_id, message_id):
 def _process_quiz_sync(user_id, context):
     """
     依據中醫回答內容 context 產生三選一小測驗並 push 給使用者。
-    先同步寫入 Redis（STATE_QUIZ_WAITING + MCQ 資料），成功後再送題目，避免使用者回 A/B/C 時 state 尚未寫入。
+    先以同步 redis.set 寫入 state 與 mode（TTL 1 小時），驗證後再送題目。
     """
     if not (context or "").strip():
         return
@@ -1282,9 +1281,24 @@ def _process_quiz_sync(user_id, context):
     if not (quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer")):
         return
     try:
-        # 先寫入 Redis，再送題目，確保回覆 A/B/C 時 state 已存在
+        # 同步寫入：state 與 mode 直接 redis.set，不經 background，TTL 至少 1 小時
         if redis:
-            set_user_state(redis, user_id, STATE_QUIZ_WAITING)
+            state_key = f"user_state:{user_id}"
+            mode_key = _redis_user_mode_key(user_id)
+            redis.set(state_key, STATE_QUIZ_WAITING, ex=3600)
+            redis.set(mode_key, "quiz", ex=3600)
+            verify_state = redis.get(state_key)
+            verify_mode = redis.get(mode_key)
+            if isinstance(verify_state, bytes):
+                verify_state = verify_state.decode("utf-8", errors="replace").strip()
+            else:
+                verify_state = str(verify_state or "").strip()
+            if isinstance(verify_mode, bytes):
+                verify_mode = verify_mode.decode("utf-8", errors="replace").strip()
+            else:
+                verify_mode = str(verify_mode or "").strip()
+            print(f"DEBUG: Write Verification - state key expected '{STATE_QUIZ_WAITING}', got '{verify_state}'")
+            print(f"DEBUG: Write Verification - mode key expected 'quiz', got '{verify_mode}'")
             set_mcq_quiz_data(
                 redis,
                 user_id,
@@ -1590,7 +1604,7 @@ def handle_message(event):
             print("DEBUG: Inside Quiz logic block - comparing answer...")
             mode = _safe_get_mode(user_id)
             qd = get_quiz_data(redis, user_id) or {}
-            if mode == "tcm" and (qd.get("type") == "mcq"):
+            if mode in ("tcm", "quiz") and (qd.get("type") == "mcq"):
                 choice = _parse_mcq_choice(user_text)
                 if choice:
                     correct = str(qd.get("answer") or "").strip().upper()
@@ -1609,6 +1623,8 @@ def handle_message(event):
                     line_bot_api.reply_message(event.reply_token, text_with_quick_reply(reply))
                     try:
                         set_user_state(redis, user_id, STATE_NORMAL)
+                        if redis:
+                            redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
                         clear_quiz_data(redis, user_id)
                         clear_quiz_pending(redis, user_id)
                     except Exception:
@@ -1619,14 +1635,18 @@ def handle_message(event):
                 suppress_yes_no_command = True
                 try:
                     set_user_state(redis, user_id, STATE_NORMAL)
+                    if redis:
+                        redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
                     clear_quiz_data(redis, user_id)
                     clear_quiz_pending(redis, user_id)
                 except Exception:
                     pass
             else:
-                # 非 tcm 或非 MCQ：維持舊相容邏輯（視為新提問）
+                # 非 tcm/quiz 或非 MCQ：維持舊相容邏輯（視為新提問）
                 try:
                     set_user_state(redis, user_id, STATE_NORMAL)
+                    if redis:
+                        redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
                     clear_quiz_data(redis, user_id)
                     clear_quiz_pending(redis, user_id)
                 except Exception:
