@@ -1024,10 +1024,11 @@ def _process_assistant_sync(user_id, text):
         run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
 
         start_time = time.time()
+        poll_interval = 0.5  # 較密輪詢以盡快取得完成結果，減少延遲
         while run.status in ['queued', 'in_progress']:
             if time.time() - start_time > TIMEOUT_SECONDS:
                 break
-            time.sleep(1)
+            time.sleep(poll_interval)
             run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
 
         if run.status == 'completed':
@@ -1053,18 +1054,38 @@ def _process_assistant_sync(user_id, text):
         line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
 
 
-def process_ai_request(event, user_id, text, is_voice=False):
-    """State-Based Router：依 user_state (mode) 切換。寫作模式走 revision_handler，其餘走 Assistant API。"""
+def _run_ai_work(user_id, text, is_voice=False):
+    """Background worker：與 process_ai_request 相同邏輯，供 thread 呼叫。push_message 在背景執行安全。"""
     try:
         mode = _safe_get_mode(user_id)
-        print(f"[MODE] process_ai_request user_id={user_id} mode={mode} routing={'revision' if mode == REVISION_MODE else 'assistant'}")
+        print(f"[MODE] _run_ai_work user_id={user_id} mode={mode} routing={'revision' if mode == REVISION_MODE else 'assistant'}")
         if mode == REVISION_MODE:
             _revision_handler(user_id, text)
             return
         _process_assistant_sync(user_id, text)
     except Exception as e:
         print(f"CRITICAL ERROR: {traceback.format_exc()}")
-        line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+        except Exception:
+            pass
+
+
+def process_ai_request(event, user_id, text, is_voice=False):
+    """State-Based Router：依 user_state (mode) 切換。立即回傳 200，實際工作在背景 thread 執行以避免 LINE Webhook 逾時。"""
+    try:
+        threading.Thread(
+            target=_run_ai_work,
+            args=(user_id, text),
+            kwargs={"is_voice": is_voice},
+            daemon=True,
+        ).start()
+    except Exception as e:
+        print(f"CRITICAL ERROR (spawn thread): {traceback.format_exc()}")
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+        except Exception:
+            pass
 
 
 def _run_text_background(user_id, text, task, base_url, cron_secret):
@@ -1313,9 +1334,26 @@ def process_voice_async():
         return str(e)[:200], 500
 
 
+def _run_process_text_task(user_id, text, task):
+    """Background worker for process-text-async：完成後 push_message。"""
+    try:
+        if task == "revision":
+            _revision_handler(user_id, text)
+        else:
+            _process_assistant_sync(user_id, text)
+        print(f"[process-text-async] done task={task}")
+    except Exception as e:
+        print(f"[process-text-async] CRITICAL err={e}")
+        traceback.print_exc()
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+        except Exception as push_err:
+            print(f"[process-text-async] push error fallback failed err={push_err}")
+
+
 @app.route("/api/process-text-async", methods=["POST"])
 def process_text_async():
-    """Background Task：接收文字 AI 任務，執行寫作修訂或 Assistant RAG，完成後 push_message。"""
+    """Background Task：接收文字 AI 任務，立即回傳 200，寫作修訂/Assistant RAG 在背景執行並 push_message。"""
     secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
     expected = os.getenv("CRON_SECRET", "")
     if expected and secret not in (expected, "Bearer " + expected):
@@ -1329,11 +1367,11 @@ def process_text_async():
         print(f"[process-text-async] received user_id={user_id!r} task={task} text_len={len(text)}")
         if not user_id:
             return "Missing user_id", 400
-        if task == "revision":
-            _revision_handler(user_id, text)
-        else:
-            _process_assistant_sync(user_id, text)
-        print(f"[process-text-async] done task={task}")
+        threading.Thread(
+            target=_run_process_text_task,
+            args=(user_id, text, task),
+            daemon=True,
+        ).start()
         return "OK", 200
     except Exception as e:
         print(f"[process-text-async] CRITICAL err={e}")
@@ -1556,8 +1594,12 @@ def handle_message(event):
                     print(f"[REVISION] async POST failed - fallback sync err={e}")
                     traceback.print_exc()
             if not async_ok:
-                print(f"[REVISION] running synchronously user_id={user_id}")
-                _revision_handler(user_id, user_text)
+                print(f"[REVISION] running in background thread user_id={user_id}")
+                threading.Thread(
+                    target=_revision_handler,
+                    args=(user_id, user_text),
+                    daemon=True,
+                ).start()
             return
 
         # 課務查詢／本週重點：統一以 Flex Message 回傳
@@ -1692,12 +1734,17 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=immediate_msg))
 
         if mode == "tcm":
-            if _tcm_openai_reply(user_id, user_text):
-                return
-            try:
-                line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
-            except Exception:
-                pass
+            def _tcm_reply_background():
+                try:
+                    if not _tcm_openai_reply(user_id, user_text):
+                        line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
+                except Exception as e:
+                    traceback.print_exc()
+                    try:
+                        line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
+                    except Exception:
+                        pass
+            threading.Thread(target=_tcm_reply_background, daemon=True).start()
             return
 
         # 非阻塞：背景執行 AI（speaking 等模式），避免 webhook 阻塞
