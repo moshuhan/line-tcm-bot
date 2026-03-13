@@ -148,18 +148,18 @@ if REDIS_URL:
         print(f">>> ERROR: Failed to connect to Redis: {e} <<<")
         redis = None
 
-# MongoDB：Railway 使用 MONGODB_URI，標準 pymongo 連線（嚴格避免默認連到 localhost）
-MONGODB_URI = os.getenv("MONGODB_URI", "").strip()
-print(f">>> BOOT: Loading MONGODB_URI (length: {len(MONGODB_URI)})")
+# MongoDB：Railway 使用 MONGO_URL，標準 pymongo 連線（嚴格避免默認連到 localhost）
+MONGO_URL = os.getenv("MONGO_URL", "").strip()
+print(f">>> BOOT: Loading MONGO_URL (length: {len(MONGO_URL)})")
 
 mongo_client = None
 mongo_db = None
-if not MONGODB_URI:
-    print(">>> CRITICAL ERROR: MONGODB_URI is empty! Check Railway Variables. <<<")
+if not MONGO_URL:
+    print(">>> CRITICAL ERROR: MONGO_URL is empty! Check Railway Variables. <<<")
 else:
     try:
         # 明確指定 URI 與連線 timeout，避免使用預設 localhost:27017
-        mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+        mongo_client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000)
         mongo_client.admin.command("ping")
         mongo_db = mongo_client.get_database("line-tcm-bot")
         print(">>> BOOT SUCCESS: MongoDB is ready! <<<")
