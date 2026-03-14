@@ -224,11 +224,12 @@ def update_interaction_quiz_result(
     interaction_id,
     user_answer,
     is_correct,
-    is_attempted,
+    attempted,
     response_time_sec=None,
 ):
     """
-    更新對應的 interaction 文件，寫入測驗結果欄位。
+    更新對應的 interaction 文件，寫入 Learning Outcome（測驗結果）。
+    結構分離：Conversation（question, answer, timestamp, intent_tag）與 quiz_data（Learning Outcome）。
     interaction_id 可為 ObjectId 或字串。
     """
     if not db or interaction_id is None:
@@ -238,9 +239,11 @@ def update_interaction_quiz_result(
         oid = interaction_id if isinstance(interaction_id, ObjectId) else ObjectId(interaction_id)
         now = datetime.now(timezone.utc)
         update = {
-            "user_answer": user_answer,
-            "is_correct": bool(is_correct),
-            "is_attempted": bool(is_attempted),
+            "quiz_data": {
+                "user_answer": user_answer,
+                "is_correct": bool(is_correct),
+                "attempted": bool(attempted),
+            },
             "quiz_answered_at": now,
         }
         if response_time_sec is not None:

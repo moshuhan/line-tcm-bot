@@ -26,7 +26,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, PostbackEvent, AudioMessage,
-    QuickReply, QuickReplyButton, MessageAction, FlexSendMessage,
+    QuickReply, QuickReplyButton, MessageAction, PostbackAction, FlexSendMessage,
 )
 from linebot.models.send_messages import AudioSendMessage
 from redis import Redis as RedisClient
@@ -419,6 +419,17 @@ def quick_reply_quiz_ask():
 
 def text_with_quick_reply_quiz(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_quiz_ask())
+
+
+def quick_reply_quiz_choices():
+    """測驗題 A/B/C 選項：以 Postback 送出 quiz_choice=A/B/C，供後端更新 MongoDB quiz_data。"""
+    return QuickReply(
+        items=[
+            QuickReplyButton(action=PostbackAction(label="(A)", data="quiz_choice=A")),
+            QuickReplyButton(action=PostbackAction(label="(B)", data="quiz_choice=B")),
+            QuickReplyButton(action=PostbackAction(label="(C)", data="quiz_choice=C")),
+        ]
+    )
 
 
 def build_quiz_flex_message(question):
@@ -980,7 +991,7 @@ def _tcm_openai_reply(user_id, text):
                 print(f">>> MONGODB: Successfully logged message from {user_id}")
             except Exception as e:
                 print(f">>> MONGODB ERROR: Failed to log message: {e}")
-            # 研究用：QA 學習標籤（intent_tag / complexity_level）、session、每 20 筆 feedback
+            # 研究用：LLM 分類 intent_tag（Memory/Understanding/Application）、session、每 20 筆 feedback
             interaction_id = None
             try:
                 ensure_user(mongo_db, user_id)
@@ -989,7 +1000,7 @@ def _tcm_openai_reply(user_id, text):
                 now_utc = datetime.now(timezone.utc)
                 session_duration_sec = (now_utc - last_ts).total_seconds() if last_ts else 0
                 follow_up = get_follow_up_count_within_sec(mongo_db, user_id, within_sec=1800)
-                intent_tag, complexity_level = classify_qa_learning_tags(client, text)
+                intent_tag, complexity_score = classify_qa_intent_and_complexity(client, text)
                 interaction_id = log_interaction(
                     mongo_db,
                     user_id,
@@ -997,7 +1008,7 @@ def _tcm_openai_reply(user_id, text):
                     text,
                     ai_reply,
                     intent_tag=intent_tag,
-                    complexity_level=complexity_level,
+                    complexity_score=complexity_score,
                     session_duration_sec=session_duration_sec,
                     follow_up_count=follow_up,
                     feedback_requested=((count_before + 1) % 20 == 0),
@@ -1480,9 +1491,12 @@ def _process_quiz_sync(user_id, context):
             + quiz["question"]
             + "\n"
             + "\n".join(quiz["options"])
-            + "\n\n(回覆選項來挑戰，或直接輸入新問題繼續學習喔！)"
+            + "\n\n(點選 A/B/C 作答，或直接輸入新問題繼續學習喔！)"
         )
-        line_bot_api.push_message(user_id, text_with_quick_reply(quiz_text))
+        line_bot_api.push_message(
+            user_id,
+            TextSendMessage(text=quiz_text, quick_reply=quick_reply_quiz_choices()),
+        )
         if redis:
             try:
                 redis.set(f"quiz_sent_at:{user_id}", str(time.time()), ex=3600)
@@ -1621,12 +1635,96 @@ def callback():
         traceback.print_exc()
     return Response('OK', status=200)
 
+def _handle_quiz_answer(user_id, choice, reply_token=None):
+    """
+    處理測驗作答（文字 A/B/C 或 Postback quiz_choice=A/B/C）。
+    更新 MongoDB 對應 interaction 的 quiz_data，並回覆結果。reply_token 有值則 reply_message，否則 push_message。
+    """
+    qd = get_quiz_data(redis, user_id) or {}
+    if qd.get("type") != "mcq":
+        if reply_token:
+            line_bot_api.reply_message(reply_token, text_with_quick_reply("此題已失效，請輸入新問題繼續學習～"))
+        return
+    correct = str(qd.get("answer") or "").strip().upper()
+    explanation = (qd.get("explanation") or "").strip()
+    guidance = "希望這能幫助你更了解中醫！隨時可以再輸入新問題，我會繼續為你解答並出題喔！✨"
+    if choice == correct:
+        reply = "恭喜你答對了！👏\n\n你選對了，觀念掌握得不錯。\n\n" + guidance
+    else:
+        reply = "哎呀，答錯囉！\n\n"
+        reply += f"【正確答案】{correct}\n\n"
+        if explanation:
+            reply += f"【中醫概念說明】\n{explanation}\n\n"
+        reply += guidance
+        try:
+            record_weak_category(redis, user_id, (qd.get("category") or "其他"))
+        except Exception:
+            pass
+    sent_at = redis.get(f"quiz_sent_at:{user_id}") if redis else None
+    response_time_sec = None
+    if sent_at is not None:
+        try:
+            response_time_sec = round(time.time() - float(sent_at), 2)
+        except (TypeError, ValueError):
+            pass
+    if mongo_db is not None:
+        try:
+            interaction_id_raw = redis.get(f"quiz_interaction_id:{user_id}") if redis else None
+            if interaction_id_raw:
+                try:
+                    update_interaction_quiz_result(
+                        mongo_db,
+                        interaction_id_raw,
+                        choice,
+                        choice == correct,
+                        True,
+                        response_time_sec=response_time_sec,
+                    )
+                except Exception as eu:
+                    print(f">>> RESEARCH update_interaction_quiz_result error: {eu}")
+            log_quiz_result(
+                mongo_db,
+                user_id,
+                (qd.get("quiz_type") or "Immediate"),
+                qd.get("quiz_id") or qd.get("question") or "",
+                choice,
+                choice == correct,
+                response_time_sec=response_time_sec,
+            )
+        except Exception as e:
+            print(f">>> RESEARCH QuizResult logging error: {e}")
+    try:
+        if redis:
+            redis.delete(f"quiz_sent_at:{user_id}")
+            redis.delete(f"quiz_interaction_id:{user_id}")
+        set_user_state(redis, user_id, STATE_NORMAL)
+        if redis:
+            redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
+        clear_quiz_data(redis, user_id)
+        clear_quiz_pending(redis, user_id)
+    except Exception:
+        pass
+    msg = text_with_quick_reply(reply)
+    if reply_token:
+        line_bot_api.reply_message(reply_token, msg)
+    else:
+        line_bot_api.push_message(user_id, msg)
+
+
 # --- 事件處理 ---
 @line_webhook_handler.add(PostbackEvent)
 def handle_postback(event):
     data = (event.postback.data or "").strip()
     user_id = event.source.user_id
     try:
+        # 測驗選項：使用者點擊 A/B/C 按鈕（Postback）
+        if data.startswith("quiz_choice="):
+            choice = data.split("=", 1)[1].strip().upper()
+            if choice in ("A", "B", "C"):
+                quiz_state = get_user_state(redis, user_id)
+                if quiz_state == STATE_QUIZ_WAITING:
+                    _handle_quiz_answer(user_id, choice, reply_token=event.reply_token)
+                    return
         if data == "action=course" or data == "action=weekly":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
@@ -1786,67 +1884,7 @@ def handle_message(event):
             if mode in ("tcm", "quiz") and (qd.get("type") == "mcq"):
                 choice = _parse_mcq_choice(user_text)
                 if choice:
-                    correct = str(qd.get("answer") or "").strip().upper()
-                    explanation = (qd.get("explanation") or "").strip()
-                    guidance = "希望這能幫助你更了解中醫！隨時可以再輸入新問題，我會繼續為你解答並出題喔！✨"
-                    if choice == correct:
-                        reply = "恭喜你答對了！👏\n\n你選對了，觀念掌握得不錯。\n\n" + guidance
-                    else:
-                        reply = "哎呀，答錯囉！\n\n"
-                        reply += f"【正確答案】{correct}\n\n"
-                        if explanation:
-                            reply += f"【中醫概念說明】\n{explanation}\n\n"
-                        reply += guidance
-                        try:
-                            record_weak_category(redis, user_id, (qd.get("category") or "其他"))
-                        except Exception:
-                            pass
-                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-                    # 研究用：更新對應 interaction 的測驗結果、QuizResult、response_time
-                    try:
-                        sent_at = redis.get(f"quiz_sent_at:{user_id}") if redis else None
-                        response_time_sec = None
-                        if sent_at is not None:
-                            try:
-                                response_time_sec = round(time.time() - float(sent_at), 2)
-                            except (TypeError, ValueError):
-                                pass
-                        if mongo_db is not None:
-                            interaction_id_raw = redis.get(f"quiz_interaction_id:{user_id}") if redis else None
-                            if interaction_id_raw:
-                                try:
-                                    update_interaction_quiz_result(
-                                        mongo_db,
-                                        interaction_id_raw,
-                                        choice,
-                                        choice == correct,
-                                        True,
-                                        response_time_sec=response_time_sec,
-                                    )
-                                except Exception as eu:
-                                    print(f">>> RESEARCH update_interaction_quiz_result error: {eu}")
-                            log_quiz_result(
-                                mongo_db,
-                                user_id,
-                                (qd.get("quiz_type") or "Immediate"),
-                                qd.get("quiz_id") or qd.get("question") or "",
-                                choice,
-                                choice == correct,
-                                response_time_sec=response_time_sec,
-                            )
-                    except Exception as e:
-                        print(f">>> RESEARCH QuizResult logging error: {e}")
-                    try:
-                        if redis:
-                            redis.delete(f"quiz_sent_at:{user_id}")
-                            redis.delete(f"quiz_interaction_id:{user_id}")
-                        set_user_state(redis, user_id, STATE_NORMAL)
-                        if redis:
-                            redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
-                        clear_quiz_data(redis, user_id)
-                        clear_quiz_pending(redis, user_id)
-                    except Exception:
-                        pass
+                    _handle_quiz_answer(user_id, choice, reply_token=event.reply_token)
                     return
 
                 # 非選項：視為跳過，清狀態後把這則當新提問（且不要把「是/否」當作舊題庫指令）
@@ -1910,9 +1948,12 @@ def handle_message(event):
                         + review_quiz["question"]
                         + "\n"
                         + "\n".join(review_quiz["options"])
-                        + "\n\n(回覆 A/B/C 作答，或輸入新問題繼續學習～)"
+                        + "\n\n(點選 A/B/C 作答，或輸入新問題繼續學習～)"
                     )
-                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(quiz_text))
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        TextSendMessage(text=quiz_text, quick_reply=quick_reply_quiz_choices()),
+                    )
                     if redis:
                         redis.set(f"quiz_sent_at:{user_id}", str(time.time()), ex=3600)
                     return
