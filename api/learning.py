@@ -128,11 +128,13 @@ def set_quiz_data(redis_client, user_id, question, answer_criteria, category):
         pass
 
 
-def set_mcq_quiz_data(redis_client, user_id, question, options, answer, explanation="", category="其他"):
+def set_mcq_quiz_data(redis_client, user_id, question, options, answer, explanation="", category="其他", quiz_id=None, quiz_type="Immediate"):
     """
     儲存三選一小測驗（MCQ）資料，供 A/B/C 批改使用。
     options: ["(A) ...", "(B) ...", "(C) ..."]
     answer: "A"|"B"|"C"
+    quiz_id: 選填，研究用題目 ID（用於 QuizResult）。
+    quiz_type: "Immediate" | "Review"，研究用測驗類型。
     """
     if not redis_client:
         return
@@ -145,6 +147,8 @@ def set_mcq_quiz_data(redis_client, user_id, question, options, answer, explanat
                 "answer": (answer or "")[:5],
                 "explanation": (explanation or "")[:1000],
                 "category": (category or "其他")[:30],
+                "quiz_id": (quiz_id or "")[:64],
+                "quiz_type": (quiz_type or "Immediate")[:20],
             },
             ensure_ascii=False,
         )

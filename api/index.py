@@ -78,6 +78,20 @@ try:
         generate_review_note,
         set_mcq_quiz_data,
     )
+    from api.research_logging import (
+        ensure_user,
+        get_interaction_count,
+        get_last_interaction_timestamp,
+        get_follow_up_count_within_sec,
+        classify_qa_intent_and_complexity,
+        log_interaction,
+        log_quiz_result,
+        log_speaking,
+        log_writing,
+        count_tcm_terms_in_text,
+        run_analytics_middleware,
+        generate_review_quiz_from_interactions,
+    )
 except ImportError:
     from syllabus import (
         is_off_topic,
@@ -119,6 +133,49 @@ except ImportError:
         generate_review_note,
         set_mcq_quiz_data,
     )
+    from research_logging import (
+        ensure_user,
+        get_interaction_count,
+        get_last_interaction_timestamp,
+        get_follow_up_count_within_sec,
+        classify_qa_intent_and_complexity,
+        log_interaction,
+        log_quiz_result,
+        log_speaking,
+        log_writing,
+        count_tcm_terms_in_text,
+        run_analytics_middleware,
+    )
+except ImportError:
+    try:
+        from research_logging import (
+            ensure_user,
+            get_interaction_count,
+            get_last_interaction_timestamp,
+            get_follow_up_count_within_sec,
+            classify_qa_intent_and_complexity,
+            log_interaction,
+            log_quiz_result,
+            log_speaking,
+            log_writing,
+            count_tcm_terms_in_text,
+            run_analytics_middleware,
+            generate_review_quiz_from_interactions,
+        )
+    except ImportError:
+        def _noop_user(*a, **k):
+            return 0
+        def _noop_ts(*a, **k):
+            return None
+        def _noop_classify(*a, **k):
+            return (None, None)
+        ensure_user = get_interaction_count = get_follow_up_count_within_sec = _noop_user
+        get_last_interaction_timestamp = _noop_ts
+        classify_qa_intent_and_complexity = _noop_classify
+        log_interaction = log_quiz_result = log_speaking = log_writing = lambda *a, **k: None
+        count_tcm_terms_in_text = lambda t: 0
+        run_analytics_middleware = lambda *a, **k: None
+        generate_review_quiz_from_interactions = lambda *a, **k: None
 
 # 1. 初始化
 app = Flask(__name__)
@@ -558,6 +615,14 @@ def _revision_handler(user_id, text):
         if not reply:
             reply = "已收到你的練習！歡迎繼續貼上其他句子～"
         print(f"[REVISION] done user_id={user_id} reply_len={len(reply)}")
+        # 研究用：Writing 原始/修訂與 improvement index
+        try:
+            if mongo_db is not None:
+                ensure_user(mongo_db, user_id)
+                log_writing(mongo_db, user_id, text, reply)
+                run_analytics_middleware(mongo_db, user_id)
+        except Exception as e:
+            print(f">>> RESEARCH log_writing error: {e}")
         line_bot_api.push_message(user_id, text_with_quick_reply_writing(reply))
     except Exception as e:
         print(f"[REVISION] CRITICAL err={e}")
@@ -893,7 +958,7 @@ def _tcm_openai_reply(user_id, text):
         except Exception:
             pass
 
-        # MongoDB：記錄問答歷史，供 Compass / 分析使用
+        # MongoDB：記錄問答歷史（chat_history 保留向下相容）＋研究用 interactions
         if mongo_db is not None:
             print(f">>> LOGGING: Sending data to MongoDB for {user_id}...")
             try:
@@ -909,6 +974,30 @@ def _tcm_openai_reply(user_id, text):
                 print(f">>> MONGODB: Successfully logged message from {user_id}")
             except Exception as e:
                 print(f">>> MONGODB ERROR: Failed to log message: {e}")
+            # 研究用：QA 意圖/複雜度、session、每 20 筆 feedback
+            try:
+                ensure_user(mongo_db, user_id)
+                count_before = get_interaction_count(mongo_db, user_id)
+                last_ts = get_last_interaction_timestamp(mongo_db, user_id)
+                now_utc = datetime.now(timezone.utc)
+                session_duration_sec = (now_utc - last_ts).total_seconds() if last_ts else 0
+                follow_up = get_follow_up_count_within_sec(mongo_db, user_id, within_sec=1800)
+                intent_tag, complexity_score = classify_qa_intent_and_complexity(client, text)
+                log_interaction(
+                    mongo_db,
+                    user_id,
+                    "QA",
+                    text,
+                    ai_reply,
+                    intent_tag=intent_tag,
+                    complexity_score=complexity_score,
+                    session_duration_sec=session_duration_sec,
+                    follow_up_count=follow_up,
+                    feedback_requested=((count_before + 1) % 20 == 0),
+                )
+                run_analytics_middleware(mongo_db, user_id)
+            except Exception as e:
+                print(f">>> RESEARCH LOGGING ERROR: {e}")
         else:
             print(">>> LOGGING ERROR: db instance is None, check boot logs.")
 
@@ -1254,6 +1343,21 @@ def _process_voice_sync(user_id, message_id):
 
         mode = _safe_get_mode(user_id)
 
+        # 口說模式：記錄 transcript 長度與 TCM 術語次數
+        if mode == "speaking" and mongo_db is not None:
+            try:
+                ensure_user(mongo_db, user_id)
+                log_speaking(
+                    mongo_db,
+                    user_id,
+                    len(transcript_text),
+                    count_tcm_terms_in_text(transcript_text),
+                    transcript_text,
+                )
+                run_analytics_middleware(mongo_db, user_id)
+            except Exception as e:
+                print(f">>> RESEARCH log_speaking error: {e}")
+
         if mode == REVISION_MODE:
             _revision_handler(user_id, transcript_text)
             print(f"[VOICE] done revision path")
@@ -1345,6 +1449,7 @@ def _process_quiz_sync(user_id, context):
                 verify_mode = str(verify_mode or "").strip()
             print(f"DEBUG: Write Verification - state key expected '{STATE_QUIZ_WAITING}', got '{verify_state}'")
             print(f"DEBUG: Write Verification - mode key expected 'quiz', got '{verify_mode}'")
+            quiz_id = secrets.token_hex(8)
             set_mcq_quiz_data(
                 redis,
                 user_id,
@@ -1353,6 +1458,7 @@ def _process_quiz_sync(user_id, context):
                 quiz.get("answer", ""),
                 quiz.get("explanation", ""),
                 category="其他",
+                quiz_id=quiz_id,
             )
             set_quiz_pending(redis, user_id, quiz.get("question", ""))
             print(f"DEBUG: Successfully updated {user_id} to quiz mode")
@@ -1364,6 +1470,11 @@ def _process_quiz_sync(user_id, context):
             + "\n\n(回覆選項來挑戰，或直接輸入新問題繼續學習喔！)"
         )
         line_bot_api.push_message(user_id, text_with_quick_reply(quiz_text))
+        if redis:
+            try:
+                redis.set(f"quiz_sent_at:{user_id}", str(time.time()), ex=3600)
+            except Exception:
+                pass
     except Exception:
         traceback.print_exc()
 
@@ -1678,7 +1789,30 @@ def handle_message(event):
                         except Exception:
                             pass
                     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+                    # 研究用：QuizResult（Immediate）、response_time
                     try:
+                        sent_at = redis.get(f"quiz_sent_at:{user_id}") if redis else None
+                        response_time_sec = None
+                        if sent_at is not None:
+                            try:
+                                response_time_sec = round(time.time() - float(sent_at), 2)
+                            except (TypeError, ValueError):
+                                pass
+                        if mongo_db is not None:
+                            log_quiz_result(
+                                mongo_db,
+                                user_id,
+                                (qd.get("quiz_type") or "Immediate"),
+                                qd.get("quiz_id") or qd.get("question") or "",
+                                choice,
+                                choice == correct,
+                                response_time_sec=response_time_sec,
+                            )
+                    except Exception as e:
+                        print(f">>> RESEARCH QuizResult logging error: {e}")
+                    try:
+                        if redis:
+                            redis.delete(f"quiz_sent_at:{user_id}")
                         set_user_state(redis, user_id, STATE_NORMAL)
                         if redis:
                             redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
@@ -1708,6 +1842,44 @@ def handle_message(event):
                     clear_quiz_pending(redis, user_id)
                 except Exception:
                     pass
+
+        # 主動複習測驗：依最近 10 筆互動產生個人化複習題
+        if user_text in ("複習測驗", "我要複習測驗") and mongo_db is not None:
+            try:
+                review_quiz = generate_review_quiz_from_interactions(mongo_db, user_id, client, last_n=10)
+                if review_quiz and review_quiz.get("question") and review_quiz.get("options") and review_quiz.get("answer"):
+                    if redis:
+                        redis.set(f"user_state:{user_id}", STATE_QUIZ_WAITING, ex=3600)
+                        redis.set(_redis_user_mode_key(user_id), "quiz", ex=3600)
+                        quiz_id_r = secrets.token_hex(8)
+                        set_mcq_quiz_data(
+                            redis,
+                            user_id,
+                            review_quiz.get("question", ""),
+                            review_quiz.get("options", []),
+                            review_quiz.get("answer", ""),
+                            review_quiz.get("explanation", ""),
+                            category="複習",
+                            quiz_id=quiz_id_r,
+                            quiz_type="Review",
+                        )
+                        set_quiz_pending(redis, user_id, review_quiz.get("question", ""))
+                    quiz_text = (
+                        "——\n📝 複習測驗（依你最近的問答出題）\n"
+                        + review_quiz["question"]
+                        + "\n"
+                        + "\n".join(review_quiz["options"])
+                        + "\n\n(回覆 A/B/C 作答，或輸入新問題繼續學習～)"
+                    )
+                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply(quiz_text))
+                    if redis:
+                        redis.set(f"quiz_sent_at:{user_id}", str(time.time()), ex=3600)
+                    return
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("尚無足夠的問答記錄可出複習題，先多問幾題中醫問題吧～"))
+            except Exception as e:
+                traceback.print_exc()
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("複習測驗暫時無法使用，請稍後再試。"))
+            return
 
         # 主動複習：使用者選擇「要複習筆記」
         if user_text == "要複習筆記":
