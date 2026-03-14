@@ -16,10 +16,15 @@ COLL_INTERACTIONS = "interactions"
 COLL_QUIZ_RESULTS = "quiz_results"
 COLL_FEEDBACK = "feedback"
 
-# 模式 / 意圖 / 測驗類型
+# 模式 / 測驗類型
 MODES = ("QA", "Speaking", "Writing")
-INTENT_TAGS = ("Memory", "Understanding", "Application")
 QUIZ_TYPES = ("Immediate", "Review")
+
+# 學習標籤：研究用 intent_tag（中醫領域）與 complexity_level
+LEARNING_INTENT_TAGS = ("Basic Theory", "Clinical", "Diagnostics", "Treatment", "Pharmacology", "Other")
+COMPLEXITY_LEVELS = ("Low", "Medium", "High")
+# 向下相容
+INTENT_TAGS = ("Memory", "Understanding", "Application")
 
 # 口說模式：用於計算 TCM 專業術語出現次數的詞表（可擴充）
 TCM_TERMS_FOR_SPEECH = [
@@ -83,7 +88,7 @@ def increment_user_interaction_count(db, user_id):
 def classify_qa_intent_and_complexity(openai_client, question, timeout_sec=5):
     """
     使用 LLM 將使用者問題分類為 intent_tag (Memory/Understanding/Application) 與 complexity_score (1-5)。
-    回傳 (intent_tag, complexity_score)，失敗回傳 (None, None)。
+    回傳 (intent_tag, complexity_score)，失敗回傳 (None, None)。保留供向下相容。
     """
     if not openai_client or not (question or "").strip():
         return None, None
@@ -105,7 +110,6 @@ def classify_qa_intent_and_complexity(openai_client, question, timeout_sec=5):
         raw = (resp.choices[0].message.content or "").strip()
         if not raw:
             return None, None
-        # 擷取 JSON
         if "{" in raw and "}" in raw:
             raw = raw[raw.find("{"): raw.rfind("}") + 1]
         obj = json.loads(raw)
@@ -126,6 +130,48 @@ def classify_qa_intent_and_complexity(openai_client, question, timeout_sec=5):
         return None, None
 
 
+def classify_qa_learning_tags(openai_client, question, timeout_sec=5):
+    """
+    使用 LLM 將使用者問題分類為研究用學習標籤：
+    intent_tag（Basic Theory / Clinical / Diagnostics / Treatment / Pharmacology / Other）、
+    complexity_level（Low / Medium / High）。
+    回傳 (intent_tag, complexity_level)，失敗回傳 (None, None)。
+    """
+    if not openai_client or not (question or "").strip():
+        return None, None
+    try:
+        resp = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": (
+                    "你是一位中醫教育研究助理。請僅根據「使用者問題」回傳一個 JSON，不要其他文字。"
+                    "欄位：intent_tag（必為以下其一：Basic Theory, Clinical, Diagnostics, Treatment, Pharmacology, Other）、"
+                    "complexity_level（必為 Low, Medium, High 其一）。"
+                    "Basic Theory=基礎理論；Clinical=臨床應用；Diagnostics=診斷；Treatment=治法/方藥；Pharmacology=中藥藥性。"
+                )},
+                {"role": "user", "content": f"使用者問題：{(question or '').strip()[:500]}"},
+            ],
+            max_tokens=80,
+            temperature=0.1,
+            timeout=timeout_sec,
+        )
+        raw = (resp.choices[0].message.content or "").strip()
+        if not raw or "{" not in raw or "}" not in raw:
+            return None, None
+        raw = raw[raw.find("{"): raw.rfind("}") + 1]
+        obj = json.loads(raw)
+        intent = (obj.get("intent_tag") or "").strip()
+        if intent not in LEARNING_INTENT_TAGS:
+            intent = None
+        level = (obj.get("complexity_level") or "").strip()
+        if level not in COMPLEXITY_LEVELS:
+            level = None
+        return intent or None, level or None
+    except Exception as e:
+        print(f"[research_logging] classify_qa_learning_tags error: {e}")
+        return None, None
+
+
 def log_interaction(
     db,
     user_id,
@@ -134,13 +180,17 @@ def log_interaction(
     answer,
     intent_tag=None,
     complexity_score=None,
+    complexity_level=None,
     session_duration_sec=None,
     follow_up_count=None,
     feedback_requested=False,
 ):
-    """寫入一筆 Interaction，並可選設定 feedback（每 20 筆）。"""
+    """
+    寫入一筆 Interaction，並可選設定 feedback（每 20 筆）。
+    回傳 inserted_id（ObjectId），失敗或無 db 時回傳 None。
+    """
     if not db or not user_id:
-        return
+        return None
     try:
         now = datetime.now(timezone.utc)
         doc = {
@@ -148,6 +198,7 @@ def log_interaction(
             "mode": mode if mode in MODES else "QA",
             "intent_tag": intent_tag,
             "complexity_score": complexity_score,
+            "complexity_level": complexity_level,
             "session_duration_sec": session_duration_sec,
             "follow_up_count": follow_up_count,
             "question": (question or "")[:2000],
@@ -162,8 +213,44 @@ def log_interaction(
                 "interaction_id": r.inserted_id,
                 "requested_at": now,
             })
+        return r.inserted_id
     except Exception as e:
         print(f"[research_logging] log_interaction error: {e}")
+        return None
+
+
+def update_interaction_quiz_result(
+    db,
+    interaction_id,
+    user_answer,
+    is_correct,
+    is_attempted,
+    response_time_sec=None,
+):
+    """
+    更新對應的 interaction 文件，寫入測驗結果欄位。
+    interaction_id 可為 ObjectId 或字串。
+    """
+    if not db or interaction_id is None:
+        return
+    try:
+        from bson import ObjectId
+        oid = interaction_id if isinstance(interaction_id, ObjectId) else ObjectId(interaction_id)
+        now = datetime.now(timezone.utc)
+        update = {
+            "user_answer": user_answer,
+            "is_correct": bool(is_correct),
+            "is_attempted": bool(is_attempted),
+            "quiz_answered_at": now,
+        }
+        if response_time_sec is not None:
+            update["response_time_sec"] = response_time_sec
+        db[COLL_INTERACTIONS].update_one(
+            {"_id": oid},
+            {"$set": update},
+        )
+    except Exception as e:
+        print(f"[research_logging] update_interaction_quiz_result error: {e}")
 
 
 def get_interaction_count(db, user_id):

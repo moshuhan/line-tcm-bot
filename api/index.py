@@ -84,7 +84,9 @@ try:
         get_last_interaction_timestamp,
         get_follow_up_count_within_sec,
         classify_qa_intent_and_complexity,
+        classify_qa_learning_tags,
         log_interaction,
+        update_interaction_quiz_result,
         log_quiz_result,
         log_speaking,
         log_writing,
@@ -154,7 +156,9 @@ except ImportError:
             get_last_interaction_timestamp,
             get_follow_up_count_within_sec,
             classify_qa_intent_and_complexity,
+            classify_qa_learning_tags,
             log_interaction,
+            update_interaction_quiz_result,
             log_quiz_result,
             log_speaking,
             log_writing,
@@ -172,10 +176,12 @@ except ImportError:
         ensure_user = get_interaction_count = get_follow_up_count_within_sec = _noop_user
         get_last_interaction_timestamp = _noop_ts
         classify_qa_intent_and_complexity = _noop_classify
-        log_interaction = log_quiz_result = log_speaking = log_writing = lambda *a, **k: None
+        log_interaction = lambda *a, **k: None
+        update_interaction_quiz_result = log_quiz_result = log_speaking = log_writing = lambda *a, **k: None
         count_tcm_terms_in_text = lambda t: 0
         run_analytics_middleware = lambda *a, **k: None
         generate_review_quiz_from_interactions = lambda *a, **k: None
+        classify_qa_learning_tags = lambda *a, **k: (None, None)
 
 # 1. 初始化
 app = Flask(__name__)
@@ -974,7 +980,8 @@ def _tcm_openai_reply(user_id, text):
                 print(f">>> MONGODB: Successfully logged message from {user_id}")
             except Exception as e:
                 print(f">>> MONGODB ERROR: Failed to log message: {e}")
-            # 研究用：QA 意圖/複雜度、session、每 20 筆 feedback
+            # 研究用：QA 學習標籤（intent_tag / complexity_level）、session、每 20 筆 feedback
+            interaction_id = None
             try:
                 ensure_user(mongo_db, user_id)
                 count_before = get_interaction_count(mongo_db, user_id)
@@ -982,15 +989,15 @@ def _tcm_openai_reply(user_id, text):
                 now_utc = datetime.now(timezone.utc)
                 session_duration_sec = (now_utc - last_ts).total_seconds() if last_ts else 0
                 follow_up = get_follow_up_count_within_sec(mongo_db, user_id, within_sec=1800)
-                intent_tag, complexity_score = classify_qa_intent_and_complexity(client, text)
-                log_interaction(
+                intent_tag, complexity_level = classify_qa_learning_tags(client, text)
+                interaction_id = log_interaction(
                     mongo_db,
                     user_id,
                     "QA",
                     text,
                     ai_reply,
                     intent_tag=intent_tag,
-                    complexity_score=complexity_score,
+                    complexity_level=complexity_level,
                     session_duration_sec=session_duration_sec,
                     follow_up_count=follow_up,
                     feedback_requested=((count_before + 1) % 20 == 0),
@@ -998,6 +1005,12 @@ def _tcm_openai_reply(user_id, text):
                 run_analytics_middleware(mongo_db, user_id)
             except Exception as e:
                 print(f">>> RESEARCH LOGGING ERROR: {e}")
+            # 存下此筆 interaction 的 id，測驗作答時用來更新 is_correct / user_answer / is_attempted
+            if interaction_id and redis:
+                try:
+                    redis.set(f"quiz_interaction_id:{user_id}", str(interaction_id), ex=3600)
+                except Exception:
+                    pass
         else:
             print(">>> LOGGING ERROR: db instance is None, check boot logs.")
 
@@ -1789,7 +1802,7 @@ def handle_message(event):
                         except Exception:
                             pass
                     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-                    # 研究用：QuizResult（Immediate）、response_time
+                    # 研究用：更新對應 interaction 的測驗結果、QuizResult、response_time
                     try:
                         sent_at = redis.get(f"quiz_sent_at:{user_id}") if redis else None
                         response_time_sec = None
@@ -1799,6 +1812,19 @@ def handle_message(event):
                             except (TypeError, ValueError):
                                 pass
                         if mongo_db is not None:
+                            interaction_id_raw = redis.get(f"quiz_interaction_id:{user_id}") if redis else None
+                            if interaction_id_raw:
+                                try:
+                                    update_interaction_quiz_result(
+                                        mongo_db,
+                                        interaction_id_raw,
+                                        choice,
+                                        choice == correct,
+                                        True,
+                                        response_time_sec=response_time_sec,
+                                    )
+                                except Exception as eu:
+                                    print(f">>> RESEARCH update_interaction_quiz_result error: {eu}")
                             log_quiz_result(
                                 mongo_db,
                                 user_id,
@@ -1813,6 +1839,7 @@ def handle_message(event):
                     try:
                         if redis:
                             redis.delete(f"quiz_sent_at:{user_id}")
+                            redis.delete(f"quiz_interaction_id:{user_id}")
                         set_user_state(redis, user_id, STATE_NORMAL)
                         if redis:
                             redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
@@ -1825,6 +1852,20 @@ def handle_message(event):
                 # 非選項：視為跳過，清狀態後把這則當新提問（且不要把「是/否」當作舊題庫指令）
                 suppress_yes_no_command = True
                 try:
+                    if mongo_db is not None and redis:
+                        interaction_id_raw = redis.get(f"quiz_interaction_id:{user_id}")
+                        if interaction_id_raw:
+                            try:
+                                update_interaction_quiz_result(
+                                    mongo_db,
+                                    interaction_id_raw,
+                                    None,
+                                    False,
+                                    False,
+                                )
+                            except Exception:
+                                pass
+                            redis.delete(f"quiz_interaction_id:{user_id}")
                     set_user_state(redis, user_id, STATE_NORMAL)
                     if redis:
                         redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
