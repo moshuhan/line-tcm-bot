@@ -200,10 +200,12 @@ def log_interaction(
         return None
     try:
         now = datetime.now(timezone.utc)
+        # AI 可能回傳 None；確保 intent_tag 一律為字串，方便 MongoDB 查詢與分析
+        intent_tag_val = (intent_tag if (intent_tag and isinstance(intent_tag, str) and intent_tag.strip()) else DEFAULT_INTENT_TAG)
         doc = {
             "user_id": _decode(user_id),
             "mode": mode if mode in MODES else "QA",
-            "intent_tag": intent_tag,
+            "intent_tag": intent_tag_val,
             "complexity_score": complexity_score,
             "complexity_level": complexity_level,
             "session_duration_sec": session_duration_sec,
@@ -245,8 +247,12 @@ def update_interaction_quiz_result(
         from bson import ObjectId
         if isinstance(interaction_id, bytes):
             interaction_id = interaction_id.decode("utf-8", errors="replace").strip()
-        # Redis 存的是字串；MongoDB _id 為 ObjectId，必須轉成 ObjectId 再 update_one
-        oid = interaction_id if isinstance(interaction_id, ObjectId) else ObjectId(str(interaction_id).strip())
+        # Redis 存的是字串；MongoDB _id 為 ObjectId，update_one 必須用 ObjectId 才能匹配
+        if isinstance(interaction_id, ObjectId):
+            oid = interaction_id
+        else:
+            oid_str = str(interaction_id).strip()
+            oid = ObjectId(oid_str)
         print(f">>> DEBUG: Updating Quiz for ID={oid}")
         now = datetime.now(timezone.utc)
         update = {
