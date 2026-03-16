@@ -967,15 +967,8 @@ def _tcm_openai_reply(user_id, text):
         base_reply = _ensure_sources_section(base_reply)
         ai_reply = base_reply + SAFETY_DISCLAIMER
 
-        line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
-        try:
-            log_question(redis, user_id, text)
-            set_last_question(redis, user_id, text)
-            set_last_assistant_message(redis, user_id, ai_reply)
-        except Exception:
-            pass
-
-        # MongoDB：記錄問答歷史（chat_history 保留向下相容）＋研究用 interactions
+        # 研究完整性：先寫入 MongoDB（含 intent_tag）並設定 quiz_interaction_id，再回覆使用者，避免 race
+        interaction_id = None
         if mongo_db is not None:
             print(f">>> LOGGING: Sending data to MongoDB for {user_id}...")
             try:
@@ -991,8 +984,6 @@ def _tcm_openai_reply(user_id, text):
                 print(f">>> MONGODB: Successfully logged message from {user_id}")
             except Exception as e:
                 print(f">>> MONGODB ERROR: Failed to log message: {e}")
-            # 研究用：LLM 分類 intent_tag（Memory/Understanding/Application）、session、每 20 筆 feedback
-            interaction_id = None
             try:
                 ensure_user(mongo_db, user_id)
                 count_before = get_interaction_count(mongo_db, user_id)
@@ -1016,7 +1007,6 @@ def _tcm_openai_reply(user_id, text):
                 run_analytics_middleware(mongo_db, user_id)
             except Exception as e:
                 print(f">>> RESEARCH LOGGING ERROR: {e}")
-            # 存下此筆 interaction 的 id，測驗作答時用來更新 is_correct / user_answer / is_attempted
             if interaction_id and redis:
                 try:
                     redis.set(f"quiz_interaction_id:{user_id}", str(interaction_id), ex=3600)
@@ -1024,6 +1014,14 @@ def _tcm_openai_reply(user_id, text):
                     pass
         else:
             print(">>> LOGGING ERROR: db instance is None, check boot logs.")
+
+        line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
+        try:
+            log_question(redis, user_id, text)
+            set_last_question(redis, user_id, text)
+            set_last_assistant_message(redis, user_id, ai_reply)
+        except Exception:
+            pass
 
         # QA → Quiz 循環：每次中醫回答後自動出題，形成連續學習
         try:
@@ -1670,16 +1668,18 @@ def _handle_quiz_answer(user_id, choice, reply_token=None):
     if mongo_db is not None:
         try:
             interaction_id_raw = redis.get(f"quiz_interaction_id:{user_id}") if redis else None
-            if interaction_id_raw:
+            if interaction_id_raw is not None:
                 try:
-                    update_interaction_quiz_result(
-                        mongo_db,
-                        interaction_id_raw,
-                        choice,
-                        choice == correct,
-                        True,
-                        response_time_sec=response_time_sec,
-                    )
+                    oid_str = interaction_id_raw.decode("utf-8", errors="replace").strip() if isinstance(interaction_id_raw, bytes) else str(interaction_id_raw).strip()
+                    if oid_str:
+                        update_interaction_quiz_result(
+                            mongo_db,
+                            oid_str,
+                            choice,
+                            choice == correct,
+                            True,
+                            response_time_sec=response_time_sec,
+                        )
                 except Exception as eu:
                     print(f">>> RESEARCH update_interaction_quiz_result error: {eu}")
             log_quiz_result(
@@ -1892,17 +1892,19 @@ def handle_message(event):
                 try:
                     if mongo_db is not None and redis:
                         interaction_id_raw = redis.get(f"quiz_interaction_id:{user_id}")
-                        if interaction_id_raw:
-                            try:
-                                update_interaction_quiz_result(
-                                    mongo_db,
-                                    interaction_id_raw,
-                                    None,
-                                    False,
-                                    False,
-                                )
-                            except Exception:
-                                pass
+                        if interaction_id_raw is not None:
+                            oid_str = interaction_id_raw.decode("utf-8", errors="replace").strip() if isinstance(interaction_id_raw, bytes) else str(interaction_id_raw).strip()
+                            if oid_str:
+                                try:
+                                    update_interaction_quiz_result(
+                                        mongo_db,
+                                        oid_str,
+                                        None,
+                                        False,
+                                        False,
+                                    )
+                                except Exception:
+                                    pass
                             redis.delete(f"quiz_interaction_id:{user_id}")
                     set_user_state(redis, user_id, STATE_NORMAL)
                     if redis:

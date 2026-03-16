@@ -12,6 +12,9 @@ from datetime import datetime, timezone
 
 # 集合名稱
 COLL_USERS = "users"
+# interactions 有效欄位：user_id, mode, question, answer, timestamp, feedback_requested,
+# intent_tag (str, LLM 分類), complexity_score, complexity_level, session_duration_sec, follow_up_count,
+# quiz_data (object, 測驗結果：user_answer, is_correct, attempted), quiz_answered_at, response_time_sec
 COLL_INTERACTIONS = "interactions"
 COLL_QUIZ_RESULTS = "quiz_results"
 COLL_FEEDBACK = "feedback"
@@ -230,13 +233,15 @@ def update_interaction_quiz_result(
     """
     更新對應的 interaction 文件，寫入 Learning Outcome（測驗結果）。
     結構分離：Conversation（question, answer, timestamp, intent_tag）與 quiz_data（Learning Outcome）。
-    interaction_id 可為 ObjectId 或字串。
+    interaction_id 可為 ObjectId、字串或 bytes（Redis 未 decode 時）。
     """
     if not db or interaction_id is None:
         return
     try:
         from bson import ObjectId
-        oid = interaction_id if isinstance(interaction_id, ObjectId) else ObjectId(interaction_id)
+        if isinstance(interaction_id, bytes):
+            interaction_id = interaction_id.decode("utf-8", errors="replace").strip()
+        oid = interaction_id if isinstance(interaction_id, ObjectId) else ObjectId(str(interaction_id))
         now = datetime.now(timezone.utc)
         update = {
             "quiz_data": {
