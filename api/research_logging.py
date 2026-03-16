@@ -88,13 +88,17 @@ def increment_user_interaction_count(db, user_id):
         print(f"[research_logging] increment_user_interaction_count error: {e}")
 
 
+# 當 LLM 分類失敗或非預期值時，intent_tag 的預設值（確保 MongoDB 欄位不為空）
+DEFAULT_INTENT_TAG = "General"
+
+
 def classify_qa_intent_and_complexity(openai_client, question, timeout_sec=5):
     """
     使用 LLM 將使用者問題分類為 intent_tag (Memory/Understanding/Application) 與 complexity_score (1-5)。
-    回傳 (intent_tag, complexity_score)，失敗回傳 (None, None)。保留供向下相容。
+    回傳 (intent_tag, complexity_score)；intent_tag 若無法分類則回傳 DEFAULT_INTENT_TAG，避免欄位被略過。
     """
     if not openai_client or not (question or "").strip():
-        return None, None
+        return DEFAULT_INTENT_TAG, None
     try:
         resp = openai_client.chat.completions.create(
             model="gpt-4o-mini",
@@ -112,13 +116,13 @@ def classify_qa_intent_and_complexity(openai_client, question, timeout_sec=5):
         )
         raw = (resp.choices[0].message.content or "").strip()
         if not raw:
-            return None, None
+            return DEFAULT_INTENT_TAG, None
         if "{" in raw and "}" in raw:
             raw = raw[raw.find("{"): raw.rfind("}") + 1]
         obj = json.loads(raw)
         intent = (obj.get("intent_tag") or "").strip()
         if intent not in INTENT_TAGS:
-            intent = None
+            intent = DEFAULT_INTENT_TAG
         comp = obj.get("complexity_score")
         if comp is not None:
             try:
@@ -127,10 +131,10 @@ def classify_qa_intent_and_complexity(openai_client, question, timeout_sec=5):
                     comp = None
             except (TypeError, ValueError):
                 comp = None
-        return intent or None, comp
+        return intent, comp
     except Exception as e:
         print(f"[research_logging] classify_qa_intent_and_complexity error: {e}")
-        return None, None
+        return DEFAULT_INTENT_TAG, None
 
 
 def classify_qa_learning_tags(openai_client, question, timeout_sec=5):
@@ -241,7 +245,9 @@ def update_interaction_quiz_result(
         from bson import ObjectId
         if isinstance(interaction_id, bytes):
             interaction_id = interaction_id.decode("utf-8", errors="replace").strip()
-        oid = interaction_id if isinstance(interaction_id, ObjectId) else ObjectId(str(interaction_id))
+        # Redis 存的是字串；MongoDB _id 為 ObjectId，必須轉成 ObjectId 再 update_one
+        oid = interaction_id if isinstance(interaction_id, ObjectId) else ObjectId(str(interaction_id).strip())
+        print(f">>> DEBUG: Updating Quiz for ID={oid}")
         now = datetime.now(timezone.utc)
         update = {
             "quiz_data": {

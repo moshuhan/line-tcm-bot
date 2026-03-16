@@ -992,6 +992,7 @@ def _tcm_openai_reply(user_id, text):
                 session_duration_sec = (now_utc - last_ts).total_seconds() if last_ts else 0
                 follow_up = get_follow_up_count_within_sec(mongo_db, user_id, within_sec=1800)
                 intent_tag, complexity_score = classify_qa_intent_and_complexity(client, text)
+                print(f">>> DEBUG: Saving intent_tag={intent_tag}")
                 interaction_id = log_interaction(
                     mongo_db,
                     user_id,
@@ -1004,14 +1005,15 @@ def _tcm_openai_reply(user_id, text):
                     follow_up_count=follow_up,
                     feedback_requested=((count_before + 1) % 20 == 0),
                 )
+                # Redis：insert_one 成功後立即寫入 quiz_interaction_id，供測驗作答時更新 quiz_data
+                if interaction_id and redis:
+                    try:
+                        redis.set(f"quiz_interaction_id:{user_id}", str(interaction_id), ex=3600)
+                    except Exception:
+                        pass
                 run_analytics_middleware(mongo_db, user_id)
             except Exception as e:
                 print(f">>> RESEARCH LOGGING ERROR: {e}")
-            if interaction_id and redis:
-                try:
-                    redis.set(f"quiz_interaction_id:{user_id}", str(interaction_id), ex=3600)
-                except Exception:
-                    pass
         else:
             print(">>> LOGGING ERROR: db instance is None, check boot logs.")
 
