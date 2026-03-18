@@ -1041,9 +1041,20 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         if mongo_db is not None:
             print(f">>> LOGGING: Sending data to MongoDB for {user_id}...")
             try:
+                # 取得 LINE 使用者名稱（失敗不影響寫入）
+                user_name = None
+                try:
+                    prof = line_bot_api.get_profile(user_id)
+                    user_name = getattr(prof, "display_name", None)
+                except Exception:
+                    user_name = None
                 mongo_db.chat_history.insert_one(
                     {
-                        "user_id": user_id,
+                        # 依需求：chat_history 的 user_id 欄位改存 user name
+                        "user_id": (user_name or "").strip()[:200] or user_id,
+                        # 保留真實 LINE userId 供追溯/除錯
+                        "userId": user_id,
+                        "userName": (user_name or "").strip()[:200] or None,
                         "question": text,
                         "answer": ai_reply,
                         "timestamp": datetime.now(timezone.utc),
