@@ -415,44 +415,48 @@ def quick_reply_feedback_stars():
             QuickReplyButton(action=PostbackAction(label="⭐3", data="action=feedback&score=3")),
             QuickReplyButton(action=PostbackAction(label="⭐4", data="action=feedback&score=4")),
             QuickReplyButton(action=PostbackAction(label="⭐5", data="action=feedback&score=5")),
-            QuickReplyButton(action=URIAction(label="📝 填寫詳細意見", uri="https://forms.gle/xUpm5yZSvzEZ6zMh6")),
         ]
     )
 
 
 def _should_ask_feedback(user_id):
-    if not redis:
-        return True
-    try:
-        key = _FEEDBACK_ASK_KEY.format(user_id=user_id)
-        last = redis.get(key)
-        if last is None:
-            return True
-        try:
-            last_ts = float(last)
-        except (TypeError, ValueError):
-            return True
-        return (time.time() - last_ts) >= _FEEDBACK_ASK_COOLDOWN_SEC
-    except Exception:
-        return True
+    # 測試期間：暫時關閉 24 小時節流，方便反覆測試
+    return True
 
 
 def _mark_feedback_asked(user_id):
-    if not redis:
-        return
-    try:
-        key = _FEEDBACK_ASK_KEY.format(user_id=user_id)
-        redis.set(key, str(time.time()), ex=_FEEDBACK_ASK_COOLDOWN_SEC)
-    except Exception:
-        pass
+    # 測試期間：暫時不寫入 last_feedback_ask
+    return
 
 
 def _maybe_send_course_feedback_prompt(user_id, reply_token=None):
     if not _should_ask_feedback(user_id):
         return
     _mark_feedback_asked(user_id)
-    msg = TextSendMessage(
-        text="感謝您的使用！請問您對這次的助教回覆滿意嗎？",
+    bubble = {
+        "type": "bubble",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "contents": [
+                {"type": "text", "text": "感謝您的使用！", "weight": "bold", "size": "lg", "wrap": True},
+                {"type": "text", "text": "請問您對這次的助教回覆滿意嗎？", "wrap": True, "size": "sm"},
+                {
+                    "type": "button",
+                    "style": "primary",
+                    "action": {
+                        "type": "uri",
+                        "label": "📝 填寫詳細意見",
+                        "uri": "https://forms.gle/xUpm5yZSvzEZ6zMh6",
+                    },
+                },
+            ],
+        },
+    }
+    msg = FlexSendMessage(
+        alt_text="回饋：請為本次助教回覆打分",
+        contents=bubble,
         quick_reply=quick_reply_feedback_stars(),
     )
     try:
