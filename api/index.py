@@ -1788,28 +1788,38 @@ def handle_postback(event):
     try:
         # 課務助教回饋：action=feedback&score=1-5
         if data.startswith("action=feedback"):
+            # 解析星等（允許 action=feedback&score=5 或 action=feedback&score=5&...
+            score = None
+            for part in data.split("&"):
+                if part.startswith("score="):
+                    score = part.split("=", 1)[1].strip()
+                    break
+
+            # 取使用者名稱（失敗不影響主流程）
+            user_name = None
             try:
-                score = None
-                for part in data.split("&"):
-                    if part.startswith("score="):
-                        score = part.split("=", 1)[1].strip()
-                        break
+                prof = line_bot_api.get_profile(user_id)
+                user_name = getattr(prof, "display_name", None)
+            except Exception:
                 user_name = None
-                try:
-                    prof = line_bot_api.get_profile(user_id)
-                    user_name = getattr(prof, "display_name", None)
-                except Exception:
-                    user_name = None
+
+            # MongoDB：寫入 StudentFeedback（失敗不影響機器人正常運作）
+            try:
                 if mongo_db is not None:
                     log_student_feedback(mongo_db, user_id=user_id, user_name=user_name, score=score)
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_with_quick_reply("感謝你的回饋！已收到～"),
-                )
-            except Exception:
-                traceback.print_exc()
+                else:
+                    print(">>> DEBUG: feedback received but mongo_db is None")
+            except Exception as e:
+                print(f">>> DEBUG: log_student_feedback unexpected error: {e}")
+
+            # 回覆：優先 reply token，失敗再 fallback push（避免誤顯示『回饋紀錄失敗』）
+            msg = text_with_quick_reply("感謝你的回饋！已收到～")
+            try:
+                line_bot_api.reply_message(event.reply_token, msg)
+            except Exception as e:
+                print(f">>> DEBUG: feedback reply_message failed, fallback push. err={e}")
                 try:
-                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply("回饋紀錄失敗，但不影響使用。謝謝你！"))
+                    line_bot_api.push_message(user_id, msg)
                 except Exception:
                     pass
             return
