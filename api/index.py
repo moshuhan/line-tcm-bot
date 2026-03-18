@@ -860,11 +860,12 @@ try:
 except Exception:
     pass
 
-def _tcm_openai_reply(user_id, text):
+def _tcm_openai_reply(user_id, text, reply_token=None):
     """
     以 tcm_master_knowledge.json 為 context，用 OpenAI gpt-4o-mini 生成回覆。
     先關鍵字匹配，有匹配用精簡 context；無匹配用完整 JSON。不經過 Assistant API。
     回傳 True 若已回覆，False 若失敗。
+    優先使用 reply_token 以避免 push 額度限制。
     """
     if not (text or "").strip():
         return False
@@ -1085,19 +1086,61 @@ def _tcm_openai_reply(user_id, text):
         else:
             print(">>> LOGGING ERROR: db instance is None, check boot logs.")
 
-        line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
+        # QA → Quiz：先生成測驗並寫入 Redis（送出訊息用 reply_message 併送，避免 push）
+        quiz_msg = None
+        try:
+            quiz = generate_mcq_quiz(client, base_reply)
+            if quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer"):
+                if redis:
+                    try:
+                        state_key = f"user_state:{user_id}"
+                        mode_key = _redis_user_mode_key(user_id)
+                        redis.set(state_key, STATE_QUIZ_WAITING, ex=3600)
+                        redis.set(mode_key, "quiz", ex=3600)
+                        quiz_id = secrets.token_hex(8)
+                        set_mcq_quiz_data(
+                            redis,
+                            user_id,
+                            quiz.get("question", ""),
+                            quiz.get("options", []),
+                            quiz.get("answer", ""),
+                            quiz.get("explanation", ""),
+                            category="其他",
+                            quiz_id=quiz_id,
+                        )
+                        set_quiz_pending(redis, user_id, quiz.get("question", ""))
+                        redis.set(f"quiz_sent_at:{user_id}", str(time.time()), ex=3600)
+                    except Exception:
+                        pass
+                quiz_text = (
+                    "——\n📝 小測驗\n"
+                    + quiz["question"]
+                    + "\n"
+                    + "\n".join(quiz["options"])
+                    + "\n\n(點選 A/B/C 作答，或直接輸入新問題繼續學習喔！)"
+                )
+                quiz_msg = TextSendMessage(text=quiz_text, quick_reply=quick_reply_quiz_choices())
+        except Exception:
+            traceback.print_exc()
+
+        # 回覆：優先 reply_message；若無 reply_token 才嘗試 push（可能會受月額度限制）
+        ai_msg = text_with_quick_reply(ai_reply)
+        msgs = [ai_msg] + ([quiz_msg] if quiz_msg else [])
+        try:
+            if reply_token:
+                line_bot_api.reply_message(reply_token, msgs)
+            else:
+                for m in msgs:
+                    line_bot_api.push_message(user_id, m)
+        except Exception as e:
+            print(f">>> DEBUG: tcm reply failed err={e}")
+
         try:
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
             set_last_assistant_message(redis, user_id, ai_reply)
         except Exception:
             pass
-
-        # QA → Quiz 循環：每次中醫回答後自動出題，形成連續學習
-        try:
-            _process_quiz_sync(user_id, base_reply)
-        except Exception:
-            traceback.print_exc()
 
         return True
     except Exception:
@@ -1263,11 +1306,14 @@ def _process_assistant_sync(user_id, text):
             ai_reply = messages.data[0].content[0].text.value
             if mode == "tcm":
                 ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
-            # 先回覆使用者，再寫 Redis，避免 Device busy 等 Redis 問題阻塞回覆
-            if mode == "tcm":
-                line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
-            else:
-                line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
+            # 注意：push_message 可能因 LINE 月額度限制而失敗（429）
+            try:
+                if mode == "tcm":
+                    line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
+                else:
+                    line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
+            except Exception as e:
+                print(f">>> DEBUG: push_message failed (likely quota). err={e}")
             try:
                 log_question(redis, user_id, text)
                 set_last_question(redis, user_id, text)
@@ -1275,10 +1321,16 @@ def _process_assistant_sync(user_id, text):
             except Exception:
                 pass
         else:
-            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+            try:
+                line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+            except Exception as e:
+                print(f">>> DEBUG: push_message TIMEOUT failed err={e}")
     except Exception as e:
         print(f"CRITICAL ERROR: {traceback.format_exc()}")
-        line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+        except Exception as e:
+            print(f">>> DEBUG: push_message TIMEOUT failed err={e}")
 
 
 def _run_ai_work(user_id, text, is_voice=False):
@@ -2145,12 +2197,11 @@ def handle_message(event):
         mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message -> AI (current_mode={mode!r})")
 
-        # 統一 TCM 問答：tcm / quiz 一律走同一邏輯（詳細回答 + 參考出處 + 免責聲明 + 自動出題）
+        # 統一 TCM 問答：tcm / quiz 一律走同一邏輯（避免 push：直接用 reply_token 回覆最終結果）
         if mode in ("tcm", "quiz"):
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="正在查找資料，請稍候... ✨"))
-            if not _tcm_openai_reply(user_id, user_text):
+            if not _tcm_openai_reply(user_id, user_text, reply_token=event.reply_token):
                 try:
-                    line_bot_api.push_message(user_id, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
+                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
                 except Exception:
                     pass
             return
