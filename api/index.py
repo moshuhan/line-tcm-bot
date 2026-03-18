@@ -436,7 +436,7 @@ def _build_course_feedback_message():
     星等用 Quick Reply（postback），表單連結直接放在文字內。
     """
     return TextSendMessage(
-        text="感謝您的使用！歡迎填寫表單讓我們知道你的意見！https://forms.gle/xUpm5yZSvzEZ6zMh6。",
+        text="感謝您的使用！歡迎填寫表單讓我們知道你的意見！https://forms.gle/xUpm5yZSvzEZ6zMh6",
         quick_reply=quick_reply_feedback_stars(),
     )
 
