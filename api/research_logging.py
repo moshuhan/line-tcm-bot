@@ -243,12 +243,13 @@ def log_student_feedback(db, user_id, user_name, score):
     except (TypeError, ValueError):
         return
     try:
-        db[COLL_STUDENT_FEEDBACK].insert_one({
+        r = db[COLL_STUDENT_FEEDBACK].insert_one({
             "timestamp": datetime.now(timezone.utc),
             "userName": (user_name or "").strip()[:200] or None,
             "userId": _decode(user_id),
             "score": s,
         })
+        print(f">>> DEBUG: StudentFeedback inserted_id={getattr(r, 'inserted_id', None)}")
     except Exception as e:
         print(f"[research_logging] log_student_feedback error: {e}")
 

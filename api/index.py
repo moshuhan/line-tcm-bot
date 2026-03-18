@@ -228,7 +228,15 @@ else:
         mongo_client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000)
         mongo_client.admin.command("ping")
         mongo_db = mongo_client.get_database("line-tcm-bot")
-        print(">>> BOOT SUCCESS: MongoDB is ready! <<<")
+        print(f">>> BOOT SUCCESS: MongoDB is ready! db={getattr(mongo_db, 'name', None)} <<<")
+        # 讓 Compass 直接看到 collection（第一次寫入也會自動建立；這裡只是加速可見性）
+        try:
+            existing = set(mongo_db.list_collection_names())
+            if "StudentFeedback" not in existing:
+                mongo_db.create_collection("StudentFeedback")
+                print(">>> BOOT: created collection StudentFeedback <<<")
+        except Exception as e:
+            print(f">>> BOOT: create_collection StudentFeedback skipped err={e}")
     except Exception as e:
         print(f">>> BOOT ERROR: MongoDB connection failed: {e}")
         mongo_client = None
@@ -1799,6 +1807,7 @@ def handle_postback(event):
             # MongoDB：寫入 StudentFeedback（失敗不影響機器人正常運作）
             try:
                 if mongo_db is not None:
+                    print(f">>> DEBUG: feedback write start db={getattr(mongo_db, 'name', None)} user_id={user_id} score={score} user_name={user_name}")
                     log_student_feedback(mongo_db, user_id=user_id, user_name=user_name, score=score)
                 else:
                     print(">>> DEBUG: feedback received but mongo_db is None")
