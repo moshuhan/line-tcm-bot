@@ -50,7 +50,7 @@ def _decode(val):
 
 def ensure_user(db, user_id):
     """若無則建立 User 文件，有則更新 last_seen。回傳該 user 的 interaction 總數（用於第 20 筆 feedback）。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return 0
     try:
         coll = db[COLL_USERS]
@@ -78,7 +78,7 @@ def ensure_user(db, user_id):
 
 def increment_user_interaction_count(db, user_id):
     """將該使用者的 interaction_count +1。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return
     try:
         db[COLL_USERS].update_one(
@@ -197,7 +197,7 @@ def log_interaction(
     寫入一筆 Interaction，並可選設定 feedback（每 20 筆）。
     回傳 inserted_id（ObjectId），失敗或無 db 時回傳 None。
     """
-    if not db or not user_id:
+    if db is None or not user_id:
         return None
     try:
         now = datetime.now(timezone.utc)
@@ -234,7 +234,7 @@ def log_student_feedback(db, user_id, user_name, score):
     寫入一筆 StudentFeedback。
     欄位：timestamp, userName, userId, score
     """
-    if not db or not user_id:
+    if db is None or not user_id:
         return
     try:
         s = int(score)
@@ -266,7 +266,7 @@ def update_interaction_quiz_result(
     結構分離：Conversation（question, answer, timestamp, intent_tag）與 quiz_data（Learning Outcome）。
     interaction_id 可為 ObjectId、字串或 bytes（Redis 未 decode 時）。
     """
-    if not db or interaction_id is None:
+    if db is None or interaction_id is None:
         return
     try:
         from bson import ObjectId
@@ -300,7 +300,7 @@ def update_interaction_quiz_result(
 
 def get_interaction_count(db, user_id):
     """回傳該使用者的 Interaction 總數（含本筆前）。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return 0
     try:
         return db[COLL_INTERACTIONS].count_documents({"user_id": _decode(user_id)})
@@ -311,7 +311,7 @@ def get_interaction_count(db, user_id):
 
 def get_last_n_interactions(db, user_id, n=10):
     """回傳該使用者最近 n 筆 Interaction 文件列表（由新到舊）。"""
-    if not db or not user_id or n <= 0:
+    if db is None or not user_id or n <= 0:
         return []
     try:
         cursor = (
@@ -328,7 +328,7 @@ def get_last_n_interactions(db, user_id, n=10):
 
 def get_last_interaction_timestamp(db, user_id):
     """回傳該使用者最後一筆 interaction 的 timestamp (datetime)，若無則 None。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return None
     try:
         doc = (
@@ -343,7 +343,7 @@ def get_last_interaction_timestamp(db, user_id):
 
 def get_follow_up_count_within_sec(db, user_id, within_sec=1800):
     """回傳該使用者在 within_sec 秒內的 interaction 數量（用於 follow_up_count，不含本筆）。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return 0
     try:
         from datetime import timedelta
@@ -359,7 +359,7 @@ def get_follow_up_count_within_sec(db, user_id, within_sec=1800):
 
 def log_quiz_result(db, user_id, quiz_type, question_id, user_answer, is_correct, response_time_sec=None):
     """寫入 QuizResult。quiz_type 為 Immediate 或 Review。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return
     try:
         db[COLL_QUIZ_RESULTS].insert_one({
@@ -389,7 +389,7 @@ def count_tcm_terms_in_text(text):
 
 def log_speaking(db, user_id, transcript_length, tcm_term_count, transcript=None):
     """寫入一筆 Speaking 模式的 Interaction（僅記錄口說相關欄位）。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return
     try:
         now = datetime.now(timezone.utc)
@@ -428,7 +428,7 @@ def compute_improvement_index(original, revised):
 
 def log_writing(db, user_id, original_text, revised_text, improvement_index=None):
     """寫入一筆 Writing 模式的 Interaction，含 improvement_index。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return
     try:
         if improvement_index is None:
@@ -457,7 +457,7 @@ def classify_user_behavior(db, user_id):
     根據最近互動歷史推斷行為模式：active_explorer（廣泛探索）或 task_oriented（任務導向）。
     寫回 User 的 behavior_pattern。
     """
-    if not db or not user_id:
+    if db is None or not user_id:
         return None
     try:
         recent = get_last_n_interactions(db, user_id, 20)
@@ -485,7 +485,7 @@ def classify_user_behavior(db, user_id):
 
 def run_analytics_middleware(db, user_id):
     """在寫入 interaction 後呼叫：更新 User 的 session_duration、interaction_count，並執行行為分類。"""
-    if not db or not user_id:
+    if db is None or not user_id:
         return
     try:
         increment_user_interaction_count(db, user_id)
@@ -499,7 +499,7 @@ def generate_review_quiz_from_interactions(db, user_id, openai_client, last_n=10
     依該使用者最近 last_n 筆 Interaction 內容產生一題個人化複習選擇題。
     回傳與 generate_mcq_quiz 相同結構：{question, options, answer, explanation} 或 None。
     """
-    if not db or not user_id or not openai_client:
+    if db is None or not user_id or not openai_client:
         return None
     interactions = get_last_n_interactions(db, user_id, last_n)
     if not interactions:
