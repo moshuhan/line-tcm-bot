@@ -420,7 +420,6 @@ def quick_reply_items():
             QuickReplyButton(action=MessageAction(label="口說練習", text="口說練習")),
             QuickReplyButton(action=MessageAction(label="寫作修改", text="寫作修改")),
             QuickReplyButton(action=MessageAction(label="課務查詢", text="課務查詢")),
-            QuickReplyButton(action=MessageAction(label="本週重點", text="本週重點")),
         ]
     )
 
