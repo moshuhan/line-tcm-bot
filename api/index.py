@@ -26,7 +26,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, PostbackEvent, AudioMessage,
-    QuickReply, QuickReplyButton, MessageAction, PostbackAction, FlexSendMessage,
+    QuickReply, QuickReplyButton, MessageAction, PostbackAction, FlexSendMessage, URIAction,
 )
 from linebot.models.send_messages import AudioSendMessage
 from redis import Redis as RedisClient
@@ -93,6 +93,7 @@ try:
         count_tcm_terms_in_text,
         run_analytics_middleware,
         generate_review_quiz_from_interactions,
+        log_student_feedback,
     )
 except ImportError:
     from syllabus import (
@@ -165,6 +166,7 @@ except ImportError:
             count_tcm_terms_in_text,
             run_analytics_middleware,
             generate_review_quiz_from_interactions,
+            log_student_feedback,
         )
     except ImportError:
         def _noop_user(*a, **k):
@@ -181,6 +183,7 @@ except ImportError:
         count_tcm_terms_in_text = lambda t: 0
         run_analytics_middleware = lambda *a, **k: None
         generate_review_quiz_from_interactions = lambda *a, **k: None
+        log_student_feedback = lambda *a, **k: None
         classify_qa_learning_tags = lambda *a, **k: (None, None)
 
 # 1. 初始化
@@ -382,6 +385,9 @@ def send_course_inquiry_flex(user_id, reply_token=None):
     else:
         line_bot_api.push_message(user_id, flex_msg)
 
+    # 課務助教：回覆後自動詢問滿意度（同一使用者 24 小時內不重複詢問）
+    _maybe_send_course_feedback_prompt(user_id)
+
 # --- QuickReply ---
 def quick_reply_items():
     return QuickReply(
@@ -395,6 +401,67 @@ def quick_reply_items():
 
 def text_with_quick_reply(content):
     return TextSendMessage(text=content, quick_reply=quick_reply_items())
+
+
+_FEEDBACK_ASK_KEY = "last_feedback_ask:{user_id}"
+_FEEDBACK_ASK_COOLDOWN_SEC = 24 * 3600
+
+
+def quick_reply_feedback_stars():
+    return QuickReply(
+        items=[
+            QuickReplyButton(action=PostbackAction(label="⭐1", data="action=feedback&score=1")),
+            QuickReplyButton(action=PostbackAction(label="⭐2", data="action=feedback&score=2")),
+            QuickReplyButton(action=PostbackAction(label="⭐3", data="action=feedback&score=3")),
+            QuickReplyButton(action=PostbackAction(label="⭐4", data="action=feedback&score=4")),
+            QuickReplyButton(action=PostbackAction(label="⭐5", data="action=feedback&score=5")),
+            QuickReplyButton(action=URIAction(label="📝 填寫詳細意見", uri="https://forms.gle/xUpm5yZSvzEZ6zMh6")),
+        ]
+    )
+
+
+def _should_ask_feedback(user_id):
+    if not redis:
+        return True
+    try:
+        key = _FEEDBACK_ASK_KEY.format(user_id=user_id)
+        last = redis.get(key)
+        if last is None:
+            return True
+        try:
+            last_ts = float(last)
+        except (TypeError, ValueError):
+            return True
+        return (time.time() - last_ts) >= _FEEDBACK_ASK_COOLDOWN_SEC
+    except Exception:
+        return True
+
+
+def _mark_feedback_asked(user_id):
+    if not redis:
+        return
+    try:
+        key = _FEEDBACK_ASK_KEY.format(user_id=user_id)
+        redis.set(key, str(time.time()), ex=_FEEDBACK_ASK_COOLDOWN_SEC)
+    except Exception:
+        pass
+
+
+def _maybe_send_course_feedback_prompt(user_id, reply_token=None):
+    if not _should_ask_feedback(user_id):
+        return
+    _mark_feedback_asked(user_id)
+    msg = TextSendMessage(
+        text="感謝您的使用！請問您對這次的助教回覆滿意嗎？",
+        quick_reply=quick_reply_feedback_stars(),
+    )
+    try:
+        if reply_token:
+            line_bot_api.reply_message(reply_token, msg)
+        else:
+            line_bot_api.push_message(user_id, msg)
+    except Exception:
+        pass
 
 def quick_reply_speak_practice():
     """口說練習：要再練習下一句嗎？[練習下一句] [結束練習]。"""
@@ -1719,6 +1786,34 @@ def handle_postback(event):
     data = (event.postback.data or "").strip()
     user_id = event.source.user_id
     try:
+        # 課務助教回饋：action=feedback&score=1-5
+        if data.startswith("action=feedback"):
+            try:
+                score = None
+                for part in data.split("&"):
+                    if part.startswith("score="):
+                        score = part.split("=", 1)[1].strip()
+                        break
+                user_name = None
+                try:
+                    prof = line_bot_api.get_profile(user_id)
+                    user_name = getattr(prof, "display_name", None)
+                except Exception:
+                    user_name = None
+                if mongo_db is not None:
+                    log_student_feedback(mongo_db, user_id=user_id, user_name=user_name, score=score)
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    text_with_quick_reply("感謝你的回饋！已收到～"),
+                )
+            except Exception:
+                traceback.print_exc()
+                try:
+                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply("回饋紀錄失敗，但不影響使用。謝謝你！"))
+                except Exception:
+                    pass
+            return
+
         # 測驗選項：使用者點擊 A/B/C 按鈕（Postback）
         if data.startswith("quiz_choice="):
             choice = data.split("=", 1)[1].strip().upper()

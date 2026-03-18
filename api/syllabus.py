@@ -130,7 +130,7 @@ def _get_lectures_with_metadata():
     """
     從 config 載入課綱。優先使用 syllabus_full.json（含 end_time、has_handout）；
     否則使用 syllabus.json。
-    每筆為 dict：date, title, lecturer, meeting_link, meeting_number, password,
+    每筆為 dict：date, title, lecturer,
     has_lecture_materials (或 has_handout), end_hour, end_minute, keywords。
     """
     full_cfg = _load_syllabus_full_config()
@@ -145,9 +145,6 @@ def _get_lectures_with_metadata():
             d = datetime.strptime(lec["date"], "%Y-%m-%d").date()
             title = lec.get("title", "")
             lecturer = lec.get("lecturer", "") or default_meeting.get("lecturer", "課程助教")
-            meeting_link = lec.get("meeting_link") or default_meeting.get("meeting_link", "")
-            meeting_number = lec.get("meeting_number") or default_meeting.get("meeting_number", "")
-            password = lec.get("password") or default_meeting.get("password", "")
             has_materials = bool(lec.get("has_lecture_materials", False))
             keywords = lec.get("keywords", [])
             entries.append({
@@ -155,9 +152,6 @@ def _get_lectures_with_metadata():
                 "date_str": lec["date"],
                 "title": title,
                 "lecturer": lecturer,
-                "meeting_link": meeting_link,
-                "meeting_number": meeting_number,
-                "password": password,
                 "has_lecture_materials": has_materials,
                 "end_hour": _DEFAULT_END_HOUR,
                 "end_minute": _DEFAULT_END_MINUTE,
@@ -183,26 +177,12 @@ def _get_lectures_from_full(full_cfg):
             lecturer = (lec.get("lecturer") or default_meeting.get("lecturer") or "").strip()
             if lecturer == "手動輸入":
                 lecturer = "（待填入）"
-            meeting_link = (lec.get("meeting_link") or default_meeting.get("meeting_link") or "").strip()
-            if meeting_link == "手動輸入":
-                meeting_link = ""
-            else:
-                meeting_link = _extract_url_from_markdown_link(meeting_link)
-            meeting_number = (lec.get("meeting_number") or default_meeting.get("meeting_number") or "").strip()
-            if meeting_number == "手動輸入":
-                meeting_number = ""
-            password = (lec.get("password") or default_meeting.get("password") or "").strip()
-            if password == "手動輸入":
-                password = ""
             has_handout = bool(lec.get("has_handout", False))
             entries.append({
                 "date": d,
                 "date_str": lec["date"],
                 "title": topic or "（待填入）",
                 "lecturer": lecturer or "（待填入）",
-                "meeting_link": meeting_link,
-                "meeting_number": meeting_number,
-                "password": password,
                 "has_lecture_materials": has_handout,
                 "end_hour": end_h,
                 "end_minute": end_m,
@@ -348,28 +328,6 @@ def build_course_inquiry_flex(openai_client, now=None):
                 {"type": "text", "text": f"講師：{display_lec['lecturer']}", "wrap": True, "size": "xs", "color": "#666666"},
             ],
         }
-        if display_lec.get("meeting_link"):
-            sec_course["contents"].append({
-                "type": "button",
-                "style": "link",
-                "action": {"type": "uri", "label": "加入會議", "uri": display_lec["meeting_link"]},
-            })
-        if display_lec.get("meeting_number"):
-            sec_course["contents"].append({
-                "type": "text",
-                "text": f"會議號：{display_lec['meeting_number']}",
-                "wrap": True,
-                "size": "xs",
-                "color": "#666666",
-            })
-        if display_lec.get("password"):
-            sec_course["contents"].append({
-                "type": "text",
-                "text": f"密碼：{display_lec['password']}",
-                "wrap": True,
-                "size": "xs",
-                "color": "#666666",
-            })
         body_contents.append(sec_course)
         body_contents.append({"type": "separator"})
 

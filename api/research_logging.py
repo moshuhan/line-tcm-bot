@@ -18,6 +18,7 @@ COLL_USERS = "users"
 COLL_INTERACTIONS = "interactions"
 COLL_QUIZ_RESULTS = "quiz_results"
 COLL_FEEDBACK = "feedback"
+COLL_STUDENT_FEEDBACK = "StudentFeedback"
 
 # 模式 / 測驗類型
 MODES = ("QA", "Speaking", "Writing")
@@ -226,6 +227,30 @@ def log_interaction(
     except Exception as e:
         print(f"[research_logging] log_interaction error: {e}")
         return None
+
+
+def log_student_feedback(db, user_id, user_name, score):
+    """
+    寫入一筆 StudentFeedback。
+    欄位：timestamp, userName, userId, score
+    """
+    if not db or not user_id:
+        return
+    try:
+        s = int(score)
+        if s < 1 or s > 5:
+            return
+    except (TypeError, ValueError):
+        return
+    try:
+        db[COLL_STUDENT_FEEDBACK].insert_one({
+            "timestamp": datetime.now(timezone.utc),
+            "userName": (user_name or "").strip()[:200] or None,
+            "userId": _decode(user_id),
+            "score": s,
+        })
+    except Exception as e:
+        print(f"[research_logging] log_student_feedback error: {e}")
 
 
 def update_interaction_quiz_result(
