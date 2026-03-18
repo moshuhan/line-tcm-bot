@@ -375,19 +375,35 @@ def _generate_tts_and_store(sentence, voice=None):
 def send_course_inquiry_flex(user_id, reply_token=None):
     """發送課務查詢 Flex Message（含當週/下週切換、AI 重點、評量、重要日期）。reply_token 有值則 reply，否則 push。"""
     bubble = build_course_inquiry_flex(client)
-    flex_msg = FlexSendMessage(
-        alt_text="📋 課務查詢與本週重點",
-        contents=bubble,
-        quick_reply=quick_reply_items(),
-    )
+    flex_msg = FlexSendMessage(alt_text="📋 課務查詢與本週重點", contents=bubble, quick_reply=quick_reply_items())
+    # 與星等回饋併送時，避免「同一個 reply 內多則訊息都帶 quick_reply」造成 LINE API 失敗
+    flex_msg_no_qr = FlexSendMessage(alt_text="📋 課務查詢與本週重點", contents=bubble)
     # 課務助教：回覆後自動詢問滿意度（測試期間不做 24h 節流）
     feedback_msg = _build_course_feedback_message()
     if reply_token:
-        # 以同一個 reply_token 一次送出兩則訊息，避免 reply 後的 push 遺失
-        line_bot_api.reply_message(reply_token, [flex_msg, feedback_msg])
+        # 以同一個 reply_token 一次送出兩則訊息；quick reply 只放在最後一則（feedback）
+        try:
+            line_bot_api.reply_message(reply_token, [flex_msg_no_qr, feedback_msg])
+        except Exception as e:
+            print(f">>> DEBUG: send_course_inquiry_flex reply_message failed err={e}")
+            # fallback：至少回覆課務查詢，回饋改用 push
+            try:
+                line_bot_api.reply_message(reply_token, flex_msg)
+            except Exception as e2:
+                print(f">>> DEBUG: send_course_inquiry_flex fallback reply flex failed err={e2}")
+            try:
+                line_bot_api.push_message(user_id, feedback_msg)
+            except Exception:
+                pass
     else:
-        line_bot_api.push_message(user_id, flex_msg)
-        line_bot_api.push_message(user_id, feedback_msg)
+        try:
+            line_bot_api.push_message(user_id, flex_msg)
+        except Exception as e:
+            print(f">>> DEBUG: send_course_inquiry_flex push flex failed err={e}")
+        try:
+            line_bot_api.push_message(user_id, feedback_msg)
+        except Exception as e:
+            print(f">>> DEBUG: send_course_inquiry_flex push feedback failed err={e}")
 
 # --- QuickReply ---
 def quick_reply_items():
