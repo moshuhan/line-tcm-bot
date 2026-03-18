@@ -380,13 +380,14 @@ def send_course_inquiry_flex(user_id, reply_token=None):
         contents=bubble,
         quick_reply=quick_reply_items(),
     )
+    # 課務助教：回覆後自動詢問滿意度（測試期間不做 24h 節流）
+    feedback_msg = _build_course_feedback_message()
     if reply_token:
-        line_bot_api.reply_message(reply_token, flex_msg)
+        # 以同一個 reply_token 一次送出兩則訊息，避免 reply 後的 push 遺失
+        line_bot_api.reply_message(reply_token, [flex_msg, feedback_msg])
     else:
         line_bot_api.push_message(user_id, flex_msg)
-
-    # 課務助教：回覆後自動詢問滿意度（同一使用者 24 小時內不重複詢問）
-    _maybe_send_course_feedback_prompt(user_id)
+        line_bot_api.push_message(user_id, feedback_msg)
 
 # --- QuickReply ---
 def quick_reply_items():
@@ -429,43 +430,15 @@ def _mark_feedback_asked(user_id):
     return
 
 
-def _maybe_send_course_feedback_prompt(user_id, reply_token=None):
-    if not _should_ask_feedback(user_id):
-        return
-    _mark_feedback_asked(user_id)
-    bubble = {
-        "type": "bubble",
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": [
-                {"type": "text", "text": "感謝您的使用！", "weight": "bold", "size": "lg", "wrap": True},
-                {"type": "text", "text": "請問您對這次的助教回覆滿意嗎？", "wrap": True, "size": "sm"},
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "action": {
-                        "type": "uri",
-                        "label": "📝 填寫詳細意見",
-                        "uri": "https://forms.gle/xUpm5yZSvzEZ6zMh6",
-                    },
-                },
-            ],
-        },
-    }
-    msg = FlexSendMessage(
-        alt_text="回饋：請為本次助教回覆打分",
-        contents=bubble,
+def _build_course_feedback_message():
+    """
+    課務助教回覆後的回饋訊息（測試用：每次都送）。
+    星等用 Quick Reply（postback），表單連結直接放在文字內。
+    """
+    return TextSendMessage(
+        text="感謝您的使用！歡迎填寫表單讓我們知道你的意見！https://forms.gle/xUpm5yZSvzEZ6zMh6。",
         quick_reply=quick_reply_feedback_stars(),
     )
-    try:
-        if reply_token:
-            line_bot_api.reply_message(reply_token, msg)
-        else:
-            line_bot_api.push_message(user_id, msg)
-    except Exception:
-        pass
 
 def quick_reply_speak_practice():
     """口說練習：要再練習下一句嗎？[練習下一句] [結束練習]。"""
