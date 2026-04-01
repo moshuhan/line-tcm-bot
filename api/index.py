@@ -304,23 +304,60 @@ def _evaluate_speech(transcript):
             max_tokens=250,
         )
         raw_text = (resp.choices[0].message.content or "").strip()
-        for block in (raw_text.split("```"), [raw_text]):
-            for raw in block:
-                raw = raw.strip()
-                if raw.startswith("{"):
-                    try:
-                        obj = json.loads(raw.split("```")[0].strip().split("\n")[0])
-                        status = (obj.get("status") or "Correct").strip()
-                        if status not in ("Correct", "NeedsImprovement"):
-                            status = "Correct" if obj.get("correct", True) else "NeedsImprovement"
-                        feedback = (obj.get("feedback") or "").strip()[:400]
-                        corrected = (obj.get("corrected") or "").strip()[:500]
-                        return status, feedback, corrected
-                    except Exception:
-                        pass
+        # 嘗試從 code block 或純文字中提取 JSON
+        candidates = []
+        if "```" in raw_text:
+            for seg in raw_text.split("```"):
+                seg = seg.strip().lstrip("json").strip()
+                if seg.startswith("{"):
+                    candidates.append(seg)
+        candidates.append(raw_text)
+        for candidate in candidates:
+            try:
+                obj = json.loads(candidate)
+                status = (obj.get("status") or "Correct").strip()
+                if status not in ("Correct", "NeedsImprovement"):
+                    status = "Correct" if obj.get("correct", True) else "NeedsImprovement"
+                feedback = (obj.get("feedback") or "").strip()[:400]
+                corrected = (obj.get("corrected") or "").strip()[:500]
+                return status, feedback, corrected
+            except Exception:
+                pass
     except Exception:
         traceback.print_exc()
     return "Correct", "", ""
+
+
+def _generate_next_practice_sentence(prev_transcript=""):
+    """
+    依據使用者上一句的主題，動態生成一句難度略高的中醫英文練習句。
+    失敗時回傳 None，由呼叫端決定是否略過。
+    """
+    try:
+        context_hint = f'The student just practiced: "{prev_transcript.strip()[:200]}".\n' if (prev_transcript or "").strip() else ""
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a TCM (Traditional Chinese Medicine) English speaking coach. "
+                        "Generate ONE English sentence for the student to practice next. "
+                        "Requirements: related to TCM concepts, slightly more challenging than the previous sentence, "
+                        "natural spoken English, 10-20 words. "
+                        "Return ONLY the sentence itself, no quotation marks, no explanation."
+                    ),
+                },
+                {"role": "user", "content": f"{context_hint}Generate the next practice sentence."},
+            ],
+            max_tokens=60,
+            temperature=0.8,
+        )
+        sentence = (resp.choices[0].message.content or "").strip().strip('"').strip("'")
+        return sentence if sentence else None
+    except Exception:
+        return None
+
 
 def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
     """上傳 TTS 語音至 Cloudinary（BytesIO 串流、video 資源型別優化音訊），回傳 (secure_url, duration_ms)。"""
@@ -1601,10 +1638,12 @@ def _process_voice_sync(user_id, message_id):
         if mode == "speaking":
             status, feedback, corrected_text = _evaluate_speech(transcript_text)
             if status == "Correct":
-                line_bot_api.push_message(
-                    user_id,
-                    text_with_quick_reply_speak_practice("發音非常標準！太棒了！\n\n要再練習下一句嗎？"),
-                )
+                next_sentence = _generate_next_practice_sentence(transcript_text)
+                if next_sentence:
+                    msg = f"發音非常標準！太棒了！\n\n💡 建議下一句：\n「{next_sentence}」\n\n直接傳語音跟著唸，或錄你自己想練習的句子都可以！"
+                else:
+                    msg = "發音非常標準！太棒了！\n\n要再練習下一句嗎？"
+                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(msg))
                 print(f"[VOICE] done speaking Correct")
                 return
             line_bot_api.push_message(
@@ -2284,9 +2323,14 @@ def handle_message(event):
         if user_text == "練習下一句":
             mode = _safe_get_mode(user_id)
             if mode == "speaking":
+                next_sentence = _generate_next_practice_sentence()
+                if next_sentence:
+                    msg = f"💡 建議練習這句：\n「{next_sentence}」\n\n傳語音跟著唸，或錄你自己想練習的句子都可以！"
+                else:
+                    msg = "請傳送語音訊息開始練習～我會幫你分析發音與文法。"
                 line_bot_api.reply_message(
                     event.reply_token,
-                    text_with_quick_reply_speak_practice("請傳送語音訊息開始練習～我會幫你分析發音與文法。\n\n要再練習下一句嗎？"),
+                    text_with_quick_reply_speak_practice(msg),
                 )
                 return
         if user_text == "結束練習":
