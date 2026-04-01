@@ -1211,7 +1211,7 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         # QA → Quiz：改為非同步背景創題，不阻塞答復流程。
         # 先立即回覆答案（reply），測驗稍後非同步 push。
         if ENABLE_QUIZ_GENERATION:
-            threading.Thread(target=_process_quiz_sync, args=(user_id, base_reply), daemon=True).start()
+            threading.Thread(target=_process_quiz_sync, args=(user_id, base_reply, "en" if is_eng else "zh"), daemon=True).start()
 
         # 回覆：只回覆答案（無測驗訊息），根據 FORCE_PUSH_MODE 決定是否 push。
         ai_msg = text_with_quick_reply(ai_reply)
@@ -1652,17 +1652,16 @@ def _process_voice_sync(user_id, message_id):
             pass
 
 
-def _process_quiz_sync(user_id, context):
+def _process_quiz_sync(user_id, context, language="zh"):
     """
     依據中醫回答內容 context 產生三選一小測驗並 push 給使用者。
     先以同步 redis.set 寫入 state 與 mode（TTL 1 小時），驗證後再送題目。
+    language 由呼叫端傳入（"en"/"zh"），避免 race condition。
     """
     if not (context or "").strip():
         return
     try:
-        # Get user's language preference before generating quiz
-        user_lang = _get_user_language(user_id)
-        quiz = generate_mcq_quiz(client, context, language=user_lang)
+        quiz = generate_mcq_quiz(client, context, language=language)
     except Exception:
         traceback.print_exc()
         quiz = None
@@ -1700,8 +1699,7 @@ def _process_quiz_sync(user_id, context):
             )
             set_quiz_pending(redis, user_id, quiz.get("question", ""))
             print(f"DEBUG: Successfully updated {user_id} to quiz mode")
-        user_lang = _get_user_language(user_id)
-        if user_lang == "en":
+        if language == "en":
             quiz_text = (
                 "——\n📝 Quiz\n"
                 + quiz["question"]
