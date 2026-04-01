@@ -274,6 +274,7 @@ VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 FORCE_PUSH_MODE = os.getenv("LINE_FORCE_PUSH", "true").strip().lower() in ("1", "true", "yes", "on")
+ENABLE_QUIZ_GENERATION = os.getenv("ENABLE_QUIZ_GENERATION", "true").strip().lower() in ("1", "true", "yes", "on")
 
 # --- 口說練習：糾錯與分析大腦 ---
 def _evaluate_speech(transcript):
@@ -926,6 +927,71 @@ try:
 except Exception:
     pass
 
+def _log_interaction_to_mongodb_async(user_id, text, ai_reply, is_eng):
+    """
+    背景非同步記錄：chat_history + interaction + research logging。
+    避免阻塞主流程。
+    """
+    if mongo_db is None:
+        print(">>> LOGGING ERROR: db instance is None, skipping async logging")
+        return
+    try:
+        # 取得 LINE 使用者名稱
+        user_name = None
+        try:
+            prof = line_bot_api.get_profile(user_id)
+            user_name = getattr(prof, "display_name", None)
+        except Exception:
+            user_name = None
+
+        # 寫入 chat_history
+        mongo_db.chat_history.insert_one(
+            {
+                "user_id": (user_name or "").strip()[:200] or user_id,
+                "userId": user_id,
+                "userName": (user_name or "").strip()[:200] or None,
+                "question": text,
+                "answer": ai_reply,
+                "timestamp": datetime.now(timezone.utc),
+                "source": "unified_loop",
+            }
+        )
+        print(f">>> MONGODB: Successfully logged message from {user_id}")
+
+        # 寫入研究資料
+        try:
+            ensure_user(mongo_db, user_id)
+            count_before = get_interaction_count(mongo_db, user_id)
+            last_ts = get_last_interaction_timestamp(mongo_db, user_id)
+            now_utc = datetime.now(timezone.utc)
+            session_duration_sec = (now_utc - last_ts).total_seconds() if last_ts else 0
+            follow_up = get_follow_up_count_within_sec(mongo_db, user_id, within_sec=1800)
+            intent_tag, complexity_score = classify_qa_intent_and_complexity(client, text)
+            interaction_id = log_interaction(
+                mongo_db,
+                user_id,
+                "QA",
+                text,
+                ai_reply,
+                intent_tag=intent_tag,
+                complexity_score=complexity_score,
+                session_duration_sec=session_duration_sec,
+                follow_up_count=follow_up,
+                feedback_requested=((count_before + 1) % 20 == 0),
+            )
+            # Redis：寫入 quiz_interaction_id，供測驗作答時更新
+            if interaction_id and redis:
+                try:
+                    redis.set(f"quiz_interaction_id:{user_id}", str(interaction_id), ex=3600)
+                except Exception:
+                    pass
+            run_analytics_middleware(mongo_db, user_id)
+        except Exception as e:
+            print(f">>> RESEARCH LOGGING ERROR: {e}")
+    except Exception as e:
+        print(f">>> MONGODB ERROR: Failed to log message: {e}")
+
+
 def _tcm_openai_reply(user_id, text, reply_token=None):
     """
     以 tcm_master_knowledge.json 為 context，用 OpenAI gpt-4o-mini 生成回覆。
@@ -1115,82 +1181,27 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         # 設定使用者語言偏好，供後續測驗與複習訊息曲線切換
         _set_user_language(user_id, "en" if is_eng else "zh")
 
-        # 研究完整性：先寫入 MongoDB（含 intent_tag）並設定 quiz_interaction_id，再回覆使用者，避免 race
-        interaction_id = None
-        if mongo_db is not None:
-            print(f">>> LOGGING: Sending data to MongoDB for {user_id}...")
-            try:
-                # 取得 LINE 使用者名稱（失敗不影響寫入）
-                user_name = None
-                try:
-                    prof = line_bot_api.get_profile(user_id)
-                    user_name = getattr(prof, "display_name", None)
-                except Exception:
-                    user_name = None
-                mongo_db.chat_history.insert_one(
-                    {
-                        # 依需求：chat_history 的 user_id 欄位改存 user name
-                        "user_id": (user_name or "").strip()[:200] or user_id,
-                        # 保留真實 LINE userId 供追溯/除錯
-                        "userId": user_id,
-                        "userName": (user_name or "").strip()[:200] or None,
-                        "question": text,
-                        "answer": ai_reply,
-                        "timestamp": datetime.now(timezone.utc),
-                        "source": "unified_loop",
-                    }
-                )
-                print(f">>> MONGODB: Successfully logged message from {user_id}")
-            except Exception as e:
-                print(f">>> MONGODB ERROR: Failed to log message: {e}")
-            try:
-                ensure_user(mongo_db, user_id)
-                count_before = get_interaction_count(mongo_db, user_id)
-                last_ts = get_last_interaction_timestamp(mongo_db, user_id)
-                now_utc = datetime.now(timezone.utc)
-                session_duration_sec = (now_utc - last_ts).total_seconds() if last_ts else 0
-                follow_up = get_follow_up_count_within_sec(mongo_db, user_id, within_sec=1800)
-                intent_tag, complexity_score = classify_qa_intent_and_complexity(client, text)
-                print(f">>> DEBUG: Saving intent_tag={intent_tag}")
-                interaction_id = log_interaction(
-                    mongo_db,
-                    user_id,
-                    "QA",
-                    text,
-                    ai_reply,
-                    intent_tag=intent_tag,
-                    complexity_score=complexity_score,
-                    session_duration_sec=session_duration_sec,
-                    follow_up_count=follow_up,
-                    feedback_requested=((count_before + 1) % 20 == 0),
-                )
-                # Redis：insert_one 成功後立即寫入 quiz_interaction_id，供測驗作答時更新 quiz_data
-                if interaction_id and redis:
-                    try:
-                        redis.set(f"quiz_interaction_id:{user_id}", str(interaction_id), ex=3600)
-                    except Exception:
-                        pass
-                run_analytics_middleware(mongo_db, user_id)
-            except Exception as e:
-                print(f">>> RESEARCH LOGGING ERROR: {e}")
-        else:
-            print(">>> LOGGING ERROR: db instance is None, check boot logs.")
+        # MongoDB 寫入改為背景非同步（不阻塞答復流程）
+        threading.Thread(
+            target=_log_interaction_to_mongodb_async,
+            args=(user_id, text, ai_reply, is_eng),
+            daemon=True,
+        ).start()
 
-        # QA → Quiz：改為非同步背景創題，不阻塞答復流程，減少延遲等待。
-        threading.Thread(target=_process_quiz_sync, args=(user_id, base_reply), daemon=True).start()
+        # QA → Quiz：改為非同步背景創題，不阻塞答復流程。
+        # 先立即回覆答案（reply），測驗稍後非同步 push。
+        if ENABLE_QUIZ_GENERATION:
+            threading.Thread(target=_process_quiz_sync, args=(user_id, base_reply), daemon=True).start()
 
-        # 回覆：根據 FORCE_PUSH_MODE 決定是否 push；為避免使用率限額可切回 reply。
+        # 回覆：只回覆答案（無測驗訊息），根據 FORCE_PUSH_MODE 決定是否 push。
         ai_msg = text_with_quick_reply(ai_reply)
-        msgs = [ai_msg] + ([quiz_msg] if quiz_msg else [])
         try:
             if FORCE_PUSH_MODE:
-                for m in msgs:
-                    line_bot_api.push_message(user_id, m)
+                line_bot_api.push_message(user_id, ai_msg)
             elif reply_token:
-                line_bot_api.reply_message(reply_token, msgs)
+                line_bot_api.reply_message(reply_token, ai_msg)
             else:
-                for m in msgs:
-                    line_bot_api.push_message(user_id, m)
+                line_bot_api.push_message(user_id, ai_msg)
         except Exception as e:
             print(f">>> DEBUG: tcm reply/push failed err={e}")
 
