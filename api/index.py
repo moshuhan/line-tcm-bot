@@ -927,6 +927,29 @@ try:
 except Exception:
     pass
 
+
+def _start_loading_indicator(user_id, loading_seconds=20):
+    """
+    呼叫 LINE Chat Loading API，在聊天室顯示打字動畫（三個點）。
+    不消耗 push 額度，動畫最長持續 loading_seconds 秒後自動消失。
+    失敗不影響主流程。
+    """
+    token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+    if not token or not user_id:
+        return
+    try:
+        requests.post(
+            "https://api.line.me/v2/bot/chat/loading/start",
+            json={"chatId": user_id, "loadingSeconds": loading_seconds},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            timeout=3,
+        )
+    except Exception as e:
+        print(f"[LOADING] failed err={e}")
+
 def _log_interaction_to_mongodb_async(user_id, text, ai_reply, is_eng):
     """
     背景非同步記錄：chat_history + interaction + research logging。
@@ -1178,9 +1201,6 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         base_reply = _ensure_sources_section(base_reply, english=is_eng)
         ai_reply = base_reply + disclaimer
 
-        # 設定使用者語言偏好，供後續測驗與複習訊息曲線切換
-        _set_user_language(user_id, "en" if is_eng else "zh")
-
         # MongoDB 寫入改為背景非同步（不阻塞答復流程）
         threading.Thread(
             target=_log_interaction_to_mongodb_async,
@@ -1206,6 +1226,8 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             print(f">>> DEBUG: tcm reply/push failed err={e}")
 
         try:
+            # 設定使用者語言偏好（reply 之後，不在 critical path）
+            _set_user_language(user_id, "en" if is_eng else "zh")
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
             set_last_assistant_message(redis, user_id, ai_reply)
@@ -1638,7 +1660,9 @@ def _process_quiz_sync(user_id, context):
     if not (context or "").strip():
         return
     try:
-        quiz = generate_mcq_quiz(client, context)
+        # Get user's language preference before generating quiz
+        user_lang = _get_user_language(user_id)
+        quiz = generate_mcq_quiz(client, context, language=user_lang)
     except Exception:
         traceback.print_exc()
         quiz = None
@@ -2290,6 +2314,7 @@ def handle_message(event):
 
         # 統一 TCM 問答：tcm / quiz 一律走同一邏輯（避免 push：直接用 reply_token 回覆最終結果）
         if mode in ("tcm", "quiz"):
+            _start_loading_indicator(user_id)
             if not _tcm_openai_reply(user_id, user_text, reply_token=event.reply_token):
                 try:
                     line_bot_api.reply_message(event.reply_token, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))

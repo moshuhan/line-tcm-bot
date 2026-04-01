@@ -157,15 +157,41 @@ def set_mcq_quiz_data(redis_client, user_id, question, options, answer, explanat
         pass
 
 
-def generate_mcq_quiz(openai_client, context):
+def generate_mcq_quiz(openai_client, context, language="zh"):
     """
-    根據助教剛才的回答內容生成一題三選一小測驗。
-    回傳 dict: {question, options, answer, explanation}
+    Generate a 3-choice multiple-choice quiz based on the given context.
+    Language: "en" for English, "zh" for Chinese (默認中文)
+    Return dict: {question, options, answer, explanation}
     """
     if not (context or "").strip():
         return None
     try:
-        prompt = f"""
+        if language == "en":
+            # English prompt
+            system_msg = "You are a TCM (Traditional Chinese Medicine) education assistant. Generate a 3-choice multiple-choice question in English."
+            prompt = f"""
+Based on the following explanation content that was just provided to a student, create ONE multiple-choice quiz question with 3 options:
+
+[Explanation Content]
+{(context or "")[:600]}
+
+[Requirements]
+1. Focus the question on one key concept or main point from the explanation above.
+2. Provide exactly 3 options, labeled as (A), (B), (C), with only one correct answer.
+3. All 3 options should seem reasonable and not too obvious.
+4. Provide 1-3 sentences of explanation describing why the correct answer is right and what's wrong with the other options.
+5. Return STRICTLY in JSON format with NO extra text, like this example:
+{{
+  "question": "What is ……?",
+  "options": ["(A) ……", "(B) ……", "(C) ……"],
+  "answer": "A",
+  "explanation": "……"
+}}
+""".strip()
+        else:
+            # Chinese prompt (default)
+            system_msg = "你是中醫課程助教，負責依照說明內容出選擇題。"
+            prompt = f"""
 你是一位中醫課程助教，剛剛已經用以下「說明內容」回答了學生的問題。
 現在請你「在回答完後，根據上述內容出一題三選一的選擇題」：
 
@@ -189,7 +215,7 @@ def generate_mcq_quiz(openai_client, context):
         resp = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "你是中醫課程助教，負責依照說明內容出選擇題。"},
+                {"role": "system", "content": system_msg},
                 {"role": "user", "content": prompt},
             ],
             max_tokens=200,
