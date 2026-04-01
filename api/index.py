@@ -264,12 +264,14 @@ if _cloudinary_configured:
 
 # 安全聲明：涉及中醫診斷之回覆必須附加（詳細回答 + 參考出處後加此句）
 SAFETY_DISCLAIMER = "\n\n以上資料僅供參考，若有身體不適請務必尋求專業醫師診斷與建議。"
+SAFETY_DISCLAIMER_EN = "\n\nThe above information is for reference only. Please seek professional medical advice if you have any health concerns."
 
 VOICE_COACH_TTS_VOICE = "shimmer"
 TTS_SPEED = 0.8  # shadowing 語音 0.8 倍速，較慢易於跟讀
 VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
+FORCE_PUSH_MODE = os.getenv("LINE_FORCE_PUSH", "true").strip().lower() in ("1", "true", "yes", "on")
 
 # --- 口說練習：糾錯與分析大腦 ---
 def _evaluate_speech(transcript):
@@ -848,9 +850,41 @@ def _ensure_sources_section(text: str) -> str:
     t = (text or "").strip()
     if not t:
         return t
-    if "資料來源：" in t:
+    if "資料來源：" in t or "Source:" in t or "Sources:" in t:
         return t
+    # 保留原本中文行為；英文模式也用 Sources 標註，可交雜
     return t + "\n\n資料來源：無（資料庫未收錄/不足以支持）"
+
+
+def _is_english_input(text: str) -> bool:
+    t = (text or "").strip()
+    if not t:
+        return False
+    has_latin = bool(re.search(r"[A-Za-z]", t))
+    has_cjk = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF]", t))
+    return has_latin and not has_cjk
+
+
+def _maybe_send_review_prompt(user_id, reply_token=None):
+    weak = get_weak_categories(redis, user_id, min_count=2)
+    if not weak:
+        return False
+    if (time.time() - get_last_review_ask(redis, user_id)) <= 7 * 24 * 3600:
+        return False
+    category = next(iter(weak.keys()), None)
+    if not category:
+        return False
+    set_last_review_ask(redis, user_id)
+    set_pending_review_category(redis, user_id, category)
+    review_msg = text_with_quick_reply_review_ask(f"發現你對「{category}」這部分較不熟，需要幫你整理複習筆記嗎？")
+    try:
+        if FORCE_PUSH_MODE or not reply_token:
+            line_bot_api.push_message(user_id, review_msg)
+        else:
+            line_bot_api.reply_message(reply_token, review_msg)
+    except Exception as e:
+        print(f">>> DEBUG: review prompt failed err={e}")
+    return True
 
 # 模組載入時預熱 TCM 快取，減少首次問答延遲
 try:
@@ -1022,18 +1056,28 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
     if not ctx or not ctx.strip():
         return False
     try:
+        is_eng = _is_english_input(txt)
+        if is_eng:
+            system_prompt = _TCM_SYSTEM_PROMPT + "\n\nPlease answer in English."
+            disclaimer = SAFETY_DISCLAIMER_EN
+            user_question = f"[Context]\n{ctx}\n\n[Question]\n{txt}\n\nPlease answer in English based on the context, with a clear structure and source references."
+        else:
+            system_prompt = _TCM_SYSTEM_PROMPT
+            disclaimer = SAFETY_DISCLAIMER
+            user_question = f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料精準回答（可適度詳盡），跳過冗長開場白，回答末尾請簡要註明參考資料或出處。"
+
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": _TCM_SYSTEM_PROMPT},
-                {"role": "user", "content": f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料精準回答（可適度詳盡），跳過冗長開場白，回答末尾請簡要註明參考資料或出處。"},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_question},
             ],
             max_tokens=400,
             temperature=0.2,
         )
         base_reply = (resp.choices[0].message.content or "").strip()[:800]
         base_reply = _ensure_sources_section(base_reply)
-        ai_reply = base_reply + SAFETY_DISCLAIMER
+        ai_reply = base_reply + disclaimer
 
         # 研究完整性：先寫入 MongoDB（含 intent_tag）並設定 quiz_interaction_id，再回覆使用者，避免 race
         interaction_id = None
@@ -1133,17 +1177,20 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         except Exception:
             traceback.print_exc()
 
-        # 回覆：優先 reply_message；若無 reply_token 才嘗試 push（可能會受月額度限制）
+        # 回覆：根據 FORCE_PUSH_MODE 決定是否 push；為避免使用率限額可切回 reply。
         ai_msg = text_with_quick_reply(ai_reply)
         msgs = [ai_msg] + ([quiz_msg] if quiz_msg else [])
         try:
-            if reply_token:
+            if FORCE_PUSH_MODE:
+                for m in msgs:
+                    line_bot_api.push_message(user_id, m)
+            elif reply_token:
                 line_bot_api.reply_message(reply_token, msgs)
             else:
                 for m in msgs:
                     line_bot_api.push_message(user_id, m)
         except Exception as e:
-            print(f">>> DEBUG: tcm reply failed err={e}")
+            print(f">>> DEBUG: tcm reply/push failed err={e}")
 
         try:
             log_question(redis, user_id, text)
@@ -2143,27 +2190,26 @@ def handle_message(event):
             if cat:
                 note = generate_review_note(client, cat)
                 clear_weak_category(redis, user_id, cat)
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply(f"📝 【{cat}】複習筆記\n\n{note}"))
+                review_msg = text_with_quick_reply(f"📝 【{cat}】複習筆記\n\n{note}")
             else:
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("好的，有需要再跟我說～"))
+                review_msg = text_with_quick_reply("好的，有需要再跟我說～")
+            if FORCE_PUSH_MODE:
+                line_bot_api.push_message(user_id, review_msg)
+            else:
+                line_bot_api.reply_message(event.reply_token, review_msg)
             return
         if user_text == "不要複習筆記":
             clear_pending_review_category(redis, user_id)
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("好的，有需要再跟我說～"))
+            review_msg = text_with_quick_reply("好的，有需要再跟我說～")
+            if FORCE_PUSH_MODE:
+                line_bot_api.push_message(user_id, review_msg)
+            else:
+                line_bot_api.reply_message(event.reply_token, review_msg)
             return
 
-        # 主動複習：偵測到弱項且超過冷卻期 → 詢問是否整理複習筆記
-        weak = get_weak_categories(redis, user_id, min_count=2)
-        if weak and (time.time() - get_last_review_ask(redis, user_id)) > 7 * 24 * 3600:
-            category = next(iter(weak.keys()), None)
-            if category:
-                set_last_review_ask(redis, user_id)
-                set_pending_review_category(redis, user_id, category)
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_with_quick_reply_review_ask(f"發現你對「{category}」這部分較不熟，需要幫你整理複習筆記嗎？"),
-                )
-                return
+        # 主動複習：偵測到弱項且超過冷卻期（在中醫問答回覆後才詢問）
+        # 這裡不直接回覆，避免擋掉原本問題回答流程。
+        pass
 
         # 小測驗（舊題庫）：點擊「否」→ 友善回覆，保持一般問答模式
         if (not suppress_yes_no_command) and user_text == "否":
@@ -2214,6 +2260,8 @@ def handle_message(event):
                     line_bot_api.reply_message(event.reply_token, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
                 except Exception:
                     pass
+            # 七天後（冷卻）弱項檢查：先回答原問題，之後再詢問是否要複習筆記
+            _maybe_send_review_prompt(user_id, reply_token=None)
             return
 
         # 口說 / 寫作：依模式顯示載入訊息並走 Assistant API
