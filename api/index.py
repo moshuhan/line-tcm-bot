@@ -266,6 +266,8 @@ if _cloudinary_configured:
 SAFETY_DISCLAIMER = "\n\n以上資料僅供參考，若有身體不適請務必尋求專業醫師診斷與建議。"
 SAFETY_DISCLAIMER_EN = "\n\nThe above information is for reference only. Please seek professional medical advice if you have any health concerns."
 
+USER_LANGUAGE_KEY = "user_language:{user_id}"
+
 VOICE_COACH_TTS_VOICE = "shimmer"
 TTS_SPEED = 0.8  # shadowing 語音 0.8 倍速，較慢易於跟讀
 VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
@@ -845,15 +847,19 @@ _TCM_SYSTEM_PROMPT = """
 """.strip()
 
 
-def _ensure_sources_section(text: str) -> str:
-    """確保回覆末尾包含「資料來源：」區段（保底防漏）。"""
+def _ensure_sources_section(text: str, english: bool = False) -> str:
+    """確保回覆末尾包含來源區段（保底防漏）。"""
     t = (text or "").strip()
     if not t:
         return t
-    if "資料來源：" in t or "Source:" in t or "Sources:" in t:
-        return t
-    # 保留原本中文行為；英文模式也用 Sources 標註，可交雜
-    return t + "\n\n資料來源：無（資料庫未收錄/不足以支持）"
+    if english:
+        if "Source:" in t or "Sources:" in t:
+            return t
+        return t + "\n\nSources: none (not in knowledge base)"
+    else:
+        if "資料來源：" in t or "Source:" in t or "Sources:" in t:
+            return t
+        return t + "\n\n資料來源：無（資料庫未收錄/不足以支持）"
 
 
 def _is_english_input(text: str) -> bool:
@@ -863,6 +869,29 @@ def _is_english_input(text: str) -> bool:
     has_latin = bool(re.search(r"[A-Za-z]", t))
     has_cjk = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF]", t))
     return has_latin and not has_cjk
+
+
+def _set_user_language(user_id, lang):
+    if not redis or not user_id or not lang:
+        return
+    try:
+        redis.set(USER_LANGUAGE_KEY.format(user_id=user_id), lang, ex=7 * 24 * 3600)
+    except Exception:
+        pass
+
+
+def _get_user_language(user_id):
+    if not redis or not user_id:
+        return "zh"
+    try:
+        val = redis.get(USER_LANGUAGE_KEY.format(user_id=user_id))
+        if val is None:
+            return "zh"
+        if isinstance(val, bytes):
+            val = val.decode("utf-8", errors="replace")
+        return str(val or "zh").strip().lower() or "zh"
+    except Exception:
+        return "zh"
 
 
 def _maybe_send_review_prompt(user_id, reply_token=None):
@@ -876,7 +905,11 @@ def _maybe_send_review_prompt(user_id, reply_token=None):
         return False
     set_last_review_ask(redis, user_id)
     set_pending_review_category(redis, user_id, category)
-    review_msg = text_with_quick_reply_review_ask(f"發現你對「{category}」這部分較不熟，需要幫你整理複習筆記嗎？")
+    user_lang = _get_user_language(user_id)
+    if user_lang == "en":
+        review_msg = text_with_quick_reply_review_ask(f"I noticed you are less confident with '{category}'. Would you like a review note?")
+    else:
+        review_msg = text_with_quick_reply_review_ask(f"發現你對「{category}」這部分較不熟，需要幫你整理複習筆記嗎？")
     try:
         if FORCE_PUSH_MODE or not reply_token:
             line_bot_api.push_message(user_id, review_msg)
@@ -1076,8 +1109,11 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             temperature=0.2,
         )
         base_reply = (resp.choices[0].message.content or "").strip()[:800]
-        base_reply = _ensure_sources_section(base_reply)
+        base_reply = _ensure_sources_section(base_reply, english=is_eng)
         ai_reply = base_reply + disclaimer
+
+        # 設定使用者語言偏好，供後續測驗與複習訊息曲線切換
+        _set_user_language(user_id, "en" if is_eng else "zh")
 
         # 研究完整性：先寫入 MongoDB（含 intent_tag）並設定 quiz_interaction_id，再回覆使用者，避免 race
         interaction_id = None
@@ -1140,42 +1176,8 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         else:
             print(">>> LOGGING ERROR: db instance is None, check boot logs.")
 
-        # QA → Quiz：先生成測驗並寫入 Redis（送出訊息用 reply_message 併送，避免 push）
-        quiz_msg = None
-        try:
-            quiz = generate_mcq_quiz(client, base_reply)
-            if quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer"):
-                if redis:
-                    try:
-                        state_key = f"user_state:{user_id}"
-                        mode_key = _redis_user_mode_key(user_id)
-                        redis.set(state_key, STATE_QUIZ_WAITING, ex=3600)
-                        redis.set(mode_key, "quiz", ex=3600)
-                        quiz_id = secrets.token_hex(8)
-                        set_mcq_quiz_data(
-                            redis,
-                            user_id,
-                            quiz.get("question", ""),
-                            quiz.get("options", []),
-                            quiz.get("answer", ""),
-                            quiz.get("explanation", ""),
-                            category="其他",
-                            quiz_id=quiz_id,
-                        )
-                        set_quiz_pending(redis, user_id, quiz.get("question", ""))
-                        redis.set(f"quiz_sent_at:{user_id}", str(time.time()), ex=3600)
-                    except Exception:
-                        pass
-                quiz_text = (
-                    "——\n📝 小測驗\n"
-                    + quiz["question"]
-                    + "\n"
-                    + "\n".join(quiz["options"])
-                    + "\n\n(點選 A/B/C 作答，或直接輸入新問題繼續學習喔！)"
-                )
-                quiz_msg = TextSendMessage(text=quiz_text, quick_reply=quick_reply_quiz_choices())
-        except Exception:
-            traceback.print_exc()
+        # QA → Quiz：改為非同步背景創題，不阻塞答復流程，減少延遲等待。
+        threading.Thread(target=_process_quiz_sync, args=(user_id, base_reply), daemon=True).start()
 
         # 回覆：根據 FORCE_PUSH_MODE 決定是否 push；為避免使用率限額可切回 reply。
         ai_msg = text_with_quick_reply(ai_reply)
@@ -1663,13 +1665,23 @@ def _process_quiz_sync(user_id, context):
             )
             set_quiz_pending(redis, user_id, quiz.get("question", ""))
             print(f"DEBUG: Successfully updated {user_id} to quiz mode")
-        quiz_text = (
-            "——\n📝 小測驗\n"
-            + quiz["question"]
-            + "\n"
-            + "\n".join(quiz["options"])
-            + "\n\n(點選 A/B/C 作答，或直接輸入新問題繼續學習喔！)"
-        )
+        user_lang = _get_user_language(user_id)
+        if user_lang == "en":
+            quiz_text = (
+                "——\n📝 Quiz\n"
+                + quiz["question"]
+                + "\n"
+                + "\n".join(quiz["options"])
+                + "\n\n(Select A/B/C to answer, or send a new question to continue learning.)"
+            )
+        else:
+            quiz_text = (
+                "——\n📝 小測驗\n"
+                + quiz["question"]
+                + "\n"
+                + "\n".join(quiz["options"])
+                + "\n\n(點選 A/B/C 作答，或直接輸入新問題繼續學習喔！)"
+            )
         line_bot_api.push_message(
             user_id,
             TextSendMessage(text=quiz_text, quick_reply=quick_reply_quiz_choices()),
@@ -1824,15 +1836,27 @@ def _handle_quiz_answer(user_id, choice, reply_token=None):
         return
     correct = str(qd.get("answer") or "").strip().upper()
     explanation = (qd.get("explanation") or "").strip()
-    guidance = "希望這能幫助你更了解中醫！隨時可以再輸入新問題，我會繼續為你解答並出題喔！✨"
-    if choice == correct:
-        reply = "恭喜你答對了！👏\n\n你選對了，觀念掌握得不錯。\n\n" + guidance
+    user_lang = _get_user_language(user_id)
+    if user_lang == "en":
+        guidance = "Hope this helps you understand TCM better! Feel free to ask another question anytime, and I will continue to answer and generate quizzes for you. ✨"
+        if choice == correct:
+            reply = "Great job! 🎉\n\nYou got it right and your concept is solid.\n\n" + guidance
+        else:
+            reply = "Oops, not quite.\n\n"
+            reply += f"Correct answer: {correct}\n\n"
+            if explanation:
+                reply += f"Explanation:\n{explanation}\n\n"
+            reply += guidance
     else:
-        reply = "哎呀，答錯囉！\n\n"
-        reply += f"【正確答案】{correct}\n\n"
-        if explanation:
-            reply += f"【中醫概念說明】\n{explanation}\n\n"
-        reply += guidance
+        guidance = "希望這能幫助你更了解中醫！隨時可以再輸入新問題，我會繼續為你解答並出題喔！✨"
+        if choice == correct:
+            reply = "恭喜你答對了！👏\n\n你選對了，觀念掌握得不錯。\n\n" + guidance
+        else:
+            reply = "哎呀，答錯囉！\n\n"
+            reply += f"【正確答案】{correct}\n\n"
+            if explanation:
+                reply += f"【中醫概念說明】\n{explanation}\n\n"
+            reply += guidance
         try:
             record_weak_category(redis, user_id, (qd.get("category") or "其他"))
         except Exception:
