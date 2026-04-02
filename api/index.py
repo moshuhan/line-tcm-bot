@@ -1237,6 +1237,14 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         for turn in history:
             messages.append({"role": "user", "content": turn.get("u", "")})
             messages.append({"role": "assistant", "content": turn.get("a", "")})
+
+        # 有對話歷史（追問）時，要求先給重點再分項說明
+        if history:
+            if is_eng:
+                user_question += "\n\nFormat: start with a **Key Point** summary (1-2 sentences), then provide detailed breakdown in numbered points."
+            else:
+                user_question += "\n\n格式要求：先用 1-2 句話給出【重點摘要】，再分項條列詳細說明。"
+
         messages.append({"role": "user", "content": user_question})
 
         resp = client.chat.completions.create(
