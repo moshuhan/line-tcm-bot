@@ -2108,7 +2108,7 @@ def handle_message(event):
         suppress_yes_no_command = False
 
         # --- Rich Menu 按鈕：立即回覆，避免延遲 ---
-        if user_text == "中醫問答":
+        if user_text in ("中醫問答", "回到中醫問答"):
             try:
                 _set_cached_mode(user_id, "tcm")
                 if redis:
@@ -2166,18 +2166,6 @@ def handle_message(event):
                 line_bot_api.reply_message(
                     event.reply_token,
                     text_with_quick_reply_writing(REVISION_MODE_PROMPT),
-                )
-                return
-            if user_text == "回到中醫問答":
-                _set_cached_mode(user_id, "tcm")
-                if redis:
-                    try:
-                        redis.set(_redis_user_mode_key(user_id), "tcm")
-                    except Exception:
-                        pass
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_with_quick_reply("已切換回中醫問答模式，有什麼中醫問題都可以問我！"),
                 )
                 return
             line_bot_api.reply_message(
