@@ -2158,7 +2158,17 @@ def handle_message(event):
             return
 
         # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
-        current_mode = _safe_get_mode(user_id)
+        # 直接讀 Redis（繞過本地快取），避免 Vercel 多實例快取不同步導致誤判
+        current_mode = None
+        if redis:
+            try:
+                _v = redis.get(_redis_user_mode_key(user_id))
+                if _v:
+                    current_mode = (_v.decode("utf-8") if isinstance(_v, bytes) else str(_v)).strip()
+            except Exception:
+                pass
+        if not current_mode:
+            current_mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
         if current_mode == REVISION_MODE:
             print(f"[MODE] handle_message -> REVISION_MODE branch, skipping TCM Assistant")
