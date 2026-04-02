@@ -399,6 +399,44 @@ def get_last_assistant_message(redis_client, user_id):
         return None
 
 
+CONV_HISTORY_KEY = "conv_history:{user_id}"
+CONV_HISTORY_MAX_TURNS = 3   # 保留最近 3 輪（user + assistant 各一）
+CONV_HISTORY_TTL = 60 * 60   # 1 小時無對話後自動清除
+
+
+def append_conv_history(redis_client, user_id, user_msg, assistant_msg):
+    """將一輪對話（user + assistant）存入 Redis list，超過 MAX_TURNS 自動截頭。"""
+    if not redis_client:
+        return
+    try:
+        key = CONV_HISTORY_KEY.format(user_id=user_id)
+        turn = json.dumps({"u": (user_msg or "")[:500], "a": (assistant_msg or "")[:800]}, ensure_ascii=False)
+        redis_client.rpush(key, turn)
+        redis_client.ltrim(key, -CONV_HISTORY_MAX_TURNS, -1)
+        redis_client.expire(key, CONV_HISTORY_TTL)
+    except Exception:
+        pass
+
+
+def get_conv_history(redis_client, user_id):
+    """讀取對話歷史，回傳 list of {u, a}，最舊在前。"""
+    if not redis_client:
+        return []
+    try:
+        key = CONV_HISTORY_KEY.format(user_id=user_id)
+        items = redis_client.lrange(key, 0, -1) or []
+        result = []
+        for item in items:
+            raw = item.decode("utf-8") if isinstance(item, bytes) else str(item)
+            try:
+                result.append(json.loads(raw))
+            except Exception:
+                pass
+        return result
+    except Exception:
+        return []
+
+
 def generate_socratic_question(openai_client, last_interaction_context):
     """相容舊 API，改為呼叫 generate_dynamic_quiz。"""
     q, _, _ = generate_dynamic_quiz(openai_client, discussed_topic=None, last_context=last_interaction_context)

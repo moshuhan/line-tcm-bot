@@ -53,6 +53,8 @@ try:
         get_last_question,
         set_last_assistant_message,
         get_last_assistant_message,
+        append_conv_history,
+        get_conv_history,
         set_quiz_pending,
         get_quiz_pending,
         clear_quiz_pending,
@@ -111,6 +113,8 @@ except ImportError:
         get_last_question,
         set_last_assistant_message,
         get_last_assistant_message,
+        append_conv_history,
+        get_conv_history,
         set_quiz_pending,
         get_quiz_pending,
         clear_quiz_pending,
@@ -185,6 +189,8 @@ except ImportError:
         generate_review_quiz_from_interactions = lambda *a, **k: None
         log_student_feedback = lambda *a, **k: None
         classify_qa_learning_tags = lambda *a, **k: (None, None)
+        append_conv_history = lambda *a, **k: None
+        get_conv_history = lambda *a, **k: []
 
 # 1. 初始化
 app = Flask(__name__)
@@ -1225,12 +1231,17 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             disclaimer = SAFETY_DISCLAIMER
             user_question = f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料精準回答（可適度詳盡），跳過冗長開場白，回答末尾請簡要註明參考資料或出處。"
 
+        # 帶入最近 3 輪對話歷史，讓 GPT 能理解上下文追問
+        history = get_conv_history(redis, user_id)
+        messages = [{"role": "system", "content": system_prompt}]
+        for turn in history:
+            messages.append({"role": "user", "content": turn.get("u", "")})
+            messages.append({"role": "assistant", "content": turn.get("a", "")})
+        messages.append({"role": "user", "content": user_question})
+
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_question},
-            ],
+            messages=messages,
             max_tokens=400,
             temperature=0.2,
         )
@@ -1268,6 +1279,7 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             log_question(redis, user_id, text)
             set_last_question(redis, user_id, text)
             set_last_assistant_message(redis, user_id, ai_reply)
+            append_conv_history(redis, user_id, txt, base_reply)
         except Exception:
             pass
 
