@@ -1288,7 +1288,7 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            max_tokens=400,
+            max_tokens=800,
             temperature=0.2,
         )
         base_reply = (resp.choices[0].message.content or "").strip()[:800]
@@ -2497,7 +2497,7 @@ def handle_audio(event):
 
     line_bot_api.reply_message(
         event.reply_token,
-        TextSendMessage(text="正在轉換語音，請稍候... 🎙️"),
+        TextSendMessage(text="Converting voice, please wait... 🎙️" if FORCE_LANG == "en" else "正在轉換語音，請稍候... 🎙️"),
     )
 
     print(f"[VOICE] running sync (worker) user_id={user_id}")
