@@ -1700,16 +1700,29 @@ def _process_voice_sync(user_id, message_id):
             if status == "Correct":
                 next_sentence = _generate_next_practice_sentence(transcript_text)
                 if is_en_speaking:
+                    praise = "Great pronunciation! Well done! 🎉\n\n🔊 Listen to the model pronunciation:"
                     if next_sentence:
-                        msg = f"Great pronunciation! Well done! 🎉\n\n💡 Try this next:\n\"{next_sentence}\"\n\nSend a voice message to practice, or record your own sentence!"
+                        next_msg = f"💡 Try this next:\n\"{next_sentence}\"\n\nSend a voice message to practice, or record your own sentence!"
                     else:
-                        msg = "Great pronunciation! Well done! 🎉\n\nReady for the next sentence?"
+                        next_msg = "Ready for the next sentence?"
                 else:
+                    praise = "發音非常標準！太棒了！🎉\n\n🔊 聆聽示範語音："
                     if next_sentence:
-                        msg = f"發音非常標準！太棒了！\n\n💡 建議下一句：\n「{next_sentence}」\n\n直接傳語音跟著唸，或錄你自己想練習的句子都可以！"
+                        next_msg = f"💡 建議下一句：\n「{next_sentence}」\n\n直接傳語音跟著唸，或錄你自己想練習的句子都可以！"
                     else:
-                        msg = "發音非常標準！太棒了！\n\n要再練習下一句嗎？"
-                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(msg))
+                        next_msg = "要再練習下一句嗎？"
+                line_bot_api.push_message(user_id, TextSendMessage(text=praise))
+                tts_err_msg = "Sorry, audio generation failed. Please try again." if is_en_speaking else VOICE_ERROR_MSG
+                try:
+                    audio_url, duration_ms = _generate_tts_and_store(transcript_text, voice=VOICE_COACH_TTS_VOICE)
+                    if audio_url and duration_ms:
+                        line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
+                    else:
+                        line_bot_api.push_message(user_id, TextSendMessage(text=tts_err_msg))
+                except Exception as tts_err:
+                    print(f"[VOICE] TTS err (Correct path): {tts_err}")
+                    line_bot_api.push_message(user_id, TextSendMessage(text=tts_err_msg))
+                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(next_msg))
                 print(f"[VOICE] done speaking Correct")
                 return
             feedback_header = "📊 Speaking Practice Feedback" if is_en_speaking else "📊 口說練習回饋"
