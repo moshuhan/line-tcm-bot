@@ -2489,7 +2489,18 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply(OFF_TOPIC_REPLY))
             return
 
-        mode = _safe_get_mode(user_id)
+        # 最終路由：直接讀 Redis，跳過本地快取，避免多 worker 快取不同步導致誤判
+        mode = None
+        if redis:
+            try:
+                with _redis_mode_lock:
+                    _rv = redis.get(_redis_user_mode_key(user_id))
+                if _rv:
+                    mode = (_rv.decode("utf-8") if isinstance(_rv, bytes) else str(_rv)).strip()
+            except Exception as _e:
+                print(f"[MODE] final routing redis read failed: {_e}")
+        if not mode:
+            mode = _safe_get_mode(user_id)
         print(f"[MODE] handle_message -> AI (current_mode={mode!r})")
 
         # 統一 TCM 問答：tcm / quiz 一律走同一邏輯（避免 push：直接用 reply_token 回覆最終結果）
