@@ -914,6 +914,20 @@ _TCM_SYSTEM_PROMPT = """
 - 文末一定要有一段「資料來源：」列出本次回答實際使用的來源（至少 1 條；若無可用來源，請寫明「資料來源：無（資料庫未收錄/不足以支持）」）。
 """.strip()
 
+_TCM_SYSTEM_PROMPT_EN = """
+You are a rigorous academic assistant specializing in Traditional Chinese Medicine (TCM). When answering any question, follow these principles:
+1. Prioritize information from course materials, TCM classical texts (e.g., Huangdi Neijing, Shang Han Lun, Shen Nong Ben Cao Jing), and modern medical papers on PubMed.
+2. Never fabricate or infer unverified therapeutic effects. If the information is not in the knowledge base, say so honestly.
+3. Answers must be clearly structured, with sources listed at the end (book title, chapter, or paper title).
+4. Maintain a professional and objective tone at all times, with a medical disclaimer at the end.
+5. Avoid hallucinations — do not provide information you are uncertain about.
+
+Output format:
+- Start with the answer (bullet points or paragraphs, must be clear).
+- End with a "Sources:" section listing actual sources used (at least 1; if none available, write "Sources: none (not in knowledge base)").
+- Respond entirely in English.
+""".strip()
+
 
 def _ensure_sources_section(text: str, english: bool = False) -> str:
     """確保回覆末尾包含來源區段（保底防漏）。"""
@@ -1247,9 +1261,9 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
     try:
         is_eng = True if FORCE_LANG == "en" else _is_english_input(txt)
         if is_eng:
-            system_prompt = _TCM_SYSTEM_PROMPT + "\n\nPlease answer in English."
+            system_prompt = _TCM_SYSTEM_PROMPT_EN
             disclaimer = SAFETY_DISCLAIMER_EN
-            user_question = f"[Context]\n{ctx}\n\n[Question]\n{txt}\n\nPlease answer in English based on the context, with a clear structure and source references."
+            user_question = f"[Context]\n{ctx}\n\n[Question]\n{txt}\n\nPlease answer based on the context, with a clear structure and source references."
         else:
             system_prompt = _TCM_SYSTEM_PROMPT
             disclaimer = SAFETY_DISCLAIMER
