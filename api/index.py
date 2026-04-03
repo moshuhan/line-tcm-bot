@@ -471,7 +471,6 @@ def quick_reply_items():
             items=[
                 QuickReplyButton(action=MessageAction(label="Speaking Practice", text="Speaking Practice")),
                 QuickReplyButton(action=MessageAction(label="Writing Revision", text="Writing Revision")),
-                QuickReplyButton(action=MessageAction(label="Course Info", text="課務查詢")),
             ]
         )
     return QuickReply(
