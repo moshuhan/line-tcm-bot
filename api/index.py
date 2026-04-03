@@ -2506,14 +2506,21 @@ def handle_message(event):
             return
 
         # --- 社交短句：道謝、打招呼等，直接友善回覆，不走 GPT ---
-        _social_en = {"thank you", "thanks", "thank u", "thx", "ty", "great", "ok", "okay",
-                      "got it", "i see", "cool", "nice", "awesome", "perfect", "good",
-                      "alright", "sure", "noted", "understood", "bye", "goodbye", "hello",
-                      "hi", "hey", "you're welcome", "welcome", "no problem", "np"}
+        _social_en = {"thank you", "thanks", "thank u", "thx", "ty", "got it", "i see",
+                      "noted", "understood", "you're welcome", "no problem", "np",
+                      "bye", "goodbye", "hello", "hi", "hey"}
+        _social_en_short = {"great", "ok", "okay", "cool", "nice", "awesome", "perfect",
+                            "good", "alright", "sure", "welcome"}
         _social_zh = {"謝謝", "感謝", "感謝你", "感謝您", "謝", "好的", "了解", "知道了",
                       "收到", "明白", "沒問題", "好", "讚", "再見", "拜拜", "你好", "哈囉"}
         _txt_lower = user_text.strip().lower()
-        if _txt_lower in _social_en or user_text.strip() in _social_zh:
+        _is_social = (
+            len(user_text.strip()) <= 40 and (
+                any(k in _txt_lower for k in _social_en) or
+                _txt_lower in _social_en_short
+            )
+        ) or user_text.strip() in _social_zh
+        if _is_social:
             if FORCE_LANG == "en":
                 ack_msg = "You're welcome! 😊 Feel free to ask any TCM questions anytime."
             else:
