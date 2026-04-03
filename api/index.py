@@ -921,12 +921,13 @@ def _build_full_tcm_context():
     return result
 
 _TCM_SYSTEM_PROMPT = """
-你是一位嚴謹的中醫學術助教。在回答任何問題時，請遵循以下原則：
+你是一位嚴謹且親切的中醫學術助教。在回答任何問題時，請遵循以下原則：
 1. 優先從「課程教材」、「中醫經典文獻（如：黃帝內經、傷寒雜病論、神農本草經）」以及「PubMed 上的現代醫學論文」中提取資訊。
 2. 嚴禁自行推斷或編造未經證實的療效。若資料庫中無相關記載，請誠實告知。
 3. 回答必須結構清晰，並在文末明確列出【資料來源】（包含書名、章節或論文標題）。
 4. 始終保持專業、客觀的語氣，並在結尾附上醫療警語。
 5. 避免產生幻覺，不確定的資訊不要提供。
+6. 若使用者提出與中醫無直接關聯的一般性問題（如飲食、生活習慣），請嘗試從中醫養生或食療的角度給予建議，並結合課程內容引導學習。
 
 輸出格式要求：
 - 先給出「回答」內容（條列或分段皆可，務必清楚）。
@@ -934,12 +935,13 @@ _TCM_SYSTEM_PROMPT = """
 """.strip()
 
 _TCM_SYSTEM_PROMPT_EN = """
-You are a rigorous academic assistant specializing in Traditional Chinese Medicine (TCM). When answering any question, follow these principles:
+You are a knowledgeable and friendly academic assistant specializing in Traditional Chinese Medicine (TCM). When answering any question, follow these principles:
 1. Prioritize information from course materials, TCM classical texts (e.g., Huangdi Neijing, Shang Han Lun, Shen Nong Ben Cao Jing), and modern medical papers on PubMed.
 2. Never fabricate or infer unverified therapeutic effects. If the information is not in the knowledge base, say so honestly.
 3. Answers must be clearly structured, with sources listed at the end (book title, chapter, or paper title).
-4. Maintain a professional and objective tone at all times, with a medical disclaimer at the end.
+4. Maintain a professional and friendly tone at all times, with a medical disclaimer at the end.
 5. Avoid hallucinations — do not provide information you are uncertain about.
+6. If the user asks a general question not directly related to TCM (e.g., food, lifestyle), try to offer advice from a TCM dietary or wellness perspective, and gently connect it back to course content.
 
 Output format:
 - Start with the answer (bullet points or paragraphs, must be clear).
@@ -2503,9 +2505,35 @@ def handle_message(event):
             )
             return
 
-        # 精準過濾：僅完全與中醫/醫療學術無關（閒聊、娛樂、私人）→ 僅供學業使用
-        if is_off_topic(user_text):
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(OFF_TOPIC_REPLY))
+        # --- 社交短句：道謝、打招呼等，直接友善回覆，不走 GPT ---
+        _social_en = {"thank you", "thanks", "thank u", "thx", "ty", "great", "ok", "okay",
+                      "got it", "i see", "cool", "nice", "awesome", "perfect", "good",
+                      "alright", "sure", "noted", "understood", "bye", "goodbye", "hello",
+                      "hi", "hey", "you're welcome", "welcome", "no problem", "np"}
+        _social_zh = {"謝謝", "感謝", "感謝你", "感謝您", "謝", "好的", "了解", "知道了",
+                      "收到", "明白", "沒問題", "好", "讚", "再見", "拜拜", "你好", "哈囉"}
+        _txt_lower = user_text.strip().lower()
+        if _txt_lower in _social_en or user_text.strip() in _social_zh:
+            if FORCE_LANG == "en":
+                ack_msg = "You're welcome! 😊 Feel free to ask any TCM questions anytime."
+            else:
+                ack_msg = "不客氣！😊 隨時歡迎繼續發問中醫相關問題。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(ack_msg))
+            return
+
+        # --- 課程聯絡資訊：請至課程群組發問 ---
+        _contact_en = {"contact", "email", "ta ", "teaching assistant", "instructor",
+                       "professor", "teacher", "how to reach", "office hour", "line group",
+                       "course group", "chat group", "get in touch"}
+        _contact_zh = {"聯絡", "聯繫", "助教", "老師", "教授", "信箱", "email",
+                       "課程群組", "群組", "line群", "怎麼問", "怎麼聯絡"}
+        if (any(k in _txt_lower for k in _contact_en) or
+                any(k in user_text for k in _contact_zh)):
+            if FORCE_LANG == "en":
+                contact_msg = "For questions about the course or contact information, please ask in the course LINE group. 📢"
+            else:
+                contact_msg = "關於課程或聯絡事項，請至課程 LINE 群組發問喔！📢"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(contact_msg))
             return
 
         # 最終路由：直接讀 Redis，跳過本地快取，避免多 worker 快取不同步導致誤判
