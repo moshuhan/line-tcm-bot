@@ -466,6 +466,14 @@ def send_course_inquiry_flex(user_id, reply_token=None):
 
 # --- QuickReply ---
 def quick_reply_items():
+    if FORCE_LANG == "en":
+        return QuickReply(
+            items=[
+                QuickReplyButton(action=MessageAction(label="Speaking Practice", text="Speaking Practice")),
+                QuickReplyButton(action=MessageAction(label="Writing Revision", text="Writing Revision")),
+                QuickReplyButton(action=MessageAction(label="Course Info", text="課務查詢")),
+            ]
+        )
     return QuickReply(
         items=[
             QuickReplyButton(action=MessageAction(label="口說練習", text="口說練習")),
@@ -771,7 +779,7 @@ def _revision_handler(user_id, text):
         print(f"[REVISION] CRITICAL err={e}")
         traceback.print_exc()
         try:
-            line_bot_api.push_message(user_id, text_with_quick_reply_writing("處理時發生錯誤，請再試一次。"))
+            line_bot_api.push_message(user_id, text_with_quick_reply_writing("An error occurred, please try again." if FORCE_LANG == "en" else "處理時發生錯誤，請再試一次。"))
         except Exception as push_err:
             print(f"[REVISION] push_message (error fallback) failed err={push_err}")
 
@@ -2427,7 +2435,7 @@ def handle_message(event):
             _start_loading_indicator(user_id)
             if not _tcm_openai_reply(user_id, user_text, reply_token=event.reply_token):
                 try:
-                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply("處理時發生錯誤，請稍後再試。"))
+                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply("An error occurred, please try again." if FORCE_LANG == "en" else "處理時發生錯誤，請稍後再試。"))
                 except Exception:
                     pass
             # 七天後（冷卻）弱項檢查：先回答原問題，之後再詢問是否要複習筆記
