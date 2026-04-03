@@ -732,6 +732,18 @@ _REVISION_PROMPT = (
     "語氣溫暖，段落分明易讀。"
 )
 
+_REVISION_PROMPT_EN = (
+    "You are a warm and professional language teacher with a background in Traditional Chinese Medicine (TCM). "
+    "Naturally incorporate the following into your response — do not output section headers:\n"
+    "(1) Encouragement and positive affirmation\n"
+    "(2) [Language] If there are grammar, vocabulary, or spelling errors: explain the issue and provide a corrected version "
+    "(use **bold** to highlight changes); if there are no errors, praise the writing as natural and well-expressed\n"
+    "(3) [TCM Content] If the text involves TCM concepts and contains factual errors (e.g., formula indications, pathomechanisms, organ functions), "
+    "clearly point out the error with a brief correct explanation; if the TCM content is accurate, no need to mention it\n"
+    "(4) Encourage the user to continue practicing and send more sentences\n"
+    "Keep a warm tone with clear, readable paragraphs. Respond entirely in English."
+)
+
 def _revision_handler(user_id, text):
     """
     寫作修訂：gpt-4o-mini + Chat Completion，非串流以加速。結果以 push_message 送出。
@@ -741,7 +753,8 @@ def _revision_handler(user_id, text):
         return
     if not (text or "").strip():
         try:
-            line_bot_api.push_message(user_id, text_with_quick_reply_writing("請貼上要修改的段落。"))
+            prompt_msg = "Please paste the paragraph you'd like to revise." if FORCE_LANG == "en" else "請貼上要修改的段落。"
+            line_bot_api.push_message(user_id, text_with_quick_reply_writing(prompt_msg))
         except Exception as e:
             print(f"[REVISION] push_message failed (empty text branch) err={e}")
             traceback.print_exc()
@@ -753,11 +766,17 @@ def _revision_handler(user_id, text):
             print("[REVISION] ERROR: OPENAI_API_KEY not set")
             line_bot_api.push_message(user_id, text_with_quick_reply_writing("系統設定錯誤，請稍後再試。"))
             return
+        if FORCE_LANG == "en":
+            revision_system = _REVISION_PROMPT_EN
+            revision_user = f"Analyze the following sentence or paragraph:\n{text[:1000]}"
+        else:
+            revision_system = _REVISION_PROMPT
+            revision_user = f"分析以下句子或段落：\n{text[:1000]}"
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": _REVISION_PROMPT},
-                {"role": "user", "content": f"分析以下句子或段落：\n{text[:1000]}"},
+                {"role": "system", "content": revision_system},
+                {"role": "user", "content": revision_user},
             ],
             max_tokens=600,
         )
