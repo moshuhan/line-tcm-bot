@@ -516,6 +516,13 @@ def _build_course_feedback_message():
 
 def quick_reply_speak_practice():
     """口說練習：要再練習下一句嗎？[練習下一句] [結束練習]。"""
+    if FORCE_LANG == "en":
+        return QuickReply(
+            items=[
+                QuickReplyButton(action=MessageAction(label="Next Sentence", text="Next Sentence")),
+                QuickReplyButton(action=MessageAction(label="End Practice", text="End Practice")),
+            ]
+        )
     return QuickReply(
         items=[
             QuickReplyButton(action=MessageAction(label="練習下一句", text="練習下一句")),
@@ -770,6 +777,12 @@ def _revision_handler(user_id, text):
 
 def quick_reply_writing():
     """寫作修訂模式：回到中醫問答按鈕。"""
+    if FORCE_LANG == "en":
+        return QuickReply(
+            items=[
+                QuickReplyButton(action=MessageAction(label="Back to TCM Q&A", text="TCM Q&A")),
+            ]
+        )
     return QuickReply(
         items=[
             QuickReplyButton(action=MessageAction(label="回到中醫問答", text="回到中醫問答")),
@@ -2132,37 +2145,50 @@ def handle_message(event):
         suppress_yes_no_command = False
 
         # --- Rich Menu 按鈕：立即回覆，避免延遲 ---
-        if user_text in ("中醫問答", "回到中醫問答"):
+        if user_text in ("中醫問答", "回到中醫問答", "TCM Q&A"):
             try:
                 _set_cached_mode(user_id, "tcm")
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), "tcm")
             except Exception:
                 pass
+            if FORCE_LANG == "en" or user_text == "TCM Q&A":
+                confirm_msg = "Switched to [🩺 TCM Q&A] mode. What would you like to ask?"
+            else:
+                confirm_msg = "已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"
             line_bot_api.reply_message(
                 event.reply_token,
-                text_with_quick_reply("已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"),
+                text_with_quick_reply(confirm_msg),
             )
             return
-        if user_text == "口說練習":
+        if user_text in ("口說練習", "Speaking Practice"):
             try:
                 _set_cached_mode(user_id, "speaking")
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), "speaking")
             except Exception:
                 pass
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"))
+            if FORCE_LANG == "en" or user_text == "Speaking Practice":
+                confirm_msg = "Switched to [🗣️ Speaking Practice] mode. Send a voice message or type a sentence."
+            else:
+                confirm_msg = "已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"
+            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(confirm_msg))
             return
-        if user_text in ("寫作修改", "寫作修訂"):
+        if user_text in ("寫作修改", "寫作修訂", "Writing Revision"):
             try:
                 _set_cached_mode(user_id, REVISION_MODE)
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
             except Exception:
                 pass
-            msg = REVISION_MODE_PROMPT
-            if not redis:
-                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 REDIS_URL 環境變數。"
+            if FORCE_LANG == "en" or user_text == "Writing Revision":
+                msg = "You are now in [✍️ Writing Revision] mode. Please paste the paragraph you'd like to revise."
+                if not redis:
+                    msg += "\n\n⚠️ Mode could not be saved (Redis not configured). Please check the REDIS_URL environment variable."
+            else:
+                msg = REVISION_MODE_PROMPT
+                if not redis:
+                    msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 REDIS_URL 環境變數。"
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
             return
         if user_text == "課務查詢":
@@ -2196,15 +2222,19 @@ def handle_message(event):
         print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
         if current_mode == REVISION_MODE:
             print(f"[MODE] handle_message -> REVISION_MODE branch, skipping TCM Assistant")
-            if user_text in ("寫作修改", "寫作修訂"):
+            if user_text in ("寫作修改", "寫作修訂", "Writing Revision"):
+                if FORCE_LANG == "en" or user_text == "Writing Revision":
+                    re_enter_msg = "You are now in [✍️ Writing Revision] mode. Please paste the paragraph you'd like to revise."
+                else:
+                    re_enter_msg = REVISION_MODE_PROMPT
                 line_bot_api.reply_message(
                     event.reply_token,
-                    text_with_quick_reply_writing(REVISION_MODE_PROMPT),
+                    text_with_quick_reply_writing(re_enter_msg),
                 )
                 return
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="正在分析你的寫作，請稍候... ✨"),
+                TextSendMessage(text="Analyzing your writing, please wait... ✨" if FORCE_LANG == "en" else "正在分析你的寫作，請稍候... ✨"),
             )
             print(f"[REVISION] running sync (worker) user_id={user_id}")
             _revision_handler(user_id, user_text)
@@ -2348,29 +2378,39 @@ def handle_message(event):
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
 
-        if user_text == "練習下一句":
+        if user_text in ("練習下一句", "Next Sentence"):
             mode = _safe_get_mode(user_id)
             if mode == "speaking":
                 next_sentence = _generate_next_practice_sentence()
-                if next_sentence:
-                    msg = f"💡 建議練習這句：\n「{next_sentence}」\n\n傳語音跟著唸，或錄你自己想練習的句子都可以！"
+                if FORCE_LANG == "en" or user_text == "Next Sentence":
+                    if next_sentence:
+                        msg = f"💡 Try this sentence:\n\"{next_sentence}\"\n\nSend a voice message to practice, or record your own sentence!"
+                    else:
+                        msg = "Send a voice message to start practicing — I'll analyze your pronunciation and grammar."
                 else:
-                    msg = "請傳送語音訊息開始練習～我會幫你分析發音與文法。"
+                    if next_sentence:
+                        msg = f"💡 建議練習這句：\n「{next_sentence}」\n\n傳語音跟著唸，或錄你自己想練習的句子都可以！"
+                    else:
+                        msg = "請傳送語音訊息開始練習～我會幫你分析發音與文法。"
                 line_bot_api.reply_message(
                     event.reply_token,
                     text_with_quick_reply_speak_practice(msg),
                 )
                 return
-        if user_text == "結束練習":
+        if user_text in ("結束練習", "End Practice"):
             try:
                 _set_cached_mode(user_id, "tcm")
                 if redis:
                     redis.set(_redis_user_mode_key(user_id), "tcm")
             except Exception:
                 pass
+            if FORCE_LANG == "en" or user_text == "End Practice":
+                end_msg = "Speaking practice ended. Switched back to TCM Q&A mode."
+            else:
+                end_msg = "已結束口說練習，已切換回中醫問答模式。"
             line_bot_api.reply_message(
                 event.reply_token,
-                text_with_quick_reply("已結束口說練習，已切換回中醫問答模式。"),
+                text_with_quick_reply(end_msg),
             )
             return
 
@@ -2395,8 +2435,13 @@ def handle_message(event):
             return
 
         # 口說 / 寫作：依模式顯示載入訊息並走 Assistant API
-        mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, mode)
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"正在以【{mode_name}】模式分析中..."))
+        if FORCE_LANG == "en":
+            mode_name = {"speaking": "🗣️ Speaking Practice", "writing": "✍️ Writing Revision"}.get(mode, mode)
+            analyzing_msg = f"Analyzing in [{mode_name}] mode, please wait... ✨"
+        else:
+            mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, mode)
+            analyzing_msg = f"正在以【{mode_name}】模式分析中..."
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=analyzing_msg))
         _run_ai_work(user_id, user_text)
     except Exception as e:
         traceback.print_exc()
