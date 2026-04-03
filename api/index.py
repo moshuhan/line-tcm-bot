@@ -308,7 +308,7 @@ def _evaluate_speech(transcript):
                         "Status: Correct = language and content both correct; NeedsImprovement = any language OR content error."
                     ),
                 },
-                {"role": "user", "content": f"學生說出的內容：{transcript[:500]}"},
+                {"role": "user", "content": f"Student's speech: {transcript[:500]}"},
             ],
             max_tokens=250,
         )
@@ -1495,10 +1495,7 @@ def _process_assistant_sync(user_id, text):
                 ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
             # 注意：push_message 可能因 LINE 月額度限制而失敗（429）
             try:
-                if mode == "tcm":
-                    line_bot_api.push_message(user_id, text_with_quick_reply_quiz(ai_reply + "\n\n是否要進行一題小測驗？"))
-                else:
-                    line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
+                line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
             except Exception as e:
                 print(f">>> DEBUG: push_message failed (likely quota). err={e}")
             try:
@@ -1670,7 +1667,11 @@ def _process_voice_sync(user_id, message_id):
                 pass
 
         transcript_text = (transcript.text or "").strip()
-        line_bot_api.push_message(user_id, TextSendMessage(text=f"🎤 辨識內容：「{transcript_text}」"))
+        if FORCE_LANG == "en":
+            transcription_msg = f"🎤 Recognized: \"{transcript_text}\""
+        else:
+            transcription_msg = f"🎤 辨識內容：「{transcript_text}」"
+        line_bot_api.push_message(user_id, TextSendMessage(text=transcription_msg))
 
         mode = _safe_get_mode(user_id)
 
@@ -1695,24 +1696,37 @@ def _process_voice_sync(user_id, message_id):
             return
         if mode == "speaking":
             status, feedback, corrected_text = _evaluate_speech(transcript_text)
+            is_en_speaking = FORCE_LANG == "en"
             if status == "Correct":
                 next_sentence = _generate_next_practice_sentence(transcript_text)
-                if next_sentence:
-                    msg = f"發音非常標準！太棒了！\n\n💡 建議下一句：\n「{next_sentence}」\n\n直接傳語音跟著唸，或錄你自己想練習的句子都可以！"
+                if is_en_speaking:
+                    if next_sentence:
+                        msg = f"Great pronunciation! Well done! 🎉\n\n💡 Try this next:\n\"{next_sentence}\"\n\nSend a voice message to practice, or record your own sentence!"
+                    else:
+                        msg = "Great pronunciation! Well done! 🎉\n\nReady for the next sentence?"
                 else:
-                    msg = "發音非常標準！太棒了！\n\n要再練習下一句嗎？"
+                    if next_sentence:
+                        msg = f"發音非常標準！太棒了！\n\n💡 建議下一句：\n「{next_sentence}」\n\n直接傳語音跟著唸，或錄你自己想練習的句子都可以！"
+                    else:
+                        msg = "發音非常標準！太棒了！\n\n要再練習下一句嗎？"
                 line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(msg))
                 print(f"[VOICE] done speaking Correct")
                 return
+            feedback_header = "📊 Speaking Practice Feedback" if is_en_speaking else "📊 口說練習回饋"
             line_bot_api.push_message(
                 user_id,
-                text_with_quick_reply(f"📊 口說練習回饋\n\n{feedback}"),
+                text_with_quick_reply(f"{feedback_header}\n\n{feedback}"),
             )
             text_for_tts = corrected_text.strip() if corrected_text else transcript_text
-            line_bot_api.push_message(
-                user_id,
-                TextSendMessage(text=f"🔊 請跟著唸：「{text_for_tts}」"),
-            )
+            if is_en_speaking:
+                tts_label = f"🔊 Listen and repeat: \"{text_for_tts}\""
+                tts_sent_msg = "Demo audio sent! Ready for the next sentence?"
+                tts_err_msg = "Sorry, audio generation failed. Please try again."
+            else:
+                tts_label = f"🔊 請跟著唸：「{text_for_tts}」"
+                tts_sent_msg = "示範語音已送上，要再練習下一句嗎？"
+                tts_err_msg = VOICE_ERROR_MSG
+            line_bot_api.push_message(user_id, TextSendMessage(text=tts_label))
             try:
                 audio_url, duration_ms = _generate_tts_and_store(text_for_tts, voice=VOICE_COACH_TTS_VOICE)
                 if audio_url and duration_ms:
@@ -1722,14 +1736,14 @@ def _process_voice_sync(user_id, message_id):
                     )
                     line_bot_api.push_message(
                         user_id,
-                        text_with_quick_reply_speak_practice("示範語音已送上，要再練習下一句嗎？"),
+                        text_with_quick_reply_speak_practice(tts_sent_msg),
                     )
                 else:
-                    line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(VOICE_ERROR_MSG))
+                    line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(tts_err_msg))
             except Exception as tts_err:
                 print(f"[VOICE] TTS/Cloudinary err={tts_err}")
                 traceback.print_exc()
-                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(VOICE_ERROR_MSG))
+                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(tts_err_msg))
             print(f"[VOICE] done speaking NeedsImprovement")
             return
         if is_course_inquiry_intent(transcript_text):
