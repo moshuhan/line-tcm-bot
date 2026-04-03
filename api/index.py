@@ -2194,12 +2194,17 @@ def handle_message(event):
 
         # --- Rich Menu 按鈕：立即回覆，避免延遲 ---
         if user_text in ("中醫問答", "回到中醫問答", "TCM Q&A"):
-            try:
-                _set_cached_mode(user_id, "tcm")
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), "tcm")
-            except Exception:
-                pass
+            _set_cached_mode(user_id, "tcm")
+            if redis:
+                for _attempt in range(3):
+                    try:
+                        with _redis_mode_lock:
+                            redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
+                        break
+                    except Exception as _e:
+                        print(f"[MODE] TCM Q&A redis set failed attempt={_attempt} err={_e}")
+                        if _attempt < 2:
+                            time.sleep(0.2)
             if FORCE_LANG == "en" or user_text == "TCM Q&A":
                 confirm_msg = "Switched to [🩺 TCM Q&A] mode. What would you like to ask?"
             else:
@@ -2210,12 +2215,17 @@ def handle_message(event):
             )
             return
         if user_text in ("口說練習", "Speaking Practice"):
-            try:
-                _set_cached_mode(user_id, "speaking")
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), "speaking")
-            except Exception:
-                pass
+            _set_cached_mode(user_id, "speaking")
+            if redis:
+                for _attempt in range(3):
+                    try:
+                        with _redis_mode_lock:
+                            redis.set(_redis_user_mode_key(user_id), "speaking", ex=86400)
+                        break
+                    except Exception as _e:
+                        print(f"[MODE] Speaking Practice redis set failed attempt={_attempt} err={_e}")
+                        if _attempt < 2:
+                            time.sleep(0.2)
             if FORCE_LANG == "en" or user_text == "Speaking Practice":
                 confirm_msg = "Switched to [🗣️ Speaking Practice] mode. Send a voice message or type a sentence."
             else:
@@ -2223,12 +2233,17 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, text_with_quick_reply(confirm_msg))
             return
         if user_text in ("寫作修改", "寫作修訂", "Writing Revision"):
-            try:
-                _set_cached_mode(user_id, REVISION_MODE)
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), REVISION_MODE)
-            except Exception:
-                pass
+            _set_cached_mode(user_id, REVISION_MODE)
+            if redis:
+                for _attempt in range(3):
+                    try:
+                        with _redis_mode_lock:
+                            redis.set(_redis_user_mode_key(user_id), REVISION_MODE, ex=86400)
+                        break
+                    except Exception as _e:
+                        print(f"[MODE] Writing Revision redis set failed attempt={_attempt} err={_e}")
+                        if _attempt < 2:
+                            time.sleep(0.2)
             if FORCE_LANG == "en" or user_text == "Writing Revision":
                 msg = "You are now in [✍️ Writing Revision] mode. Please paste the paragraph you'd like to revise."
                 if not redis:
@@ -2446,12 +2461,19 @@ def handle_message(event):
                 )
                 return
         if user_text in ("結束練習", "End Practice"):
-            try:
-                _set_cached_mode(user_id, "tcm")
-                if redis:
-                    redis.set(_redis_user_mode_key(user_id), "tcm")
-            except Exception:
-                pass
+            _set_cached_mode(user_id, "tcm")
+            if redis:
+                for _attempt in range(3):
+                    try:
+                        with _redis_mode_lock:
+                            redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
+                        break
+                    except Exception as _e:
+                        print(f"[MODE] End Practice redis set failed attempt={_attempt} err={_e}")
+                        if _attempt < 2:
+                            time.sleep(0.2)
+            else:
+                print(f"[MODE] End Practice: redis unavailable, mode only in local cache")
             if FORCE_LANG == "en" or user_text == "End Practice":
                 end_msg = "Speaking practice ended. Switched back to TCM Q&A mode."
             else:
