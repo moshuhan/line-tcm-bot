@@ -1298,11 +1298,20 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         if is_eng:
             system_prompt = _TCM_SYSTEM_PROMPT_EN
             disclaimer = SAFETY_DISCLAIMER_EN
-            user_question = f"[Context]\n{ctx}\n\n[Question]\n{txt}\n\nPlease answer based on the context, with a clear structure and source references."
+            user_question = (
+                f"[Context]\n{ctx}\n\n[Question]\n{txt}\n\n"
+                f"IMPORTANT: If the question above is a social phrase (e.g. 'thank you', 'ok', 'great', 'bye', 'got it'), "
+                f"reply in ONE short sentence only — no TCM content, no sources, no key points.\n"
+                f"Otherwise, please answer based on the context with a clear structure and source references."
+            )
         else:
             system_prompt = _TCM_SYSTEM_PROMPT
             disclaimer = SAFETY_DISCLAIMER
-            user_question = f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n請根據背景資料精準回答（可適度詳盡），跳過冗長開場白，回答末尾請簡要註明參考資料或出處。"
+            user_question = (
+                f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n"
+                f"重要：若上方問題是社交短句（如「謝謝」「好的」「了解」「再見」等），只需一句話親切回應，不附任何中醫內容或資料來源。\n"
+                f"否則請根據背景資料精準回答，跳過冗長開場白，回答末尾請簡要註明參考資料或出處。"
+            )
 
         # 帶入最近 3 輪對話歷史，讓 GPT 能理解上下文追問
         history = get_conv_history(redis, user_id)
@@ -1327,8 +1336,13 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             temperature=0.2,
         )
         base_reply = (resp.choices[0].message.content or "").strip()[:800]
-        base_reply = _ensure_sources_section(base_reply, english=is_eng)
-        ai_reply = base_reply + disclaimer
+        # 社交短句判斷：GPT 回應很短且不含資料來源標記，視為社交回應，不補 disclaimer
+        _is_social_reply = len(base_reply) < 120 and "資料來源" not in base_reply and "Sources" not in base_reply
+        if _is_social_reply:
+            ai_reply = base_reply
+        else:
+            base_reply = _ensure_sources_section(base_reply, english=is_eng)
+            ai_reply = base_reply + disclaimer
 
         # MongoDB 寫入改為背景非同步（不阻塞答復流程）
         threading.Thread(
@@ -1337,9 +1351,8 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             daemon=True,
         ).start()
 
-        # QA → Quiz：改為非同步背景創題，不阻塞答復流程。
-        # 先立即回覆答案（reply），測驗稍後非同步 push。
-        if ENABLE_QUIZ_GENERATION:
+        # QA → Quiz：社交短句不出題
+        if ENABLE_QUIZ_GENERATION and not _is_social_reply:
             threading.Thread(target=_process_quiz_sync, args=(user_id, base_reply, "en" if is_eng else "zh"), daemon=True).start()
 
         # 回覆：只回覆答案（無測驗訊息），根據 FORCE_PUSH_MODE 決定是否 push。
