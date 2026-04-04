@@ -2525,6 +2525,30 @@ def handle_message(event):
 
         # 統一 TCM 問答：tcm / quiz 一律走同一邏輯（避免 push：直接用 reply_token 回覆最終結果）
         if mode in ("tcm", "quiz"):
+            # 社交短句快速分類：避免讓「謝謝」「好的」走完整 TCM pipeline
+            try:
+                _cls_resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content":
+                        f'Is this message a social phrase (greeting, thanks, acknowledgment, ok, bye) '
+                        f'or a course-contact question (asking for TA/teacher/email/group), '
+                        f'or a substantive question? '
+                        f'Reply with ONLY one word: "social", "contact", or "question".\nMessage: "{user_text[:200]}"'
+                    }],
+                    max_tokens=5,
+                    temperature=0,
+                )
+                _cls = (_cls_resp.choices[0].message.content or "").strip().lower().split()[0]
+            except Exception:
+                _cls = "question"
+            if _cls == "social":
+                ack = "You're welcome! Feel free to ask any TCM questions anytime. 😊" if FORCE_LANG == "en" else "不客氣！😊 隨時歡迎繼續發問中醫相關問題。"
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply(ack))
+                return
+            if _cls == "contact":
+                contact = "For course or contact questions, please ask in the course LINE group. 📢" if FORCE_LANG == "en" else "關於課程或聯絡事項，請至課程 LINE 群組發問喔！📢"
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply(contact))
+                return
             _start_loading_indicator(user_id)
             if not _tcm_openai_reply(user_id, user_text, reply_token=event.reply_token):
                 try:
