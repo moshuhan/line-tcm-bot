@@ -1694,7 +1694,12 @@ def _process_voice_sync(user_id, message_id):
                     f.write(chunk)
 
         with open(temp_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
+            # 口說練習模式固定練英文，強制 language=en 避免 Whisper 誤判為中文
+            _whisper_lang = "en" if _safe_get_mode(user_id) == "speaking" or FORCE_LANG == "en" else None
+            _whisper_kwargs = {"model": "whisper-1", "file": audio_file}
+            if _whisper_lang:
+                _whisper_kwargs["language"] = _whisper_lang
+            transcript = client.audio.transcriptions.create(**_whisper_kwargs)
         if os.path.isfile(temp_path):
             try:
                 os.remove(temp_path)
