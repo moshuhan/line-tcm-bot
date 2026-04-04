@@ -25,7 +25,7 @@ import requests
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, PostbackEvent, AudioMessage,
+    MessageEvent, TextMessage, TextSendMessage, PostbackEvent, AudioMessage, ImageMessage,
     QuickReply, QuickReplyButton, MessageAction, PostbackAction, FlexSendMessage, URIAction,
 )
 from linebot.models.send_messages import AudioSendMessage
@@ -2568,6 +2568,85 @@ def handle_audio(event):
 
     print(f"[VOICE] running sync (worker) user_id={user_id}")
     _process_voice_sync(user_id, message_id)
+
+
+@line_webhook_handler.add(MessageEvent, message=ImageMessage)
+def handle_image(event):
+    """圖片分析：下載圖片 → GPT-4o-mini vision 擷取內容 → 走中醫問答邏輯。"""
+    user_id = event.source.user_id
+    message_id = event.message.id
+
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text="Analyzing image, please wait... 🖼️" if FORCE_LANG == "en" else "圖片分析中，請稍候... 🖼️"),
+    )
+
+    try:
+        # 下載圖片並轉 base64
+        content = line_bot_api.get_message_content(message_id)
+        image_data = b"".join(chunk for chunk in content.iter_content())
+        image_b64 = base64.b64encode(image_data).decode("utf-8")
+
+        # GPT-4o-mini vision：擷取圖片內容描述
+        if FORCE_LANG == "en":
+            vision_prompt = (
+                "Describe the content of this image concisely. "
+                "If it contains text, transcribe it. "
+                "If it shows medical, anatomical, or TCM-related content (e.g., tongue, acupoints, herbs, charts), describe those specifically. "
+                "Keep the description factual and under 300 words."
+            )
+        else:
+            vision_prompt = (
+                "請簡潔描述這張圖片的內容。"
+                "如果有文字，請轉錄出來。"
+                "如果包含醫療、解剖或中醫相關內容（如舌診、穴位圖、藥材、表格等），請特別說明。"
+                "保持客觀描述，300字以內。"
+            )
+
+        vision_resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": vision_prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
+                    ],
+                }
+            ],
+            max_tokens=400,
+        )
+        image_description = (vision_resp.choices[0].message.content or "").strip()
+        print(f"[IMAGE] vision description len={len(image_description)} user_id={user_id}")
+
+        if not image_description:
+            err_msg = "Sorry, I couldn't analyze the image. Please try again." if FORCE_LANG == "en" else "抱歉，無法分析圖片，請再試一次。"
+            line_bot_api.push_message(user_id, text_with_quick_reply(err_msg))
+            return
+
+        # 通知使用者圖片被識別的摘要，再走中醫問答
+        if FORCE_LANG == "en":
+            notice = f"📷 Image recognized:\n{image_description}\n\nAnalyzing from a TCM perspective..."
+        else:
+            notice = f"📷 圖片識別結果：\n{image_description}\n\n正在從中醫角度分析..."
+        line_bot_api.push_message(user_id, TextSendMessage(text=notice))
+
+        # 以圖片描述作為問題走中醫問答邏輯
+        if FORCE_LANG == "en":
+            tcm_query = f"The student sent an image. Content: {image_description}\n\nPlease analyze and explain this from a TCM perspective."
+        else:
+            tcm_query = f"學生傳送了一張圖片，圖片內容如下：\n{image_description}\n\n請從中醫的角度進行分析與說明。"
+
+        _tcm_openai_reply(user_id, tcm_query, reply_token=None)
+
+    except Exception as e:
+        print(f"[IMAGE] CRITICAL err={e}")
+        traceback.print_exc()
+        try:
+            err_msg = "Sorry, image processing failed. Please try again." if FORCE_LANG == "en" else "圖片處理失敗，請再試一次。"
+            line_bot_api.push_message(user_id, text_with_quick_reply(err_msg))
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
