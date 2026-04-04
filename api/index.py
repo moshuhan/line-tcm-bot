@@ -921,6 +921,11 @@ def _build_full_tcm_context():
     return result
 
 _TCM_SYSTEM_PROMPT = """
+【最優先規則：在閱讀任何對話歷史之前，先判斷使用者「最新這一則」訊息的意圖】
+- 若是社交短句（謝謝、好的、了解、再見、哈囉、讚、收到、沒問題等），只需一句話親切回應，不附任何中醫內容或資料來源。
+- 若是詢問課程聯絡方式、助教或老師資訊，只需回覆：「相關問題請至課程 LINE 群組發問。」，不需其他內容。
+- 其他問題才依照以下中醫學術助教的原則完整回答。
+
 你是一位嚴謹且親切的中醫學術助教。在回答任何問題時，請遵循以下原則：
 1. 優先從「課程教材」、「中醫經典文獻（如：黃帝內經、傷寒雜病論、神農本草經）」以及「PubMed 上的現代醫學論文」中提取資訊。
 2. 嚴禁自行推斷或編造未經證實的療效。若資料庫中無相關記載，請誠實告知。
@@ -937,6 +942,11 @@ _TCM_SYSTEM_PROMPT = """
 """.strip()
 
 _TCM_SYSTEM_PROMPT_EN = """
+[TOP PRIORITY — evaluate the user's LATEST message ONLY, ignoring prior conversation:]
+- If it is a social phrase (thanks, ok, great, bye, hello, got it, noted, etc.), reply in ONE warm sentence only — no TCM content, no sources.
+- If it is asking for course contact info, the TA, or the instructor, reply ONLY with: "Please ask in the course LINE group." — nothing more.
+- For all other messages, follow the full TCM guidelines below.
+
 You are a knowledgeable and friendly academic assistant specializing in Traditional Chinese Medicine (TCM). When answering any question, follow these principles:
 1. Prioritize information from course materials, TCM classical texts (e.g., Huangdi Neijing, Shang Han Lun, Shen Nong Ben Cao Jing), and modern medical papers on PubMed.
 2. Never fabricate or infer unverified therapeutic effects. If the information is not in the knowledge base, say so honestly.
@@ -2525,30 +2535,6 @@ def handle_message(event):
 
         # 統一 TCM 問答：tcm / quiz 一律走同一邏輯（避免 push：直接用 reply_token 回覆最終結果）
         if mode in ("tcm", "quiz"):
-            # 社交短句快速分類：避免讓「謝謝」「好的」走完整 TCM pipeline
-            try:
-                _cls_resp = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content":
-                        f'Is this message a social phrase (greeting, thanks, acknowledgment, ok, bye) '
-                        f'or a course-contact question (asking for TA/teacher/email/group), '
-                        f'or a substantive question? '
-                        f'Reply with ONLY one word: "social", "contact", or "question".\nMessage: "{user_text[:200]}"'
-                    }],
-                    max_tokens=5,
-                    temperature=0,
-                )
-                _cls = (_cls_resp.choices[0].message.content or "").strip().lower().split()[0]
-            except Exception:
-                _cls = "question"
-            if _cls == "social":
-                ack = "You're welcome! Feel free to ask any TCM questions anytime. 😊" if FORCE_LANG == "en" else "不客氣！😊 隨時歡迎繼續發問中醫相關問題。"
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply(ack))
-                return
-            if _cls == "contact":
-                contact = "For course or contact questions, please ask in the course LINE group. 📢" if FORCE_LANG == "en" else "關於課程或聯絡事項，請至課程 LINE 群組發問喔！📢"
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply(contact))
-                return
             _start_loading_indicator(user_id)
             if not _tcm_openai_reply(user_id, user_text, reply_token=event.reply_token):
                 try:
