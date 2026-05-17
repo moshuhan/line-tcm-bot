@@ -583,128 +583,6 @@ def build_quiz_flex_message(question):
         alt += "..."
     return FlexSendMessage(alt_text=alt, contents=bubble)
 
-# --- 時間解鎖小測驗：沿用 syllabus 時間邏輯 ---
-# 使用 __file__ 取得安全路徑，避免 Vercel 上 cwd 或 _DATA_DIR 未定義導致 500
-_QUIZ_ALL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "tcm_quiz_all.json")
-_QUIZ_ALL_PATH = os.path.normpath(os.path.abspath(_QUIZ_ALL_PATH))
-# 模組解鎖日（台灣日期，與 syllabus 對齊）：p0 隨時；p1 2026-03-14；p2 2026-03-21；p3 2026-04-11；p4 2026-05-09
-_QUIZ_UNLOCK_DATES = {
-    "p0": date(2000, 1, 1),
-    "p1": date(2026, 3, 14),
-    "p2": date(2026, 3, 21),
-    "p3": date(2026, 4, 11),
-    "p4": date(2026, 5, 9),
-}
-_TCM_QUIZ_ALL_CACHE = None
-
-def _load_timed_quiz_pool():
-    """載入 data/tcm_quiz_all.json，依 get_now_taipei() 篩選已解鎖題目，回傳 list[dict]。"""
-    global _TCM_QUIZ_ALL_CACHE
-    try:
-        now = get_now_taipei()
-        today = now.date() if hasattr(now, "date") else date(now.year, now.month, now.day)
-    except Exception as e:
-        traceback.print_exc()
-        today = date.today()
-    if _TCM_QUIZ_ALL_CACHE is None:
-        try:
-            with open(_QUIZ_ALL_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            _TCM_QUIZ_ALL_CACHE = (data.get("questions") or [])
-        except Exception as e:
-            traceback.print_exc()
-            print(f"[QUIZ] Failed to load {_QUIZ_ALL_PATH!r}: {e}")
-            _TCM_QUIZ_ALL_CACHE = []
-    unlocked = []
-    for q in _TCM_QUIZ_ALL_CACHE:
-        if not isinstance(q, dict):
-            continue
-        mod = (q.get("module") or "p0").strip().lower()
-        unlock_date = _QUIZ_UNLOCK_DATES.get(mod)
-        if unlock_date is not None and today >= unlock_date:
-            unlocked.append(q)
-    return unlocked
-
-def build_timed_quiz_flex_message(question_obj):
-    """
-    將單題題目封裝為 LINE Flex Message。
-    含：題目、選項、正確答案（背景色區隔）、解析（背景色區隔）。
-    question_obj: dict 含 id, question, options, answer, analysis
-    """
-    q = question_obj.get("question") or ""
-    options = question_obj.get("options") or []
-    ans = (question_obj.get("answer") or "").strip().upper()
-    analysis = (question_obj.get("analysis") or "").strip()
-    body_contents = [
-        {"type": "text", "text": "📝 時間解鎖小測驗", "weight": "bold", "size": "lg"},
-        {"type": "text", "text": q, "wrap": True, "size": "md"},
-    ]
-    for opt in options[:10]:
-        if isinstance(opt, str):
-            body_contents.append({"type": "text", "text": opt, "wrap": True, "size": "sm"})
-    body_contents.append({"type": "separator", "margin": "md"})
-    body_contents.append({
-        "type": "box",
-        "layout": "vertical",
-        "contents": [{"type": "text", "text": f"✅ 正確答案：{ans}", "weight": "bold", "size": "sm"}],
-        "backgroundColor": "#E8F5E9",
-        "paddingAll": "md",
-        "cornerRadius": "sm",
-    })
-    body_contents.append({
-        "type": "box",
-        "layout": "vertical",
-        "contents": [{"type": "text", "text": f"📖 解析：{analysis}", "wrap": True, "size": "sm"}],
-        "backgroundColor": "#E3F2FD",
-        "paddingAll": "md",
-        "cornerRadius": "sm",
-        "margin": "md",
-    })
-    bubble = {
-        "type": "bubble",
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": body_contents,
-        },
-    }
-    alt = f"時間解鎖小測驗：{(q or '')[:60]}..."
-    return FlexSendMessage(alt_text=alt, contents=bubble)
-
-def time_locked_quiz_handler(user_id, reply_token=None):
-    """
-    時間解鎖小測驗：依 get_now_taipei() 篩選已解鎖題目，隨機抽一題，以 Flex 回覆。
-    reply_token 有值則 reply_message，否則 push_message。
-    讀取失敗或異常時回傳友善訊息，避免 500。
-    """
-    try:
-        pool = _load_timed_quiz_pool()
-        if not pool:
-            msg = TextSendMessage(text="目前沒有可用的題目，請稍後再試。")
-            if reply_token:
-                line_bot_api.reply_message(reply_token, msg)
-            else:
-                line_bot_api.push_message(user_id, msg)
-            return
-        chosen = random.choice(pool)
-        flex_msg = build_timed_quiz_flex_message(chosen)
-        if reply_token:
-            line_bot_api.reply_message(reply_token, flex_msg)
-        else:
-            line_bot_api.push_message(user_id, flex_msg)
-    except Exception as e:
-        traceback.print_exc()
-        print(f"[QUIZ] time_locked_quiz_handler error: {e}")
-        try:
-            fallback = TextSendMessage(text="小測驗暫時無法使用，請稍後再試。")
-            if reply_token:
-                line_bot_api.reply_message(reply_token, fallback)
-            else:
-                line_bot_api.push_message(user_id, fallback)
-        except Exception:
-            pass
-
 def quick_reply_review_ask():
     """主動複習：需要幫你整理複習筆記嗎？[要, 不要]。"""
     return QuickReply(
@@ -823,9 +701,16 @@ def _redis_user_mode_key(user_id):
     return f"{REDIS_KEY_USER_MODE}:{user_id}"
 
 # --- 中醫問答：tcm_master_knowledge.json + OpenAI gpt-4o-mini（純 OpenAI）---
+try:
+    import numpy as np
+    _NUMPY_AVAILABLE = True
+except ImportError:
+    _NUMPY_AVAILABLE = False
+
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 _TCM_JSON_CACHE = None
 _TCM_FULL_CONTEXT_CACHE = None
+_TCM_EMBEDDINGS_CACHE = None  # list[{"category", "text", "embedding"}]
 
 def _load_tcm_json():
     """載入 data/tcm_master_knowledge.json，快取。"""
@@ -919,6 +804,60 @@ def _build_full_tcm_context():
     result = "\n\n".join(parts) if parts else ""
     _TCM_FULL_CONTEXT_CACHE = result
     return result
+
+
+def _load_tcm_embeddings():
+    """
+    載入 data/tcm_embeddings.json（由 scripts/generate_embeddings.py 產生），快取至記憶體。
+    回傳 list[dict]，每筆含 "category"、"text"、"embedding"（list[float]）。
+    檔案不存在時回傳空 list（自動 fallback 到關鍵字模式）。
+    """
+    global _TCM_EMBEDDINGS_CACHE
+    if _TCM_EMBEDDINGS_CACHE is not None:
+        return _TCM_EMBEDDINGS_CACHE
+    path = os.path.join(_DATA_DIR, "tcm_embeddings.json")
+    if not os.path.isfile(path):
+        _TCM_EMBEDDINGS_CACHE = []
+        return _TCM_EMBEDDINGS_CACHE
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            _TCM_EMBEDDINGS_CACHE = json.load(f)
+        print(f"[Embed] 載入 {len(_TCM_EMBEDDINGS_CACHE)} 筆 knowledge_point embeddings")
+    except Exception as e:
+        print(f"[Embed] 載入失敗：{e}")
+        _TCM_EMBEDDINGS_CACHE = []
+    return _TCM_EMBEDDINGS_CACHE
+
+
+def _semantic_search(query_text: str, top_k: int = 3) -> str:
+    """
+    語義向量搜尋：embed 使用者問題 → cosine similarity → 回傳 Top-K 知識點的合併文字。
+    numpy 不可用、embeddings 未載入、或 API 失敗時回傳空字串，讓呼叫端 fallback。
+    """
+    if not _NUMPY_AVAILABLE:
+        return ""
+    records = _load_tcm_embeddings()
+    if not records:
+        return ""
+    try:
+        resp = client.embeddings.create(model="text-embedding-3-small", input=query_text[:2000])
+        q_vec = np.array(resp.data[0].embedding, dtype="float32")
+    except Exception as e:
+        print(f"[Embed] query embedding 失敗：{e}")
+        return ""
+
+    scores = []
+    for rec in records:
+        try:
+            kp_vec = np.array(rec["embedding"], dtype="float32")
+            sim = float(np.dot(q_vec, kp_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(kp_vec) + 1e-9))
+            scores.append((sim, rec["text"]))
+        except Exception:
+            continue
+
+    scores.sort(key=lambda x: x[0], reverse=True)
+    return "\n\n".join(text for _, text in scores[:top_k])
+
 
 _TCM_SYSTEM_PROMPT = """
 【最優先規則：在閱讀任何對話歷史之前，先判斷使用者「最新這一則」訊息的意圖】
@@ -1134,9 +1073,9 @@ def _log_interaction_to_mongodb_async(user_id, text, ai_reply, is_eng):
 def _tcm_openai_reply(user_id, text, reply_token=None):
     """
     以 tcm_master_knowledge.json 為 context，用 OpenAI gpt-4o-mini 生成回覆。
-    先關鍵字匹配，有匹配用精簡 context；無匹配用完整 JSON。不經過 Assistant API。
+    語義向量搜尋（_semantic_search）找出最相關 Top-3 知識點作為 context；
+    embeddings 未產生時自動 fallback 至全量 context。不經過 Assistant API。
     回傳 True 若已回覆，False 若失敗。
-    優先使用 reply_token 以避免 push 額度限制。
     """
     if not (text or "").strip():
         return False
@@ -1147,150 +1086,12 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
     if not api_key:
         return False
     start_ts = time.time()
-    all_data = _load_tcm_json()
-    ctx_parts = []
-    for data in all_data:
-        for kp in data.get("knowledge_points") or []:
-            cat = (kp.get("category") or "").split("(")[0].strip()
-            terms = [cat] if len(cat) >= 2 else []
-            if "五行" in cat:
-                terms.append("五行")
-            for cr in (kp.get("causal_relationships") or []):
-                if isinstance(cr, dict):
-                    for k in ("emotion", "target_organ"):
-                        v = cr.get(k, "")
-                        if isinstance(v, str) and len(v) >= 1:
-                            terms.extend(v.replace("/", " ").split())
-            for pf in (kp.get("pathological_features") or []):
-                if isinstance(pf, dict):
-                    v = pf.get("evil", "")
-                    if isinstance(v, str):
-                        terms.append(v.split("(")[0].strip())
-            for row in (kp.get("five_elements_table") or []):
-                if isinstance(row, dict):
-                    for k in ("organ", "element"):
-                        v = row.get(k, "")
-                        if isinstance(v, str) and len(v) >= 2:
-                            terms.append(v)
-            for qa in (kp.get("student_qa") or []):
-                if isinstance(qa, str) and "：" in qa:
-                    q = qa.split("：", 1)[0].strip().replace("？", "").replace("?", "")
-                    if 2 <= len(q) <= 25:
-                        terms.append(q)
-            for ii in (kp.get("inspection_items") or []):
-                if isinstance(ii, dict):
-                    v = ii.get("item", "").split("(")[0].strip()
-                    if len(v) >= 2:
-                        terms.append(v)
-            if "望診" in cat or "舌" in cat:
-                terms.extend(["望診", "舌診", "舌"])
-            for k in (kp.get("mapping") or {}):
-                if isinstance(k, str) and len(k) >= 2:
-                    terms.append(k.split("(")[0].strip())
-            for feat in (kp.get("features") or []):
-                if isinstance(feat, dict):
-                    v = feat.get("type", "").split("(")[0].strip()
-                    if len(v) >= 2:
-                        terms.append(v)
-            for item in (kp.get("items") or []):
-                if isinstance(item, dict):
-                    v = item.get("name", "").split("(")[0].strip()
-                    if len(v) >= 2:
-                        terms.append(v)
-            for d in (kp.get("details") or []):
-                if isinstance(d, dict):
-                    v = (d.get("type") or d.get("item", "")).strip()
-                    if len(v) >= 2:
-                        terms.append(v.split("(")[0].strip())
-            for t in (kp.get("types") or []):
-                if isinstance(t, dict):
-                    v = t.get("name", "").split("(")[0].strip()
-                    if len(v) >= 2:
-                        terms.append(v)
-            for m in (kp.get("methods") or []):
-                if isinstance(m, dict):
-                    v = m.get("name", "").split("(")[0].strip()
-                    if len(v) >= 2:
-                        terms.append(v)
-            if "經絡" in cat or "穴位" in cat or "針灸" in cat or "刺灸" in cat:
-                terms.extend(["經絡", "穴位", "針灸", "刺灸", "阿是穴", "得氣", "灸法", "放血"])
-            for tq in (kp.get("ten_questions_logic") or []):
-                if isinstance(tq, dict):
-                    v = tq.get("item", "").split("(")[0].strip()
-                    if len(v) >= 2:
-                        terms.append(v)
-            if "聞診" in cat or "問診" in cat or "十問" in cat or "切診" in cat or "脈" in cat:
-                terms.extend(["聞診", "問診", "十問歌", "切診", "脈診", "脈"])
-            for k in (kp.get("pulse_mapping") or {}):
-                if isinstance(k, str) and len(k) >= 2:
-                    terms.append(k)
-            for cp in (kp.get("common_pulses") or []):
-                if isinstance(cp, dict):
-                    v = cp.get("pulse", "").split("(")[0].strip()
-                    if len(v) >= 2:
-                        terms.append(v)
-            if any(t in txt for t in terms if t and len(t) >= 2):
-                if kp.get("core_logic"):
-                    ctx_parts.append(kp["core_logic"])
-                if kp.get("mechanism"):
-                    ctx_parts.append(kp["mechanism"])
-                cr = kp.get("causal_relationships")
-                if cr:
-                    lines = [f"{r.get('emotion','')}→{r.get('impact','')}：{r.get('symptoms','')}" for r in cr if isinstance(r, dict)]
-                    ctx_parts.append("；".join(lines))
-                for row in (kp.get("five_elements_table") or []):
-                    if isinstance(row, dict):
-                        ctx_parts.append(json.dumps(row, ensure_ascii=False))
-                if kp.get("interactions"):
-                    for k, v in (kp["interactions"] or {}).items():
-                        ctx_parts.append(f"{k}: {v}")
-                pf = kp.get("pathological_features")
-                if pf:
-                    lines = [f"{r.get('evil','')}：{r.get('features','')}" for r in pf if isinstance(r, dict)]
-                    ctx_parts.append("；".join(lines))
-                for qa in (kp.get("student_qa") or []):
-                    if isinstance(qa, str):
-                        ctx_parts.append(qa)
-                for ii in (kp.get("inspection_items") or []):
-                    if isinstance(ii, dict):
-                        ctx_parts.append(ii.get("item", "") + ": " + (ii.get("logic") or ", ".join(ii.get("types", []))))
-                if kp.get("mapping"):
-                    for k, v in (kp["mapping"] or {}).items():
-                        ctx_parts.append(f"{k}: {v}")
-                for feat in (kp.get("features") or []):
-                    if isinstance(feat, dict):
-                        ctx_parts.append(feat.get("type", "") + ": " + (feat.get("logic") or ""))
-                        for d in (feat.get("details") or []):
-                            if isinstance(d, dict):
-                                ctx_parts.append(json.dumps(d, ensure_ascii=False))
-                for item in (kp.get("items") or []):
-                    if isinstance(item, dict):
-                        ctx_parts.append(f"{item.get('name','')}: {item.get('logic','')}")
-                for d in (kp.get("details") or []):
-                    if isinstance(d, dict):
-                        label = d.get("type") or d.get("item", "")
-                        ctx_parts.append(f"{label}: {d.get('logic','')}")
-                for t in (kp.get("types") or []):
-                    if isinstance(t, dict):
-                        ctx_parts.append(f"{t.get('name','')}: {t.get('logic','')}")
-                if kp.get("functions"):
-                    ctx_parts.append(kp["functions"])
-                for m in (kp.get("methods") or []):
-                    if isinstance(m, dict):
-                        ctx_parts.append(f"{m.get('name','')}: {m.get('details','')}")
-                for cc in (kp.get("common_conditions") or []):
-                    if isinstance(cc, str):
-                        ctx_parts.append(cc)
-                for tq in (kp.get("ten_questions_logic") or []):
-                    if isinstance(tq, dict):
-                        ctx_parts.append(f"{tq.get('item','')}: {tq.get('logic','')}")
-                if kp.get("pulse_mapping"):
-                    for k, v in (kp["pulse_mapping"] or {}).items():
-                        ctx_parts.append(f"{k}: {v}")
-                for cp in (kp.get("common_pulses") or []):
-                    if isinstance(cp, dict):
-                        ctx_parts.append(f"{cp.get('pulse','')}: {cp.get('logic','')}")
-    ctx = "\n".join(ctx_parts)[:2000] if ctx_parts else _build_full_tcm_context()[:4000]
+
+    # 語義搜尋取得 context；embeddings 不存在時 fallback 到全量文字
+    ctx = _semantic_search(txt, top_k=3)
+    if not ctx or not ctx.strip():
+        ctx = _build_full_tcm_context()[:4000]
+
     if not ctx or not ctx.strip():
         return False
     try:
@@ -2180,9 +1981,6 @@ def handle_postback(event):
         if data == "action=course" or data == "action=weekly":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
             return
-        if data == "action=timed_quiz":
-            time_locked_quiz_handler(user_id, reply_token=event.reply_token)
-            return
         # mode=tcm / mode=speaking / mode=writing（Rich Menu 切換）
         mode = data.split("=")[1].strip() if "=" in data else "tcm"
         mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
@@ -2309,9 +2107,6 @@ def handle_message(event):
             return
         if user_text == "課務查詢":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)
-            return
-        if user_text == "時間解鎖小測驗":
-            time_locked_quiz_handler(user_id, reply_token=event.reply_token)
             return
         if (user_text or "").strip() == "測驗模式":
             line_bot_api.reply_message(
@@ -2480,15 +2275,6 @@ def handle_message(event):
         # 主動複習：偵測到弱項且超過冷卻期（在中醫問答回覆後才詢問）
         # 這裡不直接回覆，避免擋掉原本問題回答流程。
         pass
-
-        # 小測驗（舊題庫）：點擊「否」→ 友善回覆，保持一般問答模式
-        if (not suppress_yes_no_command) and user_text == "否":
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("沒問題！如果有其他想了解的，歡迎隨時提問。"))
-            return
-        # 小測驗（舊題庫）：點擊「是」→ 時間解鎖題庫
-        if (not suppress_yes_no_command) and user_text == "是":
-            time_locked_quiz_handler(user_id, reply_token=event.reply_token)
-            return
 
         if user_text == "本週重點":
             send_course_inquiry_flex(user_id, reply_token=event.reply_token)

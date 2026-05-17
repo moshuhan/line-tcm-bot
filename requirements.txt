@@ -13,3 +13,4 @@ reportlab
 matplotlib
 cloudinary
 httpx
+numpy

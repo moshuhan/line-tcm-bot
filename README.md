@@ -1,26 +1,24 @@
 # LINE TCM AI Bot（中醫課程助教）
 
-以 **Python（Flask）+ OpenAI** 為主的 LINE Bot，專為中醫課程設計。部署於 Vercel，使用 Upstash Redis 儲存狀態，具備時間感知檢索、語音教練、蘇格拉底測驗、主動複習與每週學習報告。
+以 **Python（Flask）+ OpenAI** 為主的 LINE Bot，專為中醫課程設計。部署於 **Railway**，使用 Redis 儲存狀態、MongoDB 記錄研究資料，具備語義向量搜尋、語音教練、AI 動態測驗、主動複習與每週學習報告。
 
 ---
 
 ## 功能特色
 
 - **LINE Messaging API**：接收／回覆文字、語音、Postback（Rich Menu）。
-- **OpenAI**：Assistant API（中醫問答／寫作修訂）、Whisper（語音轉文字）、TTS（示範發音）、GPT-4o-mini（文法、測驗、複習筆記、每週概念標註）。
-- **時間感知檢索與課綱**（`config/syllabus.json` + `api/syllabus.py`）：
-  - 不鎖定檢索：與中醫／醫療相關問題皆可依知識庫或學術資源回答。
-  - 未來課程進度提示：回答後可附加「這是我們第 N 週的重點，你很有先見之明喔！」。
+- **OpenAI**：gpt-4o-mini（中醫問答、測驗、複習筆記）、Whisper（語音轉文字）、TTS（示範發音）、text-embedding-3-small（語義向量搜尋）。
+- **語義向量 RAG**（`data/tcm_master_knowledge.json` + `data/tcm_embeddings.json`）：
+  - 啟動時將預計算向量載入記憶體，每次問答只多一次 embedding API 呼叫（~100–200ms）。
+  - 以 cosine similarity 找出最相關的 Top-3 知識點作為 context，解決關鍵字比對 miss 的問題。
+  - embeddings 檔案不存在時自動 fallback 至全量 context，不影響服務。
+- **時間感知課綱**（`config/syllabus.json` + `api/syllabus.py`）：
+  - 與中醫／醫療相關問題皆可依知識庫或學術資源回答，不鎖定課程進度。
   - 精準過濾：僅對與中醫／醫療學術完全無關的內容回覆「本機器人僅供學業使用」。
 - **語音教練**：以學生說出內容為基準，無靜態題庫；需修正時 TTS（shimmer）示範；正確時鼓勵＋Quick Reply。
-- **蘇格拉底測驗**：依 last_assistant_message 即時出題；點「否」機器人保持沉默。
-- **模式路由器**：寫作模式禁用中醫檢索；課務查詢強制檢索 2026schedule.pdf、20260307courseintroduction.pdf。
-- **主動複習**：
-  - 若某學生在特定領域（經絡、穴位、辨證等）表現不佳達門檻，主動詢問：「發現你對這部分較不熟，需要幫你整理複習筆記嗎？」【要／不要】。
-  - 點「要」：產生該領域複習筆記並清除該弱項計數。
-- **每週學習報告（Cron）**：
-  - 每週五 18:00（台灣時間）執行：彙整所有使用者提問，以 GPT 標註概念後統計「前十大困惑觀念」。
-  - 使用 matplotlib 繪製提問次數圖、ReportLab 產出 PDF，經 SMTP 寄至 `REPORT_EMAIL`。
+- **AI 動態測驗**：依 AI 回覆內容即時出題（MCQ），不使用靜態題庫；回覆後由 GPT 判斷並記錄弱項。
+- **主動複習**：若某學生在特定領域表現不佳達門檻，主動詢問是否整理複習筆記。
+- **每週學習報告（Cron）**：彙整所有使用者提問，統計前十大困惑觀念，產出 PDF 並寄送報告。
 
 ---
 
@@ -28,26 +26,34 @@
 
 ```
 .
-├── api
-│   ├── index.py          # Vercel 入口（Flask）：Webhook、語音、測驗、複習、Cron
-│   ├── syllabus.py       # 時間感知檢索與課綱（未來提示、離題過濾、RAG 說明）
-│   ├── learning.py       # 問題記錄、蘇格拉底測驗、弱項、複習筆記
-│   ├── weekly_report.py  # 每週報告：Redis 取問、概念統計、PDF、SMTP
-│   └── webhook.js        # Node 版 Webhook（選用，目前未作主要入口）
-├── config
-│   └── syllabus.json     # 課綱日期、關鍵字、學業相關關鍵字
-├── services/             # Node 用（line / openai / state）
+├── api/
+│   ├── index.py            # Railway 入口（Flask）：Webhook、語音、測驗、複習
+│   ├── syllabus.py         # 時間感知檢索與課綱（離題過濾、RAG 說明）
+│   ├── learning.py         # 問題記錄、AI 動態測驗、弱項、複習筆記
+│   ├── research_logging.py # 研究資料記錄（MongoDB）
+│   ├── weekly_report.py    # 每週報告：概念統計、PDF、SMTP
+│   └── webhook.js          # Node 版 Webhook（備用，目前未作主要入口）
+├── config/
+│   ├── syllabus.json       # 課綱日期、關鍵字
+│   └── syllabus_full.json  # 完整課綱（含 start_time/end_time/has_handout）
+├── data/
+│   ├── tcm_master_knowledge.json  # TCM 知識庫
+│   ├── tcm_embeddings.json        # 預計算向量（由 generate_embeddings.py 產生）
+│   └── ai_weekly_summary.json     # AI 預處理的每週重點
 ├── scripts/
-│   └── setup_rich_menu.js # Rich Menu 設定（Node）
+│   ├── generate_embeddings.py  # 一次性：為知識庫產生 embedding 向量
+│   ├── setup_rich_menu.js      # Rich Menu 設定（Node）
+│   └── run_local.ps1           # 本地啟動腳本（Windows）
+├── services/                   # Node 用（line / openai / state），備用
 ├── docs/
-│   └── ARCHITECTURE.md   # 技術架構概覽
+│   └── ARCHITECTURE.md         # 技術架構概覽
 ├── tests/
-├── test_local.py         # 本地測試入口（等同 python -m api.index）
-├── register_menu.py      # Python 版 Rich Menu 上傳（2500x843）
-├── vercel.json           # Rewrite → api/index.py；Cron 每週五 /api/cron/weekly
-├── requirements.txt      # Python 依賴（含 reportlab、matplotlib）
-├── package.json          # Node 依賴與腳本
-├── .env.example          # 環境變數範例
+│   ├── test_is_off_topic.py    # 離題過濾邏輯測試
+│   └── test_tcm_latency.py     # TCM 知識庫載入延遲測試
+├── benchmark.py                # 模型比較（our system vs GPT-4o vs Gemini）
+├── Procfile                    # Railway 部署指令（gunicorn + gevent）
+├── requirements.txt
+├── .env.example
 └── README.md
 ```
 
@@ -63,106 +69,94 @@
 | `LINE_CHANNEL_SECRET` | LINE Developers Console |
 | `OPENAI_API_KEY` | OpenAI API Key |
 | `OPENAI_ASSISTANT_ID` | OpenAI Assistants 建立的助理 ID |
-| `KV_REST_API_URL` | Upstash Redis URL |
-| `KV_REST_API_TOKEN` | Upstash Redis Token |
-| `REPORT_EMAIL` | 每週 PDF 報告寄送信箱（請輸入你的信箱） |
+| `REDIS_URL` | Railway Redis 連線字串 |
+| `MONGO_URL` | Railway MongoDB 連線字串 |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | TTS 語音檔雲端儲存 |
+| `REPORT_EMAIL` | 每週 PDF 報告寄送信箱 |
 | `CRON_SECRET` | 保護 /api/cron/weekly 的密鑰 |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | 寄送每週報告用 SMTP（如 Gmail 應用程式密碼） |
-| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | TTS 語音檔雲端儲存（Vercel 部署必填，否則 fallback Redis） |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | 每週報告 SMTP |
+
+---
+
+## 語義向量 RAG 初始化（首次或知識庫更新後執行）
+
+每次更新 `data/tcm_master_knowledge.json` 後，需重新產生向量：
+
+```bash
+python scripts/generate_embeddings.py
+```
+
+執行完成後將 `data/tcm_embeddings.json` 一同 commit 並部署，Railway 啟動後會自動載入至記憶體。
 
 ---
 
 ## 本地開發與快速測試
 
-不需要每次部署就能在 LINE 上即時測試程式碼變更：
-
-### 1. 啟動本地伺服器（與 Vercel 相同的完整版）
+### 1. 啟動本地伺服器
 
 ```bash
 pip install -r requirements.txt
 # 確保 .env 已設定
 
-# 方式 A：直接執行（推薦）
 python -m api.index
-
-# 方式 B：等同方式 A
+# 或
 python test_local.py
-
-# 方式 C：Windows PowerShell 一鍵腳本
-.\scripts\run_local.ps1
 ```
 
 Flask 會啟動於 `http://0.0.0.0:5000`。
 
 ### 2. 用 ngrok 暴露本機
 
-另開一個終端執行：
-
 ```bash
 ngrok http 5000
 ```
 
-（若未安裝：`choco install ngrok` 或從 [ngrok.com](https://ngrok.com) 下載）
-
 ### 3. 設定 LINE Webhook
 
-複製 ngrok 顯示的 `https://xxxx.ngrok-free.app`，到 **LINE Developers Console** → Messaging API → Webhook URL 設為：
+到 **LINE Developers Console** → Messaging API → Webhook URL 設為：
 
 ```
 https://你的ngrok網址/callback
 ```
 
-### 4. 開始測試
-
-在 LINE 傳訊息給 Bot，會即時打到你的本機。改完程式碼後只需重啟 `python -m api.index` 即可，不需重新部署。
-
-**測試完成後**：記得把 Webhook URL 改回 Vercel 網址，否則正式環境不會收到訊息。
-
 ---
 
-**備註**：Vercel 與本地測試皆使用 `api/index.py`；`test_local.py` 為本地啟動捷徑。
-
----
-
-## Vercel 部署
+## Railway 部署
 
 1. 將本專案推送到 **GitHub**。
-2. 登入 [Vercel](https://vercel.com) → **Add New Project** → 匯入 `line-tcm-bot` 倉庫。
-3. **Environment Variables** 設定上述所有變數（含 `REPORT_EMAIL`、`CRON_SECRET`、SMTP、Redis）。
-4. 部署完成後，記下網域（如 `https://your-project.vercel.app`）。
-5. **LINE Developers Console** → Messaging API：
-   - **Webhook URL**：`https://your-project.vercel.app/callback`
-   - 開啟 **Use webhook**。
-6. 若使用 Vercel Cron：在專案設定中確認已啟用 Cron，排程為每週五 10:00 UTC（台灣 18:00）呼叫 `/api/cron/weekly`。需設定 `CRON_SECRET`，Vercel 會以 `Authorization: Bearer <CRON_SECRET>` 呼叫。
+2. 登入 [Railway](https://railway.app) → **New Project** → 從 GitHub 匯入。
+3. 新增 Redis 與 MongoDB plugin，複製連線字串填入環境變數。
+4. 設定所有環境變數後，Railway 會自動依 `Procfile` 啟動：
+   ```
+   gunicorn --worker-class gevent --workers 2 --timeout 120 --bind 0.0.0.0:$PORT api.index:app
+   ```
+5. 部署完成後，到 **LINE Developers Console** 將 Webhook URL 設為 Railway 提供的網域：
+   ```
+   https://你的railway網址/callback
+   ```
 
 ---
 
 ## 語音教練測試（口說練習）
 
-1. 在 LINE 切換至「口說練習」模式（或說「口說練習」）。
-2. 傳送語音訊息（.m4a）；Bot 會回覆辨識結果，並以學生說出內容為基準分析發音與文法。
-3. 需修正：回饋文字 ＋ TTS（shimmer）示範正確發音；正確：鼓勵語 ＋ Quick Reply「是否要練習其他句子？」。
+1. 在 LINE 切換至「口說練習」模式。
+2. 傳送語音訊息（.m4a）；Bot 回覆辨識結果並分析發音與文法。
+3. 需修正：回饋文字 ＋ TTS 示範正確發音；正確：鼓勵語 ＋ Quick Reply。
 
 ---
 
-## 蘇格拉底測驗與主動複習
+## AI 動態測驗與主動複習
 
-- **測驗**：在中醫問答模式中，每次 AI 回覆後會出現「要來試試一題小測驗嗎？」【是／否】。點「否」機器人保持沉默；點「是」根據助教剛回覆的內容即時生成蘇格拉底式小測驗（禁止靜態題庫），回覆後由 GPT 判斷並記錄弱項。
-- **主動複習**：當某領域弱項次數達門檻且超過冷卻期，Bot 會主動問「需要幫你整理複習筆記嗎？」【要／不要】。點「要」會產出該領域複習筆記並清除該弱項計數。
-
----
-
-## 每週報告（Cron）
-
-- **自動**：Vercel Cron 每週五 10:00 UTC 呼叫 `GET/POST /api/cron/weekly`（需 `CRON_SECRET`）。
-- **手動**：對 `https://你的網域/api/cron/weekly?secret=<CRON_SECRET>` 發 GET 請求（或 Header `Authorization: Bearer <CRON_SECRET>`）。
-- 報告會彙整最近 7 天提問、產出前十大困惑觀念、生成 PDF 並寄至 `REPORT_EMAIL`。請在環境變數中設定 **你的信箱** 與 SMTP。
+- **測驗**：中醫問答模式下，每次 AI 回覆後由 GPT 依回覆內容即時生成 MCQ 小測驗（不使用靜態題庫）。學生以 A/B/C 回覆後批改，並記錄弱項。
+- **主動複習**：當某領域弱項次數達門檻且超過冷卻期，Bot 主動詢問「需要幫你整理複習筆記嗎？」
 
 ---
 
 ## 技術說明
 
-- **入口**：Vercel 將所有請求 rewrite 至 `api/index.py`（Flask）。對話狀態、測驗、弱項、問題記錄皆存於 **Upstash Redis**。
+- **入口**：Railway 依 `Procfile` 執行 gunicorn，所有請求由 `api/index.py`（Flask）處理。
+- **狀態儲存**：對話模式、測驗、弱項、問題記錄存於 **Redis**；研究資料（互動紀錄、測驗結果）存於 **MongoDB**。
+- **RAG 流程**：`_semantic_search()` 在記憶體中對預計算向量做 cosine similarity，取 Top-3 知識點組成 context 送給 gpt-4o-mini。
 - **架構細節**：見 `docs/ARCHITECTURE.md`。
 
 ---
@@ -170,15 +164,12 @@ https://你的ngrok網址/callback
 ## 授權與注意事項
 
 - 本專案供教學使用；涉及中醫內容之回覆會附加「僅供教學用途，不具醫療建議」聲明。
-- 每週報告與 SMTP 寄送依你所填的 `REPORT_EMAIL` 與 SMTP 設定為準，請勿將密碼提交至版控。
-- **課務查詢**：請在 OpenAI Assistants 中將 `2026schedule.pdf`、`20260307courseintroduction.pdf` 上傳至助理的 File Search，以供課務查詢時強制檢索。
+- 請勿將 `.env`、API Key 或 SMTP 密碼提交至版控。
 
 ---
 
-## 最近更新 (2026-03-12)
+## 最近更新 (2026-05-17)
 
-- **分層知識架構**：在 Node 版 Webhook 的回應流程中導入「課程優先 → 通用中醫補充」的分層邏輯。若課程資料（含講義／課綱）可支撐答案，助教會以 `[課程核心知識]` 為開頭，並以課程內容為最高準則；若課程資料不足，則降階為 `[通用中醫參考]`，用一般中醫理論補充說明。
-- **RAG 檢索優化**：新增 Hybrid Search 與 HyDE 流程，結合課綱中的關鍵字與向量語義相似度來判斷最相關的課程主題，並以「先產生虛擬答案摘要再檢索」的方式，提升在稀疏資料情境下的命中率。
-- **幻覺控制與安全約束**：在系統提示中強調 CoT（不外顯）思考流程，並針對藥材劑量與配伍禁忌等高風險欄位施加硬性限制：若課程資料未明確記載，不得臆測具體數值，只能提供原則性建議與就醫提醒；輸出前再經過一層自我檢核，移除偏方或過度武斷的說法。
-- **環境變數切換**：統一使用 `LINE_CHANNEL_ACCESS_TOKEN` / `LINE_CHANNEL_SECRET` 作為 LINE 認證的唯一環境變數，移除原本僅供開發測試用的 `DEV_` 前綴設定，並確認文件中僅描述變數名稱與用途，不包含任何實際金鑰內容。
-- **中醫問答動態小測驗（正式入口）**：`api/index.py` 中的 tcm 模式已改為與 Node 版一致的流程：由中醫回答內容即時產生三選一小測驗，等待學生以 A/B/C 回覆後批改（正確固定回覆，錯誤回傳正確答案＋詳解），同時沿用既有的 Redis 弱項統計與主動複習機制；若學生未回選項而直接提新問題，則視為跳過該題並進入下一輪中醫問答。
+- **語義向量 RAG**：以 `text-embedding-3-small` 預計算知識庫向量，取代原本的關鍵字比對。問答時對使用者問題做 embedding，cosine similarity 找出 Top-3 最相關知識點作為 context，解決「虎口 vs 合谷」等換說法就找不到的問題。向量檔在 Railway 啟動後載入記憶體，每次問答僅多 ~100–200ms。
+- **移除時間解鎖小測驗**：靜態題庫（tcm_quiz_all.json）與時間解鎖機制已移除，改採 AI 動態出題，不限制學生的學習範圍。
+- **部署遷移至 Railway**：從 Vercel serverless 遷移至 Railway（gunicorn + gevent），解決冷啟動延遲問題，記憶體 cache 持久有效。
