@@ -79,6 +79,7 @@ try:
         judge_quiz_answer,
         generate_review_note,
         set_mcq_quiz_data,
+        REVIEW_ASK_COOLDOWN_DAYS,
     )
     from api.research_logging import (
         ensure_user,
@@ -139,6 +140,7 @@ except ImportError:
         judge_quiz_answer,
         generate_review_note,
         set_mcq_quiz_data,
+        REVIEW_ASK_COOLDOWN_DAYS,
     )
     from research_logging import (
         ensure_user,
@@ -951,10 +953,10 @@ def _get_user_language(user_id):
 
 
 def _maybe_send_review_prompt(user_id, reply_token=None):
-    weak = get_weak_categories(redis, user_id, min_count=2)
+    weak = get_weak_categories(redis, user_id, min_count=1)
     if not weak:
         return False
-    if (time.time() - get_last_review_ask(redis, user_id)) <= 7 * 24 * 3600:
+    if (time.time() - get_last_review_ask(redis, user_id)) <= REVIEW_ASK_COOLDOWN_DAYS * 24 * 3600:
         return False
     category = next(iter(weak.keys()), None)
     if not category:
@@ -1868,6 +1870,9 @@ def _handle_quiz_answer(user_id, choice, reply_token=None):
             if explanation:
                 reply += f"【中醫概念說明】\n{explanation}\n\n"
             reply += guidance
+
+    # 答錯時記錄弱項，不分語言
+    if choice != correct:
         try:
             record_weak_category(redis, user_id, (qd.get("category") or "其他"))
         except Exception:

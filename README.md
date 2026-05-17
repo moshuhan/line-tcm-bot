@@ -148,7 +148,8 @@ https://你的ngrok網址/callback
 ## AI 動態測驗與主動複習
 
 - **測驗**：中醫問答模式下，每次 AI 回覆後由 GPT 依回覆內容即時生成 MCQ 小測驗（不使用靜態題庫）。學生以 A/B/C 回覆後批改，並記錄弱項。
-- **主動複習**：當某領域弱項次數達門檻且超過冷卻期，Bot 主動詢問「需要幫你整理複習筆記嗎？」
+- **弱項追蹤**：不論使用中文或英文，只要答錯就記錄該題目的類別到 Redis（`user_weak:{user_id}`）。
+- **主動複習**：某領域累計 ≥ 1 次答錯，且距離上次詢問超過 1 天（`REVIEW_ASK_COOLDOWN_DAYS`），Bot 在下一次問答結束後主動推播「需要幫你整理複習筆記嗎？」【要 / 不要複習筆記】。冷卻天數可在 `api/learning.py` 的 `REVIEW_ASK_COOLDOWN_DAYS` 調整。
 
 ---
 
@@ -169,6 +170,12 @@ https://你的ngrok網址/callback
 ---
 
 ## 最近更新 (2026-05-17)
+
+- **修正弱項追蹤 Bug**：`record_weak_category` 原本只在中文路徑呼叫，英文模式答錯不會被記錄。現已移至語言判斷之外，答錯即記錄，不分語言。
+- **降低主動複習門檻**：答錯次數門檻從 2 次降為 1 次（`min_count=1`）；冷卻期從 7 天縮短為 1 天（`REVIEW_ASK_COOLDOWN_DAYS=1`），讓功能實際可被觸發。
+- **冷卻期改用常數**：`_maybe_send_review_prompt` 的冷卻判斷改為讀取 `REVIEW_ASK_COOLDOWN_DAYS`，往後只需改 `api/learning.py` 一個地方。
+
+---
 
 - **語義向量 RAG**：以 `text-embedding-3-small` 預計算知識庫向量，取代原本的關鍵字比對。問答時對使用者問題做 embedding，cosine similarity 找出 Top-3 最相關知識點作為 context，解決「虎口 vs 合谷」等換說法就找不到的問題。向量檔在 Railway 啟動後載入記憶體，每次問答僅多 ~100–200ms。
 - **移除時間解鎖小測驗**：靜態題庫（tcm_quiz_all.json）與時間解鎖機制已移除，改採 AI 動態出題，不限制學生的學習範圍。

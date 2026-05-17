@@ -22,7 +22,7 @@ QUIZ_DATA_KEY = "quiz_data:{user_id}"
 USER_STATE_KEY = "user_state:{user_id}"
 USER_WEAK_KEY = "user_weak:{user_id}"
 LAST_REVIEW_ASK_KEY = "last_review_ask:{user_id}"
-REVIEW_ASK_COOLDOWN_DAYS = 7
+REVIEW_ASK_COOLDOWN_DAYS = 1
 
 
 def log_question(redis_client, user_id, text):
