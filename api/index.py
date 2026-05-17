@@ -97,6 +97,7 @@ try:
         run_analytics_middleware,
         generate_review_quiz_from_interactions,
         log_student_feedback,
+        generate_personalized_review_note,
     )
 except ImportError:
     from syllabus import (
@@ -173,6 +174,7 @@ except ImportError:
             run_analytics_middleware,
             generate_review_quiz_from_interactions,
             log_student_feedback,
+            generate_personalized_review_note,
         )
     except ImportError:
         def _noop_user(*a, **k):
@@ -189,6 +191,7 @@ except ImportError:
         count_tcm_terms_in_text = lambda t: 0
         run_analytics_middleware = lambda *a, **k: None
         generate_review_quiz_from_interactions = lambda *a, **k: None
+        generate_personalized_review_note = lambda *a, **k: None
         log_student_feedback = lambda *a, **k: None
         classify_qa_learning_tags = lambda *a, **k: (None, None)
         append_conv_history = lambda *a, **k: None
@@ -2258,9 +2261,12 @@ def handle_message(event):
             cat = get_pending_review_category(redis, user_id)
             clear_pending_review_category(redis, user_id)
             if cat:
-                note = generate_review_note(client, cat)
+                # 優先用個人化版本（查 MongoDB 答錯紀錄）；失敗時 fallback 通用版本
+                note = generate_personalized_review_note(mongo_db, user_id, cat, client)
+                if not note:
+                    note = generate_review_note(client, cat)
                 clear_weak_category(redis, user_id, cat)
-                review_msg = text_with_quick_reply(f"📝 【{cat}】複習筆記\n\n{note}")
+                review_msg = text_with_quick_reply(f"📝 【{cat}】個人化複習筆記\n\n{note}")
             else:
                 review_msg = text_with_quick_reply("好的，有需要再跟我說～")
             if FORCE_PUSH_MODE:

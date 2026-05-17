@@ -150,6 +150,7 @@ https://你的ngrok網址/callback
 - **測驗**：中醫問答模式下，每次 AI 回覆後由 GPT 依回覆內容即時生成 MCQ 小測驗（不使用靜態題庫）。學生以 A/B/C 回覆後批改，並記錄弱項。
 - **弱項追蹤**：不論使用中文或英文，只要答錯就記錄該題目的類別到 Redis（`user_weak:{user_id}`）。
 - **主動複習**：某領域累計 ≥ 1 次答錯，且距離上次詢問超過 1 天（`REVIEW_ASK_COOLDOWN_DAYS`），Bot 在下一次問答結束後主動推播「需要幫你整理複習筆記嗎？」【要 / 不要複習筆記】。冷卻天數可在 `api/learning.py` 的 `REVIEW_ASK_COOLDOWN_DAYS` 調整。
+- **個人化複習筆記**：點「要複習筆記」後，Bot 查詢 MongoDB 中該使用者在該類別答錯的測驗紀錄與相關問答，餵給 GPT 產生針對個人弱點的複習筆記（非通用知識點）。MongoDB 不可用時自動 fallback 至通用版本。
 
 ---
 
@@ -174,6 +175,7 @@ https://你的ngrok網址/callback
 - **修正弱項追蹤 Bug**：`record_weak_category` 原本只在中文路徑呼叫，英文模式答錯不會被記錄。現已移至語言判斷之外，答錯即記錄，不分語言。
 - **降低主動複習門檻**：答錯次數門檻從 2 次降為 1 次（`min_count=1`）；冷卻期從 7 天縮短為 1 天（`REVIEW_ASK_COOLDOWN_DAYS=1`），讓功能實際可被觸發。
 - **冷卻期改用常數**：`_maybe_send_review_prompt` 的冷卻判斷改為讀取 `REVIEW_ASK_COOLDOWN_DAYS`，往後只需改 `api/learning.py` 一個地方。
+- **個人化複習筆記**：新增 `generate_personalized_review_note`（`api/research_logging.py`），查詢 MongoDB 中該使用者在該弱項類別答錯的測驗紀錄與相關問答，產生針對個人實際弱點的複習筆記；MongoDB 不可用時自動 fallback 通用版本。
 
 ---
 
