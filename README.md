@@ -15,7 +15,7 @@
 - **時間感知課綱**（`config/syllabus.json` + `api/syllabus.py`）：
   - 與中醫／醫療相關問題皆可依知識庫或學術資源回答，不鎖定課程進度。
   - 精準過濾：僅對與中醫／醫療學術完全無關的內容回覆「本機器人僅供學業使用」。
-- **語音教練**：以學生說出內容為基準，無靜態題庫；需修正時 TTS（shimmer）示範；正確時鼓勵＋Quick Reply。
+- **語音教練**：Azure Cognitive Services Pronunciation Assessment 分析實際發音，回傳整體分數、準確度、流暢度、完整度、語調（各 0–100）與需加強的字；分數 ≥ 80 視為通過，送出下一句；未設定 Azure 金鑰時自動 fallback 至 Whisper + GPT 文字評估。每月免費額度 5 小時。
 - **AI 動態測驗**：依 AI 回覆內容即時出題（MCQ），不使用靜態題庫；回覆後由 GPT 判斷並記錄弱項。
 - **主動複習**：若某學生在特定領域表現不佳達門檻，主動詢問是否整理複習筆記。
 - **每週學習報告（Cron）**：彙整所有使用者提問，統計前十大困惑觀念，產出 PDF 並寄送報告。
@@ -72,6 +72,8 @@
 | `REDIS_URL` | Railway Redis 連線字串 |
 | `MONGO_URL` | Railway MongoDB 連線字串 |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | TTS 語音檔雲端儲存 |
+| `AZURE_SPEECH_KEY` | Azure Speech Service 金鑰（口說教練發音評估用） |
+| `AZURE_SPEECH_REGION` | Azure 部署區域，例如 `eastasia`（口說教練發音評估用） |
 | `REPORT_EMAIL` | 每週 PDF 報告寄送信箱 |
 | `CRON_SECRET` | 保護 /api/cron/weekly 的密鑰 |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | 每週報告 SMTP |

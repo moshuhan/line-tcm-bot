@@ -289,7 +289,130 @@ ENABLE_QUIZ_GENERATION = os.getenv("ENABLE_QUIZ_GENERATION", "true").strip().low
 # 英文版部署時設 FORCE_LANG=en，強制所有回覆使用英文，不依賴動態語言偵測
 FORCE_LANG = os.getenv("FORCE_LANG", "").strip().lower()  # "en" | "" (空=動態偵測)
 
-# --- 口說練習：糾錯與分析大腦 ---
+# --- 口說練習：Azure Pronunciation Assessment ---
+_AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "").strip()
+_AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "").strip()
+_PRACTICE_SENTENCE_KEY = "practice_sentence:{user_id}"
+
+
+def _set_practice_sentence(user_id, sentence):
+    """儲存當前練習句到 Redis（TTL 30 分鐘），供發音評估用。"""
+    if not redis or not sentence:
+        return
+    try:
+        redis.set(_PRACTICE_SENTENCE_KEY.format(user_id=user_id), sentence.strip(), ex=1800)
+    except Exception:
+        pass
+
+
+def _get_practice_sentence(user_id):
+    """從 Redis 取得當前練習句，供 Azure Pronunciation Assessment 使用。"""
+    if not redis:
+        return ""
+    try:
+        val = redis.get(_PRACTICE_SENTENCE_KEY.format(user_id=user_id))
+        if val is None:
+            return ""
+        return val.decode("utf-8") if isinstance(val, bytes) else str(val)
+    except Exception:
+        return ""
+
+
+def _assess_pronunciation(audio_bytes: bytes, reference_text: str = "", language: str = "en-US") -> dict:
+    """
+    呼叫 Azure Speech REST API 進行 Pronunciation Assessment。
+    audio_bytes: LINE 下載的 M4A 原始位元組。
+    reference_text: 學生要跟唸的參考句（空字串則進入 content-free 模式）。
+    回傳 Azure 原始 JSON dict；失敗時回傳 {}。
+    """
+    if not _AZURE_SPEECH_KEY or not _AZURE_SPEECH_REGION:
+        return {}
+    pa_config = {
+        "GradingSystem": "HundredMark",
+        "Granularity": "Phoneme",
+        "EnableMiscue": True,
+    }
+    if reference_text.strip():
+        pa_config["ReferenceText"] = reference_text.strip()
+    pa_header = base64.b64encode(json.dumps(pa_config).encode("utf-8")).decode("utf-8")
+    url = (
+        f"https://{_AZURE_SPEECH_REGION}.stt.speech.microsoft.com"
+        f"/speech/recognition/conversation/cognitiveservices/v1"
+        f"?language={language}&format=detailed"
+    )
+    headers = {
+        "Ocp-Apim-Subscription-Key": _AZURE_SPEECH_KEY,
+        "Content-Type": "audio/x-m4a",
+        "Pronunciation-Assessment": pa_header,
+    }
+    try:
+        resp = requests.post(url, headers=headers, data=audio_bytes, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        print(f"[Azure] pronunciation assessment error: {e}")
+        return {}
+
+
+def _format_pronunciation_feedback(result: dict, is_english: bool) -> tuple:
+    """
+    解析 Azure 回應，回傳 (transcript: str, feedback: str, is_good: bool)。
+    is_good = PronScore >= 80。
+    """
+    nbest = (result.get("NBest") or [{}])[0]
+    transcript = (nbest.get("Display") or result.get("DisplayText") or "").strip()
+    pa = nbest.get("PronunciationAssessment") or {}
+    accuracy = pa.get("AccuracyScore") or 0
+    fluency = pa.get("FluencyScore") or 0
+    completeness = pa.get("CompletenessScore") or 0
+    pron_score = pa.get("PronScore") or accuracy
+    prosody = pa.get("ProsodyScore")
+
+    words = nbest.get("Words") or []
+    error_words = [
+        w.get("Word", "")
+        for w in words
+        if isinstance(w, dict)
+        and (w.get("PronunciationAssessment") or {}).get("ErrorType", "None") not in ("None", "")
+    ]
+
+    if is_english:
+        lines = ["🎙 Pronunciation Assessment:\n"]
+        lines.append(f"Overall: {pron_score:.0f}/100")
+        lines.append(f"• Accuracy:     {accuracy:.0f}/100")
+        lines.append(f"• Fluency:      {fluency:.0f}/100")
+        lines.append(f"• Completeness: {completeness:.0f}/100")
+        if prosody is not None:
+            lines.append(f"• Prosody:      {prosody:.0f}/100")
+        if error_words:
+            lines.append(f"\n⚠️ Words to improve: {', '.join(error_words)}")
+        if pron_score >= 80:
+            lines.append("\n✅ Great job! Your pronunciation is solid.")
+        elif pron_score >= 60:
+            lines.append("\n💪 Good effort! Focus on the highlighted words.")
+        else:
+            lines.append("\n📚 Keep practicing! Listen to the model pronunciation carefully.")
+    else:
+        lines = ["🎙 發音評估結果：\n"]
+        lines.append(f"整體分數：{pron_score:.0f}/100")
+        lines.append(f"• 準確度：{accuracy:.0f}/100")
+        lines.append(f"• 流暢度：{fluency:.0f}/100")
+        lines.append(f"• 完整度：{completeness:.0f}/100")
+        if prosody is not None:
+            lines.append(f"• 語調：  {prosody:.0f}/100")
+        if error_words:
+            lines.append(f"\n⚠️ 需加強的字：{', '.join(error_words)}")
+        if pron_score >= 80:
+            lines.append("\n✅ 非常棒！發音相當標準。")
+        elif pron_score >= 60:
+            lines.append("\n💪 不錯喔！繼續練習標示的字。")
+        else:
+            lines.append("\n📚 繼續加油！多聽示範語音，模仿語調。")
+
+    return transcript, "\n".join(lines), pron_score >= 80
+
+
+# --- 口說練習：GPT 糾錯（Azure 不可用時的 fallback）---
 def _evaluate_speech(transcript):
     """
     糾錯與分析：檢查語法、拼寫、用詞、語義完整性。
@@ -1491,7 +1614,9 @@ def _run_voice_background(user_id, message_id, base_url, cron_secret):
 
 def _process_voice_sync(user_id, message_id):
     """
-    語音處理：Whisper 辨識 -> GPT 評估 -> TTS -> Cloudinary。
+    語音處理：
+    - Speaking 模式：Azure Pronunciation Assessment（有金鑰）或 fallback GPT 評估
+    - 其他模式：Whisper 辨識 → TCM Q&A
     一律用 push_message 回傳，錯誤時主動 push 友善提示。
     """
     if not user_id or not str(user_id).strip():
@@ -1500,21 +1625,151 @@ def _process_voice_sync(user_id, message_id):
     try:
         print(f"[VOICE] start user_id={user_id} message_id={message_id}")
         message_content = line_bot_api.get_message_content(message_id)
+
+        # 下載音訊：同時保留 bytes（Azure 用）與寫入暫存檔（Whisper fallback 用）
+        audio_chunks = list(message_content.iter_content())
+        audio_bytes = b"".join(audio_chunks)
         tmp_dir = tempfile.gettempdir()
         temp_path = os.path.join(tmp_dir, f"{message_id}.m4a")
         try:
             with open(temp_path, "wb") as f:
-                for chunk in message_content.iter_content():
-                    f.write(chunk)
+                f.write(audio_bytes)
         except Exception:
             temp_path = os.path.join(os.path.dirname(__file__) or ".", f"{message_id}.m4a")
             with open(temp_path, "wb") as f:
-                for chunk in message_content.iter_content():
-                    f.write(chunk)
+                f.write(audio_bytes)
 
+        mode = _safe_get_mode(user_id)
+        is_en_speaking = FORCE_LANG == "en"
+
+        # ── Speaking 模式：優先走 Azure Pronunciation Assessment ──
+        if mode == "speaking":
+            if _AZURE_SPEECH_KEY and _AZURE_SPEECH_REGION:
+                reference_text = _get_practice_sentence(user_id)
+                print(f"[VOICE] Azure assessment reference='{reference_text[:60]}...' user_id={user_id}")
+                az_result = _assess_pronunciation(audio_bytes, reference_text, language="en-US")
+
+                if az_result and az_result.get("RecognitionStatus") == "Success":
+                    transcript_text, feedback, is_good = _format_pronunciation_feedback(az_result, is_en_speaking)
+                    if not transcript_text:
+                        transcript_text = (az_result.get("DisplayText") or "").strip()
+
+                    # 顯示辨識內容
+                    transcription_msg = f"🎤 Recognized: \"{transcript_text}\"" if is_en_speaking else f"🎤 辨識內容：「{transcript_text}」"
+                    line_bot_api.push_message(user_id, TextSendMessage(text=transcription_msg))
+
+                    # 記錄到 MongoDB
+                    if mongo_db is not None:
+                        try:
+                            ensure_user(mongo_db, user_id)
+                            log_speaking(mongo_db, user_id, len(transcript_text), count_tcm_terms_in_text(transcript_text), transcript_text)
+                            run_analytics_middleware(mongo_db, user_id)
+                        except Exception as e:
+                            print(f">>> RESEARCH log_speaking error: {e}")
+
+                    # 發音回饋
+                    line_bot_api.push_message(user_id, TextSendMessage(text=feedback))
+
+                    # TTS：發音好 → TTS 學生說的內容；發音差 → TTS 參考句讓學生對照
+                    tts_text = transcript_text if is_good else (reference_text or transcript_text)
+                    tts_label = (
+                        f"🔊 Model pronunciation: \"{tts_text}\"" if is_en_speaking
+                        else f"🔊 示範語音：「{tts_text}」"
+                    )
+                    line_bot_api.push_message(user_id, TextSendMessage(text=tts_label))
+                    try:
+                        audio_url, duration_ms = _generate_tts_and_store(tts_text, voice=VOICE_COACH_TTS_VOICE)
+                        if audio_url and duration_ms:
+                            line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
+                    except Exception as tts_err:
+                        print(f"[VOICE] TTS err: {tts_err}")
+
+                    # 下一句
+                    if is_good:
+                        next_sentence = _generate_next_practice_sentence(transcript_text)
+                        if next_sentence:
+                            _set_practice_sentence(user_id, next_sentence)
+                            next_msg = (
+                                f"💡 Try this next:\n\"{next_sentence}\"\n\nSend a voice message to practice!" if is_en_speaking
+                                else f"💡 建議下一句：\n「{next_sentence}」\n\n直接傳語音跟著唸！"
+                            )
+                        else:
+                            next_msg = "Ready for the next sentence?" if is_en_speaking else "要再練習下一句嗎？"
+                        line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(next_msg))
+                    else:
+                        retry_msg = "Try again! Focus on the words above. 💪" if is_en_speaking else "再試一次！注意上面標示的字。💪"
+                        line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(retry_msg))
+
+                    if os.path.isfile(temp_path):
+                        try:
+                            os.remove(temp_path)
+                        except OSError:
+                            pass
+                    print(f"[VOICE] done Azure speaking path is_good={is_good}")
+                    return
+                else:
+                    print(f"[VOICE] Azure returned non-success: {az_result.get('RecognitionStatus')} — falling back to Whisper")
+
+            # ── Fallback：Whisper + GPT 評估（Azure 未設定或失敗時）──
+            with open(temp_path, "rb") as audio_file:
+                transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file, language="en")
+            if os.path.isfile(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            transcript_text = (transcript.text or "").strip()
+            transcription_msg = f"🎤 Recognized: \"{transcript_text}\"" if is_en_speaking else f"🎤 辨識內容：「{transcript_text}」"
+            line_bot_api.push_message(user_id, TextSendMessage(text=transcription_msg))
+
+            if mongo_db is not None:
+                try:
+                    ensure_user(mongo_db, user_id)
+                    log_speaking(mongo_db, user_id, len(transcript_text), count_tcm_terms_in_text(transcript_text), transcript_text)
+                    run_analytics_middleware(mongo_db, user_id)
+                except Exception as e:
+                    print(f">>> RESEARCH log_speaking error: {e}")
+
+            status, feedback, corrected_text = _evaluate_speech(transcript_text)
+            if status == "Correct":
+                next_sentence = _generate_next_practice_sentence(transcript_text)
+                if next_sentence:
+                    _set_practice_sentence(user_id, next_sentence)
+                praise = "Great job! Well done! 🎉\n\n🔊 Listen to the model pronunciation:" if is_en_speaking else "表現不錯！🎉\n\n🔊 聆聽示範語音："
+                next_msg = (
+                    f"💡 Try this next:\n\"{next_sentence}\"" if (next_sentence and is_en_speaking)
+                    else f"💡 建議下一句：\n「{next_sentence}」" if next_sentence
+                    else ("Ready for the next sentence?" if is_en_speaking else "要再練習下一句嗎？")
+                )
+                line_bot_api.push_message(user_id, TextSendMessage(text=praise))
+                try:
+                    audio_url, duration_ms = _generate_tts_and_store(transcript_text, voice=VOICE_COACH_TTS_VOICE)
+                    if audio_url and duration_ms:
+                        line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
+                except Exception as tts_err:
+                    print(f"[VOICE] TTS err (fallback Correct): {tts_err}")
+                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(next_msg))
+            else:
+                feedback_header = "📊 Speaking Practice Feedback" if is_en_speaking else "📊 口說練習回饋"
+                line_bot_api.push_message(user_id, text_with_quick_reply(f"{feedback_header}\n\n{feedback}"))
+                tts_text = corrected_text.strip() if corrected_text else transcript_text
+                tts_label = f"🔊 Listen and repeat: \"{tts_text}\"" if is_en_speaking else f"🔊 請跟著唸：「{tts_text}」"
+                line_bot_api.push_message(user_id, TextSendMessage(text=tts_label))
+                try:
+                    audio_url, duration_ms = _generate_tts_and_store(tts_text, voice=VOICE_COACH_TTS_VOICE)
+                    if audio_url and duration_ms:
+                        line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
+                except Exception as tts_err:
+                    print(f"[VOICE] TTS err (fallback NeedsImprovement): {tts_err}")
+                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(
+                    "Demo audio sent! Try again 💪" if is_en_speaking else "示範語音已送上，再試一次 💪"
+                ))
+            print(f"[VOICE] done speaking fallback path")
+            return
+
+        # ── 非 Speaking 模式：Whisper → TCM Q&A ──
         with open(temp_path, "rb") as audio_file:
-            # 口說練習模式固定練英文，強制 language=en 避免 Whisper 誤判為中文
-            _whisper_lang = "en" if _safe_get_mode(user_id) == "speaking" or FORCE_LANG == "en" else None
+            _whisper_lang = "en" if FORCE_LANG == "en" else None
             _whisper_kwargs = {"model": "whisper-1", "file": audio_file}
             if _whisper_lang:
                 _whisper_kwargs["language"] = _whisper_lang
@@ -1526,98 +1781,14 @@ def _process_voice_sync(user_id, message_id):
                 pass
 
         transcript_text = (transcript.text or "").strip()
-        if FORCE_LANG == "en":
-            transcription_msg = f"🎤 Recognized: \"{transcript_text}\""
-        else:
-            transcription_msg = f"🎤 辨識內容：「{transcript_text}」"
+        transcription_msg = f"🎤 Recognized: \"{transcript_text}\"" if FORCE_LANG == "en" else f"🎤 辨識內容：「{transcript_text}」"
         line_bot_api.push_message(user_id, TextSendMessage(text=transcription_msg))
-
-        mode = _safe_get_mode(user_id)
-
-        # 口說模式：記錄 transcript 長度與 TCM 術語次數
-        if mode == "speaking" and mongo_db is not None:
-            try:
-                ensure_user(mongo_db, user_id)
-                log_speaking(
-                    mongo_db,
-                    user_id,
-                    len(transcript_text),
-                    count_tcm_terms_in_text(transcript_text),
-                    transcript_text,
-                )
-                run_analytics_middleware(mongo_db, user_id)
-            except Exception as e:
-                print(f">>> RESEARCH log_speaking error: {e}")
 
         if mode == REVISION_MODE:
             _revision_handler(user_id, transcript_text)
             print(f"[VOICE] done revision path")
             return
-        if mode == "speaking":
-            status, feedback, corrected_text = _evaluate_speech(transcript_text)
-            is_en_speaking = FORCE_LANG == "en"
-            if status == "Correct":
-                next_sentence = _generate_next_practice_sentence(transcript_text)
-                if is_en_speaking:
-                    praise = "Great pronunciation! Well done! 🎉\n\n🔊 Listen to the model pronunciation:"
-                    if next_sentence:
-                        next_msg = f"💡 Try this next:\n\"{next_sentence}\"\n\nSend a voice message to practice, or record your own sentence!"
-                    else:
-                        next_msg = "Ready for the next sentence?"
-                else:
-                    praise = "發音非常標準！太棒了！🎉\n\n🔊 聆聽示範語音："
-                    if next_sentence:
-                        next_msg = f"💡 建議下一句：\n「{next_sentence}」\n\n直接傳語音跟著唸，或錄你自己想練習的句子都可以！"
-                    else:
-                        next_msg = "要再練習下一句嗎？"
-                line_bot_api.push_message(user_id, TextSendMessage(text=praise))
-                tts_err_msg = "Sorry, audio generation failed. Please try again." if is_en_speaking else VOICE_ERROR_MSG
-                try:
-                    audio_url, duration_ms = _generate_tts_and_store(transcript_text, voice=VOICE_COACH_TTS_VOICE)
-                    if audio_url and duration_ms:
-                        line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
-                    else:
-                        line_bot_api.push_message(user_id, TextSendMessage(text=tts_err_msg))
-                except Exception as tts_err:
-                    print(f"[VOICE] TTS err (Correct path): {tts_err}")
-                    line_bot_api.push_message(user_id, TextSendMessage(text=tts_err_msg))
-                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(next_msg))
-                print(f"[VOICE] done speaking Correct")
-                return
-            feedback_header = "📊 Speaking Practice Feedback" if is_en_speaking else "📊 口說練習回饋"
-            line_bot_api.push_message(
-                user_id,
-                text_with_quick_reply(f"{feedback_header}\n\n{feedback}"),
-            )
-            text_for_tts = corrected_text.strip() if corrected_text else transcript_text
-            if is_en_speaking:
-                tts_label = f"🔊 Listen and repeat: \"{text_for_tts}\""
-                tts_sent_msg = "Demo audio sent! Ready for the next sentence?"
-                tts_err_msg = "Sorry, audio generation failed. Please try again."
-            else:
-                tts_label = f"🔊 請跟著唸：「{text_for_tts}」"
-                tts_sent_msg = "示範語音已送上，要再練習下一句嗎？"
-                tts_err_msg = VOICE_ERROR_MSG
-            line_bot_api.push_message(user_id, TextSendMessage(text=tts_label))
-            try:
-                audio_url, duration_ms = _generate_tts_and_store(text_for_tts, voice=VOICE_COACH_TTS_VOICE)
-                if audio_url and duration_ms:
-                    line_bot_api.push_message(
-                        user_id,
-                        AudioSendMessage(original_content_url=audio_url, duration=duration_ms),
-                    )
-                    line_bot_api.push_message(
-                        user_id,
-                        text_with_quick_reply_speak_practice(tts_sent_msg),
-                    )
-                else:
-                    line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(tts_err_msg))
-            except Exception as tts_err:
-                print(f"[VOICE] TTS/Cloudinary err={tts_err}")
-                traceback.print_exc()
-                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(tts_err_msg))
-            print(f"[VOICE] done speaking NeedsImprovement")
-            return
+
         if is_course_inquiry_intent(transcript_text):
             line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
             send_course_inquiry_flex(user_id)
@@ -2295,16 +2466,18 @@ def handle_message(event):
             mode = _safe_get_mode(user_id)
             if mode == "speaking":
                 next_sentence = _generate_next_practice_sentence()
+                if next_sentence:
+                    _set_practice_sentence(user_id, next_sentence)
                 if FORCE_LANG == "en" or user_text == "Next Sentence":
                     if next_sentence:
-                        msg = f"💡 Try this sentence:\n\"{next_sentence}\"\n\nSend a voice message to practice, or record your own sentence!"
+                        msg = f"💡 Try this sentence:\n\"{next_sentence}\"\n\nSend a voice message to practice!"
                     else:
-                        msg = "Send a voice message to start practicing — I'll analyze your pronunciation and grammar."
+                        msg = "Send a voice message to start practicing — I'll analyze your pronunciation!"
                 else:
                     if next_sentence:
-                        msg = f"💡 建議練習這句：\n「{next_sentence}」\n\n傳語音跟著唸，或錄你自己想練習的句子都可以！"
+                        msg = f"💡 建議練習這句：\n「{next_sentence}」\n\n傳語音跟著唸！"
                     else:
-                        msg = "請傳送語音訊息開始練習～我會幫你分析發音與文法。"
+                        msg = "請傳送語音訊息開始練習～我會幫你分析發音！"
                 line_bot_api.reply_message(
                     event.reply_token,
                     text_with_quick_reply_speak_practice(msg),
