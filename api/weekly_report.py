@@ -119,6 +119,62 @@ def _summarize_category_questions(openai_client, category, questions, max_q=20):
         return []
 
 
+def _get_bloom_distribution(mongo_db, days=7):
+    """
+    查詢 MongoDB 最近 N 天的互動記錄，統計 Bloom 認知層次分佈。
+    回傳 {"Memory": n, "Understanding": n, "Application": n}。
+    """
+    if mongo_db is None:
+        return {}
+    try:
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        pipeline = [
+            {"$match": {
+                "timestamp": {"$gte": cutoff},
+                "intent_tag": {"$in": ["Memory", "Understanding", "Application"]},
+            }},
+            {"$group": {"_id": "$intent_tag", "count": {"$sum": 1}}},
+        ]
+        results = list(mongo_db["interactions"].aggregate(pipeline))
+        return {doc["_id"]: doc["count"] for doc in results}
+    except Exception as e:
+        print(f"[Bloom] query error: {e}")
+        return {}
+
+
+def _draw_bloom_chart_bytes(bloom_dist):
+    """繪製 Bloom 認知層次水平長條圖，回傳 PNG bytes；失敗回傳 None。"""
+    if not bloom_dist:
+        return None
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
+
+        labels = ["Memory", "Understanding", "Application"]
+        counts = [bloom_dist.get(l, 0) for l in labels]
+        colors = ["#5B9BD5", "#70AD47", "#FFC000"]
+
+        fig, ax = plt.subplots(figsize=(6, 2.5))
+        bars = ax.barh(labels, counts, color=colors, edgecolor="white", height=0.5)
+        ax.set_xlabel("Question Count")
+        ax.set_title("Bloom's Taxonomy Distribution (This Week)")
+        ax.set_xlim(0, max(counts) * 1.25 if max(counts) > 0 else 1)
+        for bar, count in zip(bars, counts):
+            ax.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height() / 2,
+                    str(count), va="center", fontsize=9)
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+        plt.close()
+        buf.seek(0)
+        return buf.read()
+    except Exception:
+        return None
+
+
 def _find_cjk_font():
     """找系統上可用的 CJK 字型路徑（Railway 安裝 fonts-noto-cjk 後）。"""
     patterns = [
@@ -164,11 +220,12 @@ def _draw_chart_bytes(concept_counts):
         return None
 
 
-def build_pdf(concept_counts, chart_bytes=None, category_summaries=None):
+def build_pdf(concept_counts, chart_bytes=None, category_summaries=None,
+              bloom_dist=None, bloom_chart_bytes=None):
     """
     產出 PDF：
-    第一頁：困惑觀念排名表 + 長條圖
-    第二頁：各分類學生困惑重點條列（category_summaries 有資料時才加）
+    第一頁：困惑觀念排名表 + 長條圖 + Bloom 認知層次分佈
+    第二頁：各分類學生困惑重點條列
     """
     try:
         from reportlab.lib.pagesizes import A4
@@ -229,6 +286,53 @@ def build_pdf(concept_counts, chart_bytes=None, category_summaries=None):
         except Exception:
             pass
 
+    # ── Bloom 認知層次分佈 ──
+    if bloom_dist:
+        story.append(Spacer(1, 0.6*cm))
+        story.append(Paragraph("學生提問認知層次分佈（Bloom's Taxonomy）", styles["CJKHeading"]))
+        story.append(Spacer(1, 0.3*cm))
+
+        total = sum(bloom_dist.values()) or 1
+        bloom_labels = {
+            "Memory":        "記憶型（背誦事實、術語定義）",
+            "Understanding": "理解型（解釋概念、舉例應用）",
+            "Application":   "應用型（推理、臨床案例分析）",
+        }
+        bloom_data = [["認知層次", "提問數", "佔比"]]
+        for tag in ["Memory", "Understanding", "Application"]:
+            count = bloom_dist.get(tag, 0)
+            pct = f"{count / total * 100:.0f}%"
+            bloom_data.append([bloom_labels[tag], str(count), pct])
+
+        bt = Table(bloom_data, colWidths=[9*cm, 2*cm, 2*cm])
+        bt.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), "lightgrey"),
+            ("GRID",       (0, 0), (-1, -1), 0.5, "grey"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 10),
+            ("FONTNAME",   (0, 0), (-1, -1), CJK_FONT),
+            ("LEADING",    (0, 0), (-1, -1), 16),
+        ]))
+        story.append(bt)
+
+        if bloom_chart_bytes:
+            story.append(Spacer(1, 0.3*cm))
+            try:
+                story.append(Image(io.BytesIO(bloom_chart_bytes), width=12*cm, height=5*cm))
+            except Exception:
+                pass
+
+        # 教學解讀
+        memory_pct    = bloom_dist.get("Memory", 0) / total
+        app_pct       = bloom_dist.get("Application", 0) / total
+        if memory_pct >= 0.6:
+            insight = "本週記憶型提問佔多數，建議教學上增加概念理解與案例討論的比重。"
+        elif app_pct >= 0.4:
+            insight = "本週應用型提問比例高，顯示學生已具備一定概念基礎，可進一步引導高階推理。"
+        else:
+            insight = "本週提問涵蓋各認知層次，學習深度分佈均衡。"
+        story.append(Spacer(1, 0.2*cm))
+        story.append(Paragraph(f"📌 教學建議：{insight}", styles["CJKBody"]))
+
     # ── 第二頁：各分類困惑重點 ──
     if category_summaries:
         story.append(PageBreak())
@@ -275,8 +379,8 @@ def send_report_email(pdf_bytes, to_email, smtp_config=None):
         return str(e)
 
 
-def run_weekly_report(redis_client, openai_client, report_email=None, smtp_config=None):
-    """執行每週報告：彙整、前十大概念、圖表、PDF（含第二頁困惑重點）、寄信。"""
+def run_weekly_report(redis_client, openai_client, mongo_db=None, report_email=None, smtp_config=None):
+    """執行每週報告：彙整、前十大概念、Bloom 分析、PDF（兩頁）、寄信。"""
     report_email = report_email or os.getenv("REPORT_EMAIL")
     if not report_email:
         return False, "REPORT_EMAIL 未設定"
@@ -285,17 +389,24 @@ def run_weekly_report(redis_client, openai_client, report_email=None, smtp_confi
     if not top_with_questions:
         return True, "本週無提問資料，未產出報告"
 
-    # 第一頁用的排名資料（不含問題 list）
     concept_counts = [(c, n) for c, n, _ in top_with_questions]
 
-    # 第二頁：為每個分類產生困惑重點摘要
+    # 第二頁：各分類困惑重點
     category_summaries = {}
     for category, _, questions in top_with_questions:
-        points = _summarize_category_questions(openai_client, category, questions)
-        category_summaries[category] = points
+        category_summaries[category] = _summarize_category_questions(openai_client, category, questions)
+
+    # Bloom 認知層次分佈（從 MongoDB）
+    bloom_dist = _get_bloom_distribution(mongo_db) if mongo_db is not None else {}
+    bloom_chart_bytes = _draw_bloom_chart_bytes(bloom_dist) if bloom_dist else None
 
     chart_bytes = _draw_chart_bytes(concept_counts)
-    pdf_bytes = build_pdf(concept_counts, chart_bytes, category_summaries=category_summaries)
+    pdf_bytes = build_pdf(
+        concept_counts, chart_bytes,
+        category_summaries=category_summaries,
+        bloom_dist=bloom_dist,
+        bloom_chart_bytes=bloom_chart_bytes,
+    )
     if not pdf_bytes:
         return False, "PDF 產出失敗"
 

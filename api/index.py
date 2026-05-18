@@ -1573,7 +1573,7 @@ def cron_weekly_report():
     if expected and secret != expected and secret != "Bearer " + expected:
         return "Unauthorized", 401
     try:
-        ok, msg = run_weekly_report(redis, client)
+        ok, msg = run_weekly_report(redis, client, mongo_db=mongo_db)
         return (msg, 200) if ok else (msg, 500)
     except Exception as e:
         traceback.print_exc()
