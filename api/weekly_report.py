@@ -174,7 +174,8 @@ def send_report_email(pdf_bytes, to_email, smtp_config):
             s.login(user, password)
             s.send_message(msg)
         return True
-    except Exception:
+    except Exception as e:
+        print(f"[SMTP ERROR] host={host} port={port} user={user} to={to_email} err={e}")
         return False
 
 
