@@ -98,27 +98,25 @@ def _find_cjk_font():
 
 
 def _draw_chart_bytes(concept_counts):
-    """用 matplotlib 繪製提問次數長條圖，回傳 PNG bytes。"""
+    """
+    繪製長條圖，x 軸用排名數字（避開中文字型問題），圖例另列概念名。
+    回傳 PNG bytes；失敗回傳 None。
+    """
     try:
         import matplotlib
-        import matplotlib.font_manager as fm
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-        # 載入 CJK 字型（Railway 安裝 fonts-noto-cjk 後可用）
-        cjk_font = _find_cjk_font()
-        if cjk_font:
-            fm.fontManager.addfont(cjk_font)
-        plt.rcParams["font.sans-serif"] = ["Noto Sans CJK TC", "Noto Sans CJK SC", "Noto Sans CJK", "SimHei", "DejaVu Sans"]
         plt.rcParams["axes.unicode_minus"] = False
-        concepts = [c[0] for c in concept_counts]
+
+        ranks  = [str(i) for i in range(1, len(concept_counts) + 1)]
         counts = [c[1] for c in concept_counts]
+
         fig, ax = plt.subplots(figsize=(8, 4))
-        ax.bar(range(len(concepts)), counts, color="steelblue", edgecolor="navy")
-        ax.set_xticks(range(len(concepts)))
-        ax.set_xticklabels(concepts, rotation=45, ha="right")
-        ax.set_ylabel("提問次數")
-        ax.set_title("本週前十大困惑觀念（提問次數）")
+        bars = ax.bar(ranks, counts, color="steelblue", edgecolor="navy")
+        ax.set_xlabel("Rank")
+        ax.set_ylabel("Question Count")
+        ax.set_title("Top Confused Concepts This Week")
         plt.tight_layout()
         buf = io.BytesIO()
         plt.savefig(buf, format="png", dpi=100, bbox_inches="tight")
@@ -130,61 +128,53 @@ def _draw_chart_bytes(concept_counts):
 
 
 def build_pdf(concept_counts, chart_bytes=None):
-    """使用 ReportLab 產出 PDF，可嵌入圖表。"""
+    """使用 ReportLab 產出 PDF，以內建 CID 中文字型顯示概念名稱。"""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import cm
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
         from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
     except ImportError:
         return None
 
-    # 註冊 CJK 字型供 ReportLab 使用
-    cjk_font_name = "NotoSansCJK"
-    cjk_font = _find_cjk_font()
-    if cjk_font:
-        try:
-            pdfmetrics.registerFont(TTFont(cjk_font_name, cjk_font))
-        except Exception:
-            cjk_font_name = None
-    else:
-        cjk_font_name = None
+    # 使用 ReportLab 內建 CID 中文字型（不需要系統字型）
+    CJK_FONT = "STSong-Light"
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont(CJK_FONT))
+    except Exception:
+        CJK_FONT = "Helvetica"  # 最終 fallback（中文會是方塊，但不會 crash）
 
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=2*cm, leftMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            rightMargin=2*cm, leftMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
-
-    # 若有 CJK 字型就建立支援中文的樣式
-    if cjk_font_name:
-        from reportlab.lib.styles import ParagraphStyle
-        styles.add(ParagraphStyle(name="CJKTitle",   parent=styles["Title"],   fontName=cjk_font_name, fontSize=16))
-        styles.add(ParagraphStyle(name="CJKHeading", parent=styles["Heading2"], fontName=cjk_font_name, fontSize=12))
-        title_style   = styles["CJKTitle"]
-        heading_style = styles["CJKHeading"]
-        table_font    = cjk_font_name
-    else:
-        title_style   = styles["Title"]
-        heading_style = styles["Heading2"]
-        table_font    = "Helvetica"
+    styles.add(ParagraphStyle(name="CJKTitle",   parent=styles["Title"],
+                              fontName=CJK_FONT, fontSize=16, leading=24))
+    styles.add(ParagraphStyle(name="CJKHeading", parent=styles["Heading2"],
+                              fontName=CJK_FONT, fontSize=12, leading=18))
 
     story = []
-    story.append(Paragraph("每週學習分析報告", title_style))
+    story.append(Paragraph("每週學習分析報告", styles["CJKTitle"]))
     story.append(Spacer(1, 0.5*cm))
-    story.append(Paragraph("前十大困惑觀念（依提問次數）", heading_style))
+    story.append(Paragraph("前十大困惑觀念（依提問次數）", styles["CJKHeading"]))
     story.append(Spacer(1, 0.3*cm))
+
     data = [["排名", "概念", "提問次數"]]
     for i, (c, n) in enumerate(concept_counts, 1):
         data.append([str(i), c, str(n)])
-    t = Table(data, colWidths=[2*cm, 6*cm, 3*cm])
+    t = Table(data, colWidths=[2*cm, 8*cm, 3*cm])
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), "lightgrey"),
-        ("GRID", (0, 0), (-1, -1), 0.5, "grey"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("FONTNAME", (0, 0), (-1, -1), table_font),
+        ("GRID",       (0, 0), (-1, -1), 0.5, "grey"),
+        ("FONTSIZE",   (0, 0), (-1, -1), 10),
+        ("FONTNAME",   (0, 0), (-1, -1), CJK_FONT),
+        ("LEADING",    (0, 0), (-1, -1), 16),
     ]))
     story.append(t)
+
     if chart_bytes:
         story.append(Spacer(1, 0.5*cm))
         try:
@@ -192,6 +182,7 @@ def build_pdf(concept_counts, chart_bytes=None):
             story.append(img)
         except Exception:
             pass
+
     doc.build(story)
     buf.seek(0)
     return buf.read()
