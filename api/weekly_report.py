@@ -62,7 +62,10 @@ def _assign_concepts_batch(openai_client, texts):
 
 
 def get_top_confused_concepts(redis_client, openai_client, top_n=TOP_N_CONCEPTS):
-    """彙整提問並回傳前 N 大困惑觀念 [(concept, count), ...]。"""
+    """
+    彙整提問並回傳前 N 大困惑觀念。
+    回傳：[(concept, count, [question_texts]), ...]
+    """
     questions = _fetch_questions(redis_client)
     if not questions:
         return []
@@ -75,11 +78,45 @@ def get_top_confused_concepts(redis_client, openai_client, top_n=TOP_N_CONCEPTS)
     while len(all_concepts) < len(texts):
         all_concepts.append("其他")
     counts = {}
-    for c in all_concepts:
-        c = (c or "其他").strip() or "其他"
+    category_questions: dict = {}
+    for text, concept in zip(texts, all_concepts):
+        c = (concept or "其他").strip() or "其他"
         counts[c] = counts.get(c, 0) + 1
+        category_questions.setdefault(c, []).append(text)
     sorted_concepts = sorted(counts.items(), key=lambda x: -x[1])
-    return sorted_concepts[:top_n]
+    return [(c, n, category_questions.get(c, [])) for c, n in sorted_concepts[:top_n]]
+
+
+def _summarize_category_questions(openai_client, category, questions, max_q=20):
+    """
+    用 GPT 將某分類的學生問題整理成 3-5 個困惑重點。
+    回傳 list[str]；失敗回傳空 list。
+    """
+    if not questions:
+        return []
+    q_text = "\n".join(f"- {q}" for q in questions[:max_q])
+    try:
+        resp = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"以下是學生在「{category}」主題下提出的問題，"
+                    f"請整理出 3-5 個主要困惑重點（每點一行，簡短精準，不需要編號或符號）：\n\n"
+                    f"{q_text}"
+                ),
+            }],
+            max_tokens=300,
+            temperature=0.3,
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        points = [
+            line.strip().lstrip("•-·●▪·1234567890. ").strip()
+            for line in content.split("\n") if line.strip()
+        ]
+        return [p for p in points if p][:5]
+    except Exception:
+        return []
 
 
 def _find_cjk_font():
@@ -127,24 +164,27 @@ def _draw_chart_bytes(concept_counts):
         return None
 
 
-def build_pdf(concept_counts, chart_bytes=None):
-    """使用 ReportLab 產出 PDF，以內建 CID 中文字型顯示概念名稱。"""
+def build_pdf(concept_counts, chart_bytes=None, category_summaries=None):
+    """
+    產出 PDF：
+    第一頁：困惑觀念排名表 + 長條圖
+    第二頁：各分類學生困惑重點條列（category_summaries 有資料時才加）
+    """
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.cidfonts import UnicodeCIDFont
     except ImportError:
         return None
 
-    # 使用 ReportLab 內建 CID 中文字型（不需要系統字型）
     CJK_FONT = "STSong-Light"
     try:
         pdfmetrics.registerFont(UnicodeCIDFont(CJK_FONT))
     except Exception:
-        CJK_FONT = "Helvetica"  # 最終 fallback（中文會是方塊，但不會 crash）
+        CJK_FONT = "Helvetica"
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
@@ -155,8 +195,15 @@ def build_pdf(concept_counts, chart_bytes=None):
                               fontName=CJK_FONT, fontSize=16, leading=24))
     styles.add(ParagraphStyle(name="CJKHeading", parent=styles["Heading2"],
                               fontName=CJK_FONT, fontSize=12, leading=18))
+    styles.add(ParagraphStyle(name="CJKBody",    parent=styles["Normal"],
+                              fontName=CJK_FONT, fontSize=10, leading=16))
+    styles.add(ParagraphStyle(name="CJKBullet",  parent=styles["Normal"],
+                              fontName=CJK_FONT, fontSize=10, leading=16,
+                              leftIndent=12, firstLineIndent=0))
 
     story = []
+
+    # ── 第一頁：排名表 + 圖表 ──
     story.append(Paragraph("每週學習分析報告", styles["CJKTitle"]))
     story.append(Spacer(1, 0.5*cm))
     story.append(Paragraph("前十大困惑觀念（依提問次數）", styles["CJKHeading"]))
@@ -178,10 +225,24 @@ def build_pdf(concept_counts, chart_bytes=None):
     if chart_bytes:
         story.append(Spacer(1, 0.5*cm))
         try:
-            img = Image(io.BytesIO(chart_bytes), width=14*cm, height=7*cm)
-            story.append(img)
+            story.append(Image(io.BytesIO(chart_bytes), width=14*cm, height=7*cm))
         except Exception:
             pass
+
+    # ── 第二頁：各分類困惑重點 ──
+    if category_summaries:
+        story.append(PageBreak())
+        story.append(Paragraph("各主題學生困惑重點整理", styles["CJKTitle"]))
+        story.append(Spacer(1, 0.5*cm))
+
+        for rank, (category, points) in enumerate(category_summaries.items(), 1):
+            story.append(Paragraph(f"{rank}. {category}", styles["CJKHeading"]))
+            if points:
+                for point in points:
+                    story.append(Paragraph(f"• {point}", styles["CJKBullet"]))
+            else:
+                story.append(Paragraph("（本週問題數量不足以整理重點）", styles["CJKBody"]))
+            story.append(Spacer(1, 0.4*cm))
 
     doc.build(story)
     buf.seek(0)
@@ -215,19 +276,30 @@ def send_report_email(pdf_bytes, to_email, smtp_config=None):
 
 
 def run_weekly_report(redis_client, openai_client, report_email=None, smtp_config=None):
-    """執行每週報告：彙整、前十大概念、圖表、PDF、寄信。回傳 (success: bool, message: str)。"""
+    """執行每週報告：彙整、前十大概念、圖表、PDF（含第二頁困惑重點）、寄信。"""
     report_email = report_email or os.getenv("REPORT_EMAIL")
     if not report_email:
         return False, "REPORT_EMAIL 未設定"
-    top = get_top_confused_concepts(redis_client, openai_client, top_n=TOP_N_CONCEPTS)
-    if not top:
+
+    top_with_questions = get_top_confused_concepts(redis_client, openai_client, top_n=TOP_N_CONCEPTS)
+    if not top_with_questions:
         return True, "本週無提問資料，未產出報告"
-    chart_bytes = _draw_chart_bytes(top)
-    pdf_bytes = build_pdf(top, chart_bytes)
+
+    # 第一頁用的排名資料（不含問題 list）
+    concept_counts = [(c, n) for c, n, _ in top_with_questions]
+
+    # 第二頁：為每個分類產生困惑重點摘要
+    category_summaries = {}
+    for category, _, questions in top_with_questions:
+        points = _summarize_category_questions(openai_client, category, questions)
+        category_summaries[category] = points
+
+    chart_bytes = _draw_chart_bytes(concept_counts)
+    pdf_bytes = build_pdf(concept_counts, chart_bytes, category_summaries=category_summaries)
     if not pdf_bytes:
         return False, "PDF 產出失敗"
-    smtp_config = smtp_config or {}
-    result = send_report_email(pdf_bytes, report_email, smtp_config)
+
+    result = send_report_email(pdf_bytes, report_email)
     if result is True:
         return True, "報告已寄送至 " + report_email
     return False, f"寄送失敗：{result}"
