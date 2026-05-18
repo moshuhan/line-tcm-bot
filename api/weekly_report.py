@@ -3,15 +3,12 @@
 每週學習分析報告：從 Redis 彙整提問、NLP 概念聚類、產出 PDF 並寄送。
 """
 
+import base64
 import io
 import json
 import os
-import smtplib
 import time
 import warnings
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from openai import OpenAI
 
@@ -152,32 +149,29 @@ def build_pdf(concept_counts, chart_bytes=None):
     return buf.read()
 
 
-def send_report_email(pdf_bytes, to_email, smtp_config):
-    """透過 SMTP 寄送 PDF 報告。"""
+def send_report_email(pdf_bytes, to_email, smtp_config=None):
+    """透過 Resend API 寄送 PDF 報告。"""
     if not pdf_bytes or not to_email:
         return False
-    host = smtp_config.get("host") or os.getenv("SMTP_HOST")
-    port = int(smtp_config.get("port") or os.getenv("SMTP_PORT") or 587)
-    user = smtp_config.get("user") or os.getenv("SMTP_USER")
-    password = smtp_config.get("password") or os.getenv("SMTP_PASSWORD")
-    if not host or not user or not password:
-        return False
+    api_key = os.getenv("RESEND_API_KEY", "").strip()
+    if not api_key:
+        return "RESEND_API_KEY 未設定"
     try:
-        msg = MIMEMultipart()
-        msg["Subject"] = "LINE TCM Bot 每週學習分析報告"
-        msg["From"] = user
-        msg["To"] = to_email
-        msg.attach(MIMEText("本週前十大困惑觀念報告如附件。", "plain", "utf-8"))
-        att = MIMEApplication(pdf_bytes, _subtype="pdf")
-        att.add_header("Content-Disposition", "attachment", filename="weekly_learning_report.pdf")
-        msg.attach(att)
-        with smtplib.SMTP(host, port) as s:
-            s.starttls()
-            s.login(user, password)
-            s.send_message(msg)
+        import resend
+        resend.api_key = api_key
+        resend.Emails.send({
+            "from": "TCM Bot <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": "LINE TCM Bot 每週學習分析報告",
+            "text": "本週前十大困惑觀念報告如附件，請查收。",
+            "attachments": [{
+                "filename": "weekly_learning_report.pdf",
+                "content": list(pdf_bytes),
+            }],
+        })
         return True
     except Exception as e:
-        print(f"[SMTP ERROR] host={host} port={port} user={user} to={to_email} err={e}")
+        print(f"[RESEND ERROR] to={to_email} err={e}")
         return str(e)
 
 
