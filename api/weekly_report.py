@@ -8,6 +8,7 @@ import json
 import os
 import smtplib
 import time
+import warnings
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -89,6 +90,7 @@ def _draw_chart_bytes(concept_counts):
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
         plt.rcParams["font.sans-serif"] = ["SimHei", "DejaVu Sans"]
         plt.rcParams["axes.unicode_minus"] = False
         concepts = [c[0] for c in concept_counts]
@@ -176,7 +178,7 @@ def send_report_email(pdf_bytes, to_email, smtp_config):
         return True
     except Exception as e:
         print(f"[SMTP ERROR] host={host} port={port} user={user} to={to_email} err={e}")
-        return False
+        return str(e)
 
 
 def run_weekly_report(redis_client, openai_client, report_email=None, smtp_config=None):
@@ -192,6 +194,7 @@ def run_weekly_report(redis_client, openai_client, report_email=None, smtp_confi
     if not pdf_bytes:
         return False, "PDF 產出失敗"
     smtp_config = smtp_config or {}
-    if send_report_email(pdf_bytes, report_email, smtp_config):
+    result = send_report_email(pdf_bytes, report_email, smtp_config)
+    if result is True:
         return True, "報告已寄送至 " + report_email
-    return False, "寄送失敗，請檢查 SMTP 與 REPORT_EMAIL"
+    return False, f"寄送失敗：{result}"
