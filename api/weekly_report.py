@@ -4,6 +4,7 @@
 """
 
 import base64
+import glob
 import io
 import json
 import os
@@ -81,14 +82,34 @@ def get_top_confused_concepts(redis_client, openai_client, top_n=TOP_N_CONCEPTS)
     return sorted_concepts[:top_n]
 
 
+def _find_cjk_font():
+    """找系統上可用的 CJK 字型路徑（Railway 安裝 fonts-noto-cjk 後）。"""
+    patterns = [
+        "/usr/share/fonts/**/*CJKtc*Regular*",
+        "/usr/share/fonts/**/*CJKsc*Regular*",
+        "/usr/share/fonts/**/*CJK*Regular*",
+        "/usr/share/fonts/**/*Noto*CJK*",
+    ]
+    for pattern in patterns:
+        matches = glob.glob(pattern, recursive=True)
+        if matches:
+            return matches[0]
+    return None
+
+
 def _draw_chart_bytes(concept_counts):
     """用 matplotlib 繪製提問次數長條圖，回傳 PNG bytes。"""
     try:
         import matplotlib
+        import matplotlib.font_manager as fm
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-        plt.rcParams["font.sans-serif"] = ["SimHei", "DejaVu Sans"]
+        # 載入 CJK 字型（Railway 安裝 fonts-noto-cjk 後可用）
+        cjk_font = _find_cjk_font()
+        if cjk_font:
+            fm.fontManager.addfont(cjk_font)
+        plt.rcParams["font.sans-serif"] = ["Noto Sans CJK TC", "Noto Sans CJK SC", "Noto Sans CJK", "SimHei", "DejaVu Sans"]
         plt.rcParams["axes.unicode_minus"] = False
         concepts = [c[0] for c in concept_counts]
         counts = [c[1] for c in concept_counts]
@@ -114,18 +135,44 @@ def build_pdf(concept_counts, chart_bytes=None):
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
     except ImportError:
         return None
+
+    # 註冊 CJK 字型供 ReportLab 使用
+    cjk_font_name = "NotoSansCJK"
+    cjk_font = _find_cjk_font()
+    if cjk_font:
+        try:
+            pdfmetrics.registerFont(TTFont(cjk_font_name, cjk_font))
+        except Exception:
+            cjk_font_name = None
+    else:
+        cjk_font_name = None
+
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=2*cm, leftMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
+
+    # 若有 CJK 字型就建立支援中文的樣式
+    if cjk_font_name:
+        from reportlab.lib.styles import ParagraphStyle
+        styles.add(ParagraphStyle(name="CJKTitle",   parent=styles["Title"],   fontName=cjk_font_name, fontSize=16))
+        styles.add(ParagraphStyle(name="CJKHeading", parent=styles["Heading2"], fontName=cjk_font_name, fontSize=12))
+        title_style   = styles["CJKTitle"]
+        heading_style = styles["CJKHeading"]
+        table_font    = cjk_font_name
+    else:
+        title_style   = styles["Title"]
+        heading_style = styles["Heading2"]
+        table_font    = "Helvetica"
+
     story = []
-    story.append(Paragraph("每週學習分析報告", styles["Title"]))
+    story.append(Paragraph("每週學習分析報告", title_style))
     story.append(Spacer(1, 0.5*cm))
-    story.append(Paragraph("前十大困惑觀念（依提問次數）", styles["Heading2"]))
+    story.append(Paragraph("前十大困惑觀念（依提問次數）", heading_style))
     story.append(Spacer(1, 0.3*cm))
     data = [["排名", "概念", "提問次數"]]
     for i, (c, n) in enumerate(concept_counts, 1):
@@ -135,6 +182,7 @@ def build_pdf(concept_counts, chart_bytes=None):
         ("BACKGROUND", (0, 0), (-1, 0), "lightgrey"),
         ("GRID", (0, 0), (-1, -1), 0.5, "grey"),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("FONTNAME", (0, 0), (-1, -1), table_font),
     ]))
     story.append(t)
     if chart_bytes:
