@@ -172,6 +172,12 @@ https://你的ngrok網址/callback
 
 ---
 
+## 最近更新 (2026-05-20)
+
+- **口說模式 AI 回覆記錄至 MongoDB**：語音辨識完成後寫入 `interactions`（`mode: "Speaking"`）的紀錄，原本 `answer` 欄位為 `null`。現在 AI 透過 Assistant API 產生回覆後，會以 `update_speaking_answer` 更新該筆紀錄的 `answer` 欄位，完整保留口說問答的問與答。
+
+---
+
 ## 最近更新 (2026-05-17)
 
 - **修正弱項追蹤 Bug**：`record_weak_category` 原本只在中文路徑呼叫，英文模式答錯不會被記錄。現已移至語言判斷之外，答錯即記錄，不分語言。

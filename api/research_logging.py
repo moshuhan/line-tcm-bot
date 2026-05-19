@@ -413,6 +413,20 @@ def log_speaking(db, user_id, transcript_length, tcm_term_count, transcript=None
         print(f"[research_logging] log_speaking error: {e}")
 
 
+def update_speaking_answer(db, user_id, answer):
+    """更新最近一筆 Speaking 互動的 answer 欄位，補入 AI 回覆內容。"""
+    if db is None or not user_id:
+        return
+    try:
+        db[COLL_INTERACTIONS].find_one_and_update(
+            {"user_id": _decode(user_id), "mode": "Speaking"},
+            {"$set": {"answer": (answer or "")[:4000], "updated_at": datetime.now(timezone.utc)}},
+            sort=[("timestamp", -1)],
+        )
+    except Exception as e:
+        print(f"[research_logging] update_speaking_answer error: {e}")
+
+
 def compute_improvement_index(original, revised):
     """
     計算寫作改進指數：簡單以「修訂後長度/原長度」比例為基礎，若原為 0 則回傳 1.0。

@@ -92,6 +92,7 @@ try:
         update_interaction_quiz_result,
         log_quiz_result,
         log_speaking,
+        update_speaking_answer,
         log_writing,
         count_tcm_terms_in_text,
         run_analytics_middleware,
@@ -152,6 +153,7 @@ except ImportError:
         log_interaction,
         log_quiz_result,
         log_speaking,
+        update_speaking_answer,
         log_writing,
         count_tcm_terms_in_text,
         run_analytics_middleware,
@@ -169,6 +171,7 @@ except ImportError:
             update_interaction_quiz_result,
             log_quiz_result,
             log_speaking,
+            update_speaking_answer,
             log_writing,
             count_tcm_terms_in_text,
             run_analytics_middleware,
@@ -187,7 +190,7 @@ except ImportError:
         get_last_interaction_timestamp = _noop_ts
         classify_qa_intent_and_complexity = _noop_classify
         log_interaction = lambda *a, **k: None
-        update_interaction_quiz_result = log_quiz_result = log_speaking = log_writing = lambda *a, **k: None
+        update_interaction_quiz_result = log_quiz_result = log_speaking = update_speaking_answer = log_writing = lambda *a, **k: None
         count_tcm_terms_in_text = lambda t: 0
         run_analytics_middleware = lambda *a, **k: None
         generate_review_quiz_from_interactions = lambda *a, **k: None
@@ -1481,6 +1484,11 @@ def _process_assistant_sync(user_id, text):
                 set_last_assistant_message(redis, user_id, ai_reply)
             except Exception:
                 pass
+            if mode == "speaking" and mongo_db is not None:
+                try:
+                    update_speaking_answer(mongo_db, user_id, ai_reply)
+                except Exception as e:
+                    print(f">>> RESEARCH update_speaking_answer error: {e}")
         else:
             try:
                 line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
