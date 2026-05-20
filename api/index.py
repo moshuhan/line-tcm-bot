@@ -324,11 +324,34 @@ def _get_practice_sentence(user_id):
         return ""
 
 
+def _m4a_to_wav_bytes(m4a_bytes: bytes) -> bytes:
+    """
+    M4A → WAV (PCM 16kHz mono) via ffmpeg subprocess，全程記憶體操作。
+    Azure Pronunciation Assessment 需要 WAV；STT 雖可接受 MP4，但 PA 評分不會回傳。
+    ffmpeg 不存在或轉換失敗時回傳空 bytes，由呼叫端 fallback。
+    """
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["ffmpeg", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1", "-loglevel", "error"],
+            input=m4a_bytes,
+            capture_output=True,
+            timeout=10,
+        )
+        if result.returncode == 0 and result.stdout:
+            return result.stdout
+        print(f"[Azure] ffmpeg returncode={result.returncode} stderr={result.stderr[:200]}")
+        return b""
+    except Exception as e:
+        print(f"[Azure] M4A→WAV conversion failed: {e}")
+        return b""
+
+
 def _assess_pronunciation(audio_bytes: bytes, reference_text: str = "", language: str = "en-US") -> dict:
     """
     呼叫 Azure Speech REST API 進行 Pronunciation Assessment。
-    audio_bytes: LINE 下載的 M4A 原始位元組（Content-Type: audio/mp4，Azure 可直接處理）。
-    reference_text: 學生要跟唸的參考句（空字串則進入 content-free 模式）。
+    LINE 音訊為 M4A；Azure PA 評分需要 WAV，先以 ffmpeg 轉換後再送出。
+    ffmpeg 不可用時 fallback 送原始 MP4（只有 STT，無 PA 評分）。
     回傳 Azure 原始 JSON dict；失敗時回傳 {}。
     """
     if not _AZURE_SPEECH_KEY or not _AZURE_SPEECH_REGION:
@@ -346,16 +369,25 @@ def _assess_pronunciation(audio_bytes: bytes, reference_text: str = "", language
         f"/speech/recognition/conversation/cognitiveservices/v1"
         f"?language={language}&format=detailed"
     )
+
+    wav_bytes = _m4a_to_wav_bytes(audio_bytes)
+    if wav_bytes:
+        send_bytes = wav_bytes
+        content_type = "audio/wav; codecs=audio/pcm; samplerate=16000"
+    else:
+        send_bytes = audio_bytes
+        content_type = "audio/mp4"
+
     headers = {
         "Ocp-Apim-Subscription-Key": _AZURE_SPEECH_KEY,
-        "Content-Type": "audio/mp4",
+        "Content-Type": content_type,
         "Pronunciation-Assessment": pa_header,
     }
     try:
-        resp = requests.post(url, headers=headers, data=audio_bytes, timeout=30)
+        resp = requests.post(url, headers=headers, data=send_bytes, timeout=30)
         resp.raise_for_status()
         result = resp.json()
-        print(f"[Azure] RecognitionStatus={result.get('RecognitionStatus')} NBest_count={len(result.get('NBest') or [])}")
+        print(f"[Azure] RecognitionStatus={result.get('RecognitionStatus')} NBest_count={len(result.get('NBest') or [])} wav={bool(wav_bytes)}")
         return result
     except Exception as e:
         print(f"[Azure] pronunciation assessment error: {e}")
