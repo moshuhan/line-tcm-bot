@@ -15,4 +15,3 @@ cloudinary
 httpx
 numpy
 resend
-pydub
