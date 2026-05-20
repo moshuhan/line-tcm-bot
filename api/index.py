@@ -324,10 +324,27 @@ def _get_practice_sentence(user_id):
         return ""
 
 
+def _m4a_to_wav_bytes(m4a_bytes: bytes) -> bytes:
+    """
+    M4A (AAC) → WAV (PCM 16kHz mono)，全程在記憶體操作，不寫磁碟。
+    pydub 不可用時回傳空 bytes，由呼叫端決定如何處理。
+    """
+    try:
+        from pydub import AudioSegment
+        seg = AudioSegment.from_file(io.BytesIO(m4a_bytes), format="m4a")
+        seg = seg.set_frame_rate(16000).set_channels(1).set_sample_width(2)
+        buf = io.BytesIO()
+        seg.export(buf, format="wav")
+        return buf.getvalue()
+    except Exception as e:
+        print(f"[Azure] M4A→WAV conversion failed: {e}")
+        return b""
+
+
 def _assess_pronunciation(audio_bytes: bytes, reference_text: str = "", language: str = "en-US") -> dict:
     """
     呼叫 Azure Speech REST API 進行 Pronunciation Assessment。
-    audio_bytes: LINE 下載的 M4A 原始位元組。
+    audio_bytes: LINE 下載的 M4A 原始位元組，送出前先轉 WAV（Azure REST API 對 AAC 解碼不穩定）。
     reference_text: 學生要跟唸的參考句（空字串則進入 content-free 模式）。
     回傳 Azure 原始 JSON dict；失敗時回傳 {}。
     """
@@ -346,16 +363,25 @@ def _assess_pronunciation(audio_bytes: bytes, reference_text: str = "", language
         f"/speech/recognition/conversation/cognitiveservices/v1"
         f"?language={language}&format=detailed"
     )
+
+    wav_bytes = _m4a_to_wav_bytes(audio_bytes)
+    if wav_bytes:
+        send_bytes = wav_bytes
+        content_type = "audio/wav; codecs=audio/pcm; samplerate=16000"
+    else:
+        send_bytes = audio_bytes
+        content_type = "audio/mp4"
+
     headers = {
         "Ocp-Apim-Subscription-Key": _AZURE_SPEECH_KEY,
-        "Content-Type": "audio/mp4",
+        "Content-Type": content_type,
         "Pronunciation-Assessment": pa_header,
     }
     try:
-        resp = requests.post(url, headers=headers, data=audio_bytes, timeout=30)
+        resp = requests.post(url, headers=headers, data=send_bytes, timeout=30)
         resp.raise_for_status()
         result = resp.json()
-        print(f"[Azure] RecognitionStatus={result.get('RecognitionStatus')} NBest_count={len(result.get('NBest') or [])}")
+        print(f"[Azure] RecognitionStatus={result.get('RecognitionStatus')} NBest_count={len(result.get('NBest') or [])} wav_converted={bool(wav_bytes)}")
         return result
     except Exception as e:
         print(f"[Azure] pronunciation assessment error: {e}")
