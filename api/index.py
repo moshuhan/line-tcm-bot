@@ -99,6 +99,7 @@ try:
         generate_review_quiz_from_interactions,
         log_student_feedback,
         generate_personalized_review_note,
+        generate_full_personalized_review_note,
     )
 except ImportError:
     from syllabus import (
@@ -178,6 +179,7 @@ except ImportError:
             generate_review_quiz_from_interactions,
             log_student_feedback,
             generate_personalized_review_note,
+            generate_full_personalized_review_note,
         )
     except ImportError:
         def _noop_user(*a, **k):
@@ -195,6 +197,7 @@ except ImportError:
         run_analytics_middleware = lambda *a, **k: None
         generate_review_quiz_from_interactions = lambda *a, **k: None
         generate_personalized_review_note = lambda *a, **k: None
+        generate_full_personalized_review_note = lambda *a, **k: None
         log_student_feedback = lambda *a, **k: None
         classify_qa_learning_tags = lambda *a, **k: (None, None)
         append_conv_history = lambda *a, **k: None
@@ -2393,6 +2396,30 @@ def handle_message(event):
                     clear_quiz_pending(redis, user_id)
                 except Exception:
                     pass
+
+        # 個人化複習筆記：查 MongoDB 所有答錯與問過的紀錄，產生專屬筆記
+        if user_text == "個人化複習筆記":
+            if mongo_db is None:
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("❌ 資料庫暫時無法連線，請稍後再試。"))
+                return
+            try:
+                _start_loading_indicator(user_id)
+                note = generate_full_personalized_review_note(mongo_db, user_id, client)
+                if note:
+                    header = "📒 個人化複習筆記\n（根據你答錯過的測驗與問過的問題整理）\n\n"
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        text_with_quick_reply(header + note),
+                    )
+                else:
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        text_with_quick_reply("目前尚無足夠的學習紀錄可產生個人化筆記。\n先多問幾題中醫問題、做幾題測驗，之後再來試試看！"),
+                    )
+            except Exception as e:
+                traceback.print_exc()
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("個人化複習筆記暫時無法使用，請稍後再試。"))
+            return
 
         # 主動複習測驗：依最近 10 筆互動產生個人化複習題
         if user_text in ("複習測驗", "我要複習測驗") and mongo_db is not None:

@@ -679,3 +679,106 @@ def generate_personalized_review_note(db, user_id, category, openai_client, last
     except Exception as e:
         print(f"[research_logging] generate_personalized_review_note GPT error: {e}")
         return None
+
+
+def generate_full_personalized_review_note(db, user_id, openai_client, last_n=50):
+    """
+    全域個人化複習筆記（不限類別）：
+    1. 查詢該使用者所有答錯的測驗紀錄（quiz_data.is_correct=False）
+    2. 查詢最近 last_n 筆問過的問題
+    3. 餵給 GPT，產出涵蓋所有弱點主題的個人化複習筆記
+    無資料時回傳 None。
+    """
+    if db is None or not user_id or not openai_client:
+        return None
+
+    uid = _decode(user_id)
+
+    # 1. 所有答錯的互動（不限類別）
+    try:
+        wrong_docs = list(
+            db[COLL_INTERACTIONS]
+            .find({"user_id": uid, "quiz_data.is_correct": False})
+            .sort("timestamp", -1)
+            .limit(30)
+        )
+    except Exception as e:
+        print(f"[research_logging] full_review wrong query error: {e}")
+        wrong_docs = []
+
+    # 2. 最近的問答紀錄（QA mode）
+    try:
+        qa_docs = list(
+            db[COLL_INTERACTIONS]
+            .find({"user_id": uid, "mode": "QA"})
+            .sort("timestamp", -1)
+            .limit(last_n)
+        )
+    except Exception as e:
+        print(f"[research_logging] full_review qa query error: {e}")
+        qa_docs = []
+
+    # 合併去重，答錯優先
+    seen = set()
+    all_docs = []
+    for doc in wrong_docs + qa_docs:
+        doc_id = str(doc.get("_id", ""))
+        if doc_id not in seen:
+            seen.add(doc_id)
+            all_docs.append(doc)
+
+    if not all_docs:
+        return None
+
+    # 組 context：答錯的獨立標記，問答另列
+    wrong_parts = []
+    qa_parts = []
+    for doc in all_docs[:20]:
+        q = (doc.get("question") or "").strip()[:200]
+        a = (doc.get("answer") or "").strip()[:200]
+        qd = doc.get("quiz_data") or {}
+        tag = (doc.get("intent_tag") or "").strip()
+        is_wrong = qd.get("is_correct") is False
+        if is_wrong:
+            wrong_parts.append(
+                f"- 【答錯】題目：{q}｜學生答：{qd.get('user_answer','?')}｜正解：{qd.get('quiz_answer','?')}"
+                + (f"｜主題：{tag}" if tag else "")
+            )
+        elif q:
+            qa_parts.append(f"- 【問過】{q}" + (f"｜主題：{tag}" if tag else ""))
+
+    context_blocks = []
+    if wrong_parts:
+        context_blocks.append("【答錯的測驗紀錄】\n" + "\n".join(wrong_parts[:15]))
+    if qa_parts:
+        context_blocks.append("【學生問過的問題】\n" + "\n".join(qa_parts[:10]))
+
+    context = "\n\n".join(context_blocks)[:3000]
+    if not context.strip():
+        return None
+
+    try:
+        prompt = (
+            "以下是某位學生在中醫課程中的學習紀錄，包含測驗答錯與曾詢問的問題：\n\n"
+            f"{context}\n\n"
+            "請根據以上紀錄，針對這位學生「實際的弱點與疑問」產生一份個人化複習筆記。\n"
+            "格式要求：\n"
+            "1. 依主題分組（每組 2–4 點條列）\n"
+            "2. 聚焦在他答錯或問過的核心概念，不要泛泛列出整個領域\n"
+            "3. 每點說明重點概念及常見混淆之處\n"
+            "4. 只輸出筆記內容，不需前言、結語或多餘說明"
+        )
+        resp = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "你是中醫課程助教，根據學生實際學習紀錄產生個人化複習筆記。"},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=800,
+            temperature=0.3,
+        )
+        note = (resp.choices[0].message.content or "").strip()[:2500]
+        return note if note else None
+    except Exception as e:
+        print(f"[research_logging] generate_full_personalized_review_note GPT error: {e}")
+        return None
