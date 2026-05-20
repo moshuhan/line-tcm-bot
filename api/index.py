@@ -1662,7 +1662,9 @@ def _process_voice_sync(user_id, message_id):
                 print(f"[VOICE] Azure assessment reference='{reference_text[:60]}...' user_id={user_id}")
                 az_result = _assess_pronunciation(audio_bytes, reference_text, language="en-US")
 
-                if az_result and az_result.get("RecognitionStatus") == "Success":
+                _az_nbest0 = (az_result.get("NBest") or [{}])[0] if az_result else {}
+                _az_has_pa = bool(_az_nbest0.get("PronunciationAssessment"))
+                if az_result and az_result.get("RecognitionStatus") == "Success" and _az_has_pa:
                     transcript_text, feedback, is_good = _format_pronunciation_feedback(az_result, is_en_speaking)
                     if not transcript_text:
                         transcript_text = (az_result.get("DisplayText") or "").strip()
@@ -1721,7 +1723,9 @@ def _process_voice_sync(user_id, message_id):
                     print(f"[VOICE] done Azure speaking path is_good={is_good}")
                     return
                 else:
-                    print(f"[VOICE] Azure returned non-success: {az_result.get('RecognitionStatus')} — falling back to Whisper")
+                    _az_status = az_result.get("RecognitionStatus") if az_result else "no_result"
+                    _az_reason = "no PA data" if (_az_status == "Success" and not _az_has_pa) else _az_status
+                    print(f"[VOICE] Azure fallback reason={_az_reason} — falling back to Whisper")
 
             # ── Fallback：Whisper + GPT 評估（Azure 未設定或失敗時）──
             with open(temp_path, "rb") as audio_file:
