@@ -348,13 +348,15 @@ def _assess_pronunciation(audio_bytes: bytes, reference_text: str = "", language
     )
     headers = {
         "Ocp-Apim-Subscription-Key": _AZURE_SPEECH_KEY,
-        "Content-Type": "audio/x-m4a",
+        "Content-Type": "audio/mp4",
         "Pronunciation-Assessment": pa_header,
     }
     try:
         resp = requests.post(url, headers=headers, data=audio_bytes, timeout=30)
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        print(f"[Azure] RecognitionStatus={result.get('RecognitionStatus')} NBest_count={len(result.get('NBest') or [])}")
+        return result
     except Exception as e:
         print(f"[Azure] pronunciation assessment error: {e}")
         return {}

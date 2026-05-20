@@ -1,3 +1,4 @@
+
 # LINE TCM AI Bot（中醫課程助教）
 
 以 **Python（Flask）+ OpenAI** 為主的 LINE Bot，專為中醫課程設計。部署於 **Railway**，使用 Redis 儲存狀態、MongoDB 記錄研究資料，具備語義向量搜尋、語音教練、AI 動態測驗、主動複習與每週學習報告。
@@ -174,6 +175,7 @@ https://你的ngrok網址/callback
 
 ## 最近更新 (2026-05-20)
 
+- **修正 Azure Pronunciation Assessment 無法取得評分的問題**：`_assess_pronunciation` 原本將 Content-Type 設為 `audio/x-m4a`（非標準 MIME），Azure REST API 不接受，導致 `RecognitionStatus` 非 `"Success"`，靜默 fallback 至 Whisper + GPT 評估，各項發音分數（準確度、流暢度、完整度、語調）都無法輸出。改為 `audio/mp4`（LINE M4A 音訊的正式 MIME type）後 Azure 可正確識別。同時加入 `RecognitionStatus` log，方便從 Railway 日誌確認 Azure 是否正常回傳。
 - **口說模式 AI 回覆記錄至 MongoDB**：語音辨識完成後寫入 `interactions`（`mode: "Speaking"`）的紀錄，原本 `answer` 欄位為 `null`。現在 AI 透過 Assistant API 產生回覆後，會以 `update_speaking_answer` 更新該筆紀錄的 `answer` 欄位，完整保留口說問答的問與答。
 
 ---
