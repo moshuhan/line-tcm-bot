@@ -299,6 +299,7 @@ FORCE_LANG = os.getenv("FORCE_LANG", "").strip().lower()  # "en" | "" (空=動�
 _AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "").strip()
 _AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "").strip()
 _PRACTICE_SENTENCE_KEY = "practice_sentence:{user_id}"
+print(f"ENV CHECK: AZURE_SPEECH_KEY exists: {bool(_AZURE_SPEECH_KEY)}, REGION: {_AZURE_SPEECH_REGION or 'not set'}")
 
 
 def _set_practice_sentence(user_id, sentence):
@@ -324,6 +325,24 @@ def _get_practice_sentence(user_id):
         return ""
 
 
+def _find_ffmpeg() -> str:
+    """找出 ffmpeg 執行檔路徑（shutil.which + Nix store 常見位置）。"""
+    import shutil
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    candidates = [
+        "/usr/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "/nix/var/nix/profiles/default/bin/ffmpeg",
+        "/run/current-system/sw/bin/ffmpeg",
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return ""
+
+
 def _m4a_to_wav_bytes(m4a_bytes: bytes) -> bytes:
     """
     M4A → WAV (PCM 16kHz mono) via ffmpeg subprocess，全程記憶體操作。
@@ -332,8 +351,12 @@ def _m4a_to_wav_bytes(m4a_bytes: bytes) -> bytes:
     """
     try:
         import subprocess
+        ffmpeg = _find_ffmpeg()
+        if not ffmpeg:
+            print("[Azure] ffmpeg not found in PATH or known locations")
+            return b""
         result = subprocess.run(
-            ["ffmpeg", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1", "-loglevel", "error"],
+            [ffmpeg, "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1", "-loglevel", "error"],
             input=m4a_bytes,
             capture_output=True,
             timeout=10,
