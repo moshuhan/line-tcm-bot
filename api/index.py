@@ -1680,12 +1680,13 @@ def _run_voice_background(user_id, message_id, base_url, cron_secret):
             traceback.print_exc()
 
 
-def _process_voice_sync(user_id, message_id):
+def _process_voice_sync(user_id, message_id, mode=None):
     """
     語音處理：
     - Speaking 模式：Azure Pronunciation Assessment（有金鑰）或 fallback GPT 評估
     - 其他模式：Whisper 辨識 → TCM Q&A
     一律用 push_message 回傳，錯誤時主動 push 友善提示。
+    mode: 由 handle_audio 在 I/O 前預先讀取並傳入，避免 gevent 切換導致 race condition。
     """
     if not user_id or not str(user_id).strip():
         print(f"[VOICE] ERROR: user_id invalid user_id={repr(user_id)}")
@@ -1707,7 +1708,8 @@ def _process_voice_sync(user_id, message_id):
             with open(temp_path, "wb") as f:
                 f.write(audio_bytes)
 
-        mode = _safe_get_mode(user_id)
+        if mode is None:
+            mode = _safe_get_mode(user_id)
         is_en_speaking = FORCE_LANG == "en"
 
         # ── Speaking 模式：優先走 Azure Pronunciation Assessment ──
@@ -2655,13 +2657,17 @@ def handle_audio(event):
     user_id = event.source.user_id
     message_id = event.message.id
 
+    # 在任何 I/O 之前先讀 mode，避免 gevent 在 reply_message 的網路 I/O 期間
+    # 切換 greenlet，讓其他並發請求（如「中醫問答」）先改掉 mode。
+    captured_mode = _safe_get_mode(user_id)
+
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(text="Converting voice, please wait... 🎙️" if FORCE_LANG == "en" else "正在轉換語音，請稍候... 🎙️"),
     )
 
-    print(f"[VOICE] running sync (worker) user_id={user_id}")
-    _process_voice_sync(user_id, message_id)
+    print(f"[VOICE] running sync (worker) user_id={user_id} captured_mode={captured_mode}")
+    _process_voice_sync(user_id, message_id, mode=captured_mode)
 
 
 @line_webhook_handler.add(MessageEvent, message=ImageMessage)
