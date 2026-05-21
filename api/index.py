@@ -2657,9 +2657,19 @@ def handle_audio(event):
     user_id = event.source.user_id
     message_id = event.message.id
 
-    # 在任何 I/O 之前先讀 mode，避免 gevent 在 reply_message 的網路 I/O 期間
-    # 切換 greenlet，讓其他並發請求（如「中醫問答」）先改掉 mode。
-    captured_mode = _safe_get_mode(user_id)
+    # 直接讀 Redis（繞過本地 _mode_cache），避免兩個 gunicorn worker 快取不同步。
+    # 也要在任何 I/O 之前讀，避免 gevent 在 reply_message 時切換 greenlet 改掉 mode。
+    captured_mode = None
+    if redis:
+        try:
+            with _redis_mode_lock:
+                _v = redis.get(_redis_user_mode_key(user_id))
+            if _v:
+                captured_mode = (_v.decode("utf-8") if isinstance(_v, bytes) else str(_v)).strip().lower()
+        except Exception:
+            pass
+    if not captured_mode:
+        captured_mode = _safe_get_mode(user_id)
 
     line_bot_api.reply_message(
         event.reply_token,
