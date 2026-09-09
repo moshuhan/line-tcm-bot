@@ -69,7 +69,6 @@
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Developers Console |
 | `LINE_CHANNEL_SECRET` | LINE Developers Console |
 | `OPENAI_API_KEY` | OpenAI API Key |
-| `OPENAI_ASSISTANT_ID` | OpenAI Assistants 建立的助理 ID |
 | `REDIS_URL` | Railway Redis 連線字串 |
 | `MONGO_URL` | Railway MongoDB 連線字串 |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | TTS 語音檔雲端儲存 |

@@ -42,6 +42,7 @@ try:
         is_off_topic,
         get_rag_instructions,
         get_writing_mode_instructions,
+        get_speaking_mode_instructions,
         is_course_inquiry_intent,
         build_course_inquiry_flex,
         get_now_taipei,
@@ -106,6 +107,7 @@ except ImportError:
         is_off_topic,
         get_rag_instructions,
         get_writing_mode_instructions,
+        get_speaking_mode_instructions,
         is_course_inquiry_intent,
         build_course_inquiry_flex,
         get_now_taipei,
@@ -214,7 +216,6 @@ _http_client = httpx.Client(
     limits=httpx.Limits(max_keepalive_connections=5, max_connections=20),
 )
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=_http_client)
-assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
 # Redis：Railway 使用 REDIS_URL，標準 redis-py 連線（decode_responses=True 回傳 str）
 redis = None
@@ -1476,7 +1477,12 @@ def _safe_get_mode(user_id):
 # _process_assistant_sync / _revision_handler 均在背景 thread 執行，可安全存取模組全域
 #（line_bot_api, redis, client）及 os.environ，無須額外傳遞。
 def _process_assistant_sync(user_id, text):
-    """Assistant API 邏輯：Thread/Run/RAG，完成後 push_message。供 process-text-async 背景呼叫。"""
+    """
+    Responses API 版 AI 邏輯（OpenAI Assistants API 已於 2026-08-26 停用，改用 Responses API + Conversations）。
+    以 Redis 保存的 conversation_id（依 mode 區隔）取代原本的 thread_id，
+    對話歷史交由 OpenAI 端的 Conversation 物件維護，完成後 push_message。
+    供 process-text-async 背景呼叫。
+    """
     try:
         mode = _safe_get_mode(user_id)
         if mode == REVISION_MODE:
@@ -1488,72 +1494,91 @@ def _process_assistant_sync(user_id, text):
         elif mode == "writing":
             tag = "✍️ 寫作修訂"
 
-        thread_id = None
-        try:
-            if redis:
-                t_id = redis.get(f"user_thread:{user_id}")
-                if t_id is not None:
-                    thread_id = t_id.decode("utf-8") if hasattr(t_id, "decode") else str(t_id)
-                    if thread_id == "None" or not thread_id.strip():
-                        thread_id = None
-        except Exception:
-            pass
-
-        if not thread_id:
-            new_thread = client.beta.threads.create()
-            thread_id = new_thread.id
-            try:
-                if redis:
-                    redis.set(f"user_thread:{user_id}", thread_id)
-            except Exception:
-                pass
-
         if mode == "writing":
             mode_instructions = get_writing_mode_instructions()
+        elif mode == "speaking":
+            mode_instructions = get_speaking_mode_instructions()
         else:
             mode_instructions = get_rag_instructions()
 
-        user_content = f"{mode_instructions}\n\n【{tag}】\n使用者的話：{text}"
+        # Redis key 依 mode 區隔（原本的 user_thread key 是全模式共用，會混到歷史，這裡一併修正）
+        conv_redis_key = f"user_conversation:{mode}:{user_id}"
+        conversation_id = None
+        try:
+            if redis:
+                c_id = redis.get(conv_redis_key)
+                if c_id is not None:
+                    conversation_id = c_id.decode("utf-8") if hasattr(c_id, "decode") else str(c_id)
+                    if conversation_id == "None" or not conversation_id.strip():
+                        conversation_id = None
+        except Exception:
+            pass
+
+        if not conversation_id:
+            new_conversation = client.conversations.create()
+            conversation_id = new_conversation.id
+            try:
+                if redis:
+                    redis.set(conv_redis_key, conversation_id)
+            except Exception:
+                pass
+
+        user_content = f"【{tag}】\n使用者的話：{text}"
         if mode == "tcm":
             user_content += "\n(提醒：回答末尾請提供參考資料出處)"
 
-        client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=user_content,
-        )
-        run = client.beta.threads.runs.create_and_poll(
-            thread_id=thread_id,
-            assistant_id=assistant_id,
-            timeout=TIMEOUT_SECONDS,
-        )
+        try:
+            resp = client.responses.create(
+                model="gpt-4o-mini",
+                conversation=conversation_id,
+                instructions=mode_instructions,
+                input=user_content,
+                max_output_tokens=800,
+                temperature=0.3,
+                timeout=TIMEOUT_SECONDS,
+            )
+        except Exception as e:
+            print(f">>> DEBUG: responses.create failed err={e}")
+            try:
+                line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+            except Exception as e2:
+                print(f">>> DEBUG: push_message TIMEOUT failed err={e2}")
+            return
 
-        if run.status == 'completed':
-            messages = client.beta.threads.messages.list(thread_id=thread_id)
-            ai_reply = messages.data[0].content[0].text.value
-            if mode == "tcm":
-                ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
-            # 注意：push_message 可能因 LINE 月額度限制而失敗（429）
-            try:
-                line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
-            except Exception as e:
-                print(f">>> DEBUG: push_message failed (likely quota). err={e}")
-            try:
-                log_question(redis, user_id, text)
-                set_last_question(redis, user_id, text)
-                set_last_assistant_message(redis, user_id, ai_reply)
-            except Exception:
-                pass
-            if mode == "speaking" and mongo_db is not None:
-                try:
-                    update_speaking_answer(mongo_db, user_id, ai_reply)
-                except Exception as e:
-                    print(f">>> RESEARCH update_speaking_answer error: {e}")
-        else:
+        if resp.status != "completed":
+            print(f">>> DEBUG: responses status={resp.status}")
             try:
                 line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
             except Exception as e:
                 print(f">>> DEBUG: push_message TIMEOUT failed err={e}")
+            return
+
+        ai_reply = (resp.output_text or "").strip()
+        if not ai_reply:
+            try:
+                line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
+            except Exception as e:
+                print(f">>> DEBUG: push_message TIMEOUT failed err={e}")
+            return
+
+        if mode == "tcm":
+            ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
+        # 注意：push_message 可能因 LINE 月額度限制而失敗（429）
+        try:
+            line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
+        except Exception as e:
+            print(f">>> DEBUG: push_message failed (likely quota). err={e}")
+        try:
+            log_question(redis, user_id, text)
+            set_last_question(redis, user_id, text)
+            set_last_assistant_message(redis, user_id, ai_reply)
+        except Exception:
+            pass
+        if mode == "speaking" and mongo_db is not None:
+            try:
+                update_speaking_answer(mongo_db, user_id, ai_reply)
+            except Exception as e:
+                print(f">>> RESEARCH update_speaking_answer error: {e}")
     except Exception as e:
         print(f"CRITICAL ERROR: {traceback.format_exc()}")
         try:
