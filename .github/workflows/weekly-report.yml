@@ -1,0 +1,18 @@
+name: Weekly Report Cron
+
+# Railway 不會執行 vercel.json 裡的 crons 設定，改由 GitHub Actions 定時打 /api/cron/weekly。
+# 時間沿用原本 vercel.json 的排程：每週五 10:00 UTC（台北時間週五 18:00）。
+on:
+  schedule:
+    - cron: '0 10 * * 5'
+  workflow_dispatch: {}   # 允許在 GitHub Actions 頁面手動觸發，方便測試
+
+jobs:
+  trigger-weekly-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/weekly
+        run: |
+          curl -sS -f --max-time 300 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://line-tcm-bot-production.up.railway.app/api/cron/weekly"
