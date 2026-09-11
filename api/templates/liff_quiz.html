@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>中醫國考題庫練習</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --primary: #0f766e;
+    --primary-light: #ccfbf1;
+    --wrong: #ea580c;
+    --wrong-light: #ffedd5;
+    --correct: #15803d;
+    --correct-light: #dcfce7;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 90px;
+  }
+  header.topbar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header.topbar h1 { font-size: 16px; margin: 0; font-weight: 700; }
+  .tabbar { display: flex; gap: 6px; }
+  .tabbar button {
+    border: none; background: var(--bg); color: var(--text-muted);
+    padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer;
+  }
+  .tabbar button.active { background: var(--primary); color: #fff; }
+  main { padding: 14px; max-width: 640px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .selectors { display: flex; gap: 8px; margin-bottom: 14px; }
+  select {
+    flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card); font-size: 14px; color: var(--text);
+  }
+
+  .q-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .q-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .q-title { font-size: 15px; font-weight: 600; line-height: 1.5; flex: 1; }
+  .bookmark-btn {
+    border: none; background: none; font-size: 20px; cursor: pointer; line-height: 1;
+    color: var(--text-muted); padding: 2px 4px;
+  }
+  .bookmark-btn.active { color: var(--wrong); }
+
+  .options { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .opt-label {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: 10px; font-size: 14px; cursor: pointer;
+  }
+  .opt-label input { accent-color: var(--primary); }
+  .opt-label.correct { border-color: var(--correct); background: var(--correct-light); }
+  .opt-label.wrong-pick { border-color: var(--wrong); background: var(--wrong-light); }
+
+  .q-tools {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+  }
+  .toggle-wrap { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
+  .switch { position: relative; width: 36px; height: 20px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; cursor: pointer; inset: 0; background: #cbd5e1; border-radius: 999px; transition: .15s;
+  }
+  .slider::before {
+    content: ""; position: absolute; height: 16px; width: 16px; left: 2px; top: 2px;
+    background: #fff; border-radius: 50%; transition: .15s;
+  }
+  input:checked + .slider { background: var(--primary); }
+  input:checked + .slider::before { transform: translateX(16px); }
+
+  .link-btn {
+    border: none; background: none; color: var(--primary); font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+
+  .reveal-answer {
+    margin-top: 8px; font-size: 13px; color: var(--correct); font-weight: 600; display: none;
+  }
+  .reveal-answer.show { display: block; }
+
+  .bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; background: var(--card);
+    border-top: 1px solid var(--border); padding: 10px 14px;
+    display: flex; gap: 10px; justify-content: space-between;
+  }
+  .btn {
+    border: none; border-radius: 10px; padding: 12px 18px; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .btn-primary { background: var(--primary); color: #fff; flex: 1; }
+  .btn-ghost { background: var(--bg); color: var(--text-muted); }
+
+  .empty-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 30px 10px; }
+
+  /* 結果頁 */
+  .result-overlay {
+    display: none; position: fixed; inset: 0; background: var(--bg); z-index: 50; overflow-y: auto;
+  }
+  .result-overlay.active { display: block; }
+  .result-header {
+    position: sticky; top: 0; background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .close-x { border: none; background: none; font-size: 22px; cursor: pointer; color: var(--text-muted); }
+  .grade-box {
+    margin: 20px auto; width: 140px; height: 140px; border-radius: 50%;
+    background: var(--primary-light); border: 4px solid var(--primary);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .grade-box .num { font-size: 34px; font-weight: 800; color: var(--primary); }
+  .grade-box .label { font-size: 12px; color: var(--text-muted); }
+  .section-title {
+    font-size: 14px; font-weight: 700; margin: 18px 0 8px; padding: 6px 10px; border-radius: 8px;
+  }
+  .section-title.wrong { background: var(--wrong-light); color: var(--wrong); }
+  .section-title.correct { background: var(--correct-light); color: var(--correct); }
+  .result-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; margin-bottom: 8px;
+  }
+  .result-item .rq-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .result-item .rq-meta { font-size: 12px; color: var(--text-muted); }
+
+  /* AI 詳解面板（仿 Chrome AI mode：從下往上蓋一層） */
+  .ai-panel {
+    display: none; position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 60;
+  }
+  .ai-panel.active { display: flex; align-items: flex-end; }
+  .ai-panel-inner {
+    background: var(--card); width: 100%; max-height: 80vh; overflow-y: auto;
+    border-radius: 18px 18px 0 0; padding: 16px; position: relative;
+  }
+  .ai-panel-inner h3 { margin: 0 0 10px; font-size: 15px; padding-right: 30px; }
+  .ai-panel .close-x { position: absolute; top: 12px; right: 12px; }
+  .ai-content { font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: var(--text); }
+  .ai-followup { display: flex; gap: 6px; margin-top: 12px; }
+  .ai-followup input {
+    flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px;
+  }
+  .ai-loading { color: var(--text-muted); font-size: 13px; }
+
+  /* 錯題本 */
+  .wrong-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; margin-bottom: 8px;
+  }
+  .wrong-item .wq-text { font-size: 14px; flex: 1; }
+  .wrong-item .wq-cat { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .remove-btn { border: none; background: none; font-size: 20px; color: var(--wrong); cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>中醫國考題庫練習</h1>
+  <div class="tabbar">
+    <button id="tab-quiz" class="active" onclick="switchTab('quiz')">考題</button>
+    <button id="tab-wrong" onclick="switchTab('wrong')">錯題本</button>
+  </div>
+</header>
+
+<main>
+  <!-- ① 考題頁 -->
+  <section id="view-quiz" class="view active">
+    <div class="selectors">
+      <select id="select-category"></select>
+      <select id="select-scope">
+        <option value="chapter">依章節</option>
+        <option value="year">依年度（尚未支援）</option>
+      </select>
+    </div>
+    <div id="question-list"></div>
+    <div id="quiz-empty" class="empty-hint" style="display:none;">這個分類目前還沒有題目</div>
+  </section>
+
+  <!-- ③ 錯題本 -->
+  <section id="view-wrong" class="view">
+    <div class="selectors">
+      <select id="wrong-category-filter">
+        <option value="">全部錯題</option>
+      </select>
+    </div>
+    <div id="wrong-list"></div>
+    <div id="wrong-empty" class="empty-hint" style="display:none;">目前沒有標記的錯題</div>
+  </section>
+</main>
+
+<div class="bottom-bar" id="quiz-bottom-bar">
+  <button class="btn btn-ghost" onclick="closeLiff()">✕ 離開</button>
+  <button class="btn btn-primary" onclick="submitExam()">交卷</button>
+</div>
+
+<!-- ② 詳解與評分頁 -->
+<div class="result-overlay" id="result-overlay">
+  <div class="result-header">
+    <strong>作答結果</strong>
+    <button class="close-x" onclick="closeResult()">✕</button>
+  </div>
+  <main>
+    <div class="grade-box">
+      <div class="num" id="grade-num">--</div>
+      <div class="label">Grade / 100</div>
+    </div>
+
+    <div class="section-title wrong">錯題 &amp; Concepts</div>
+    <div id="wrong-results"></div>
+
+    <div class="section-title correct">Correct</div>
+    <div id="correct-results"></div>
+  </main>
+</div>
+
+<!-- AI 詳解面板 -->
+<div class="ai-panel" id="ai-panel">
+  <div class="ai-panel-inner">
+    <button class="close-x" onclick="closeAiPanel()">✕</button>
+    <h3 id="ai-panel-title">詳解</h3>
+    <div class="ai-content" id="ai-content"><span class="ai-loading">產生中...</span></div>
+    <div class="ai-followup">
+      <input id="ai-followup-input" type="text" placeholder="還有問題？直接問 AI" />
+      <button class="link-btn" onclick="sendFollowUp()">問</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const LIFF_ID = "2011558628-8li3MSJw";
+
+let idToken = null;
+let currentCategory = "";
+let currentQuestions = [];   // 目前這份考卷的題目（不含答案）
+let revealedAnswers = {};    // question_id -> 完整題目detail（含答案），按需快取
+let currentAiQuestionId = null;
+
+function authHeaders() {
+  return idToken ? { "Authorization": "Bearer " + idToken, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+}
+
+async function apiGet(path) {
+  const res = await fetch(path, { headers: authHeaders() });
+  return res.json();
+}
+async function apiPost(path, body) {
+  const res = await fetch(path, { method: "POST", headers: authHeaders(), body: JSON.stringify(body || {}) });
+  return res.json();
+}
+async function apiDelete(path) {
+  const res = await fetch(path, { method: "DELETE", headers: authHeaders() });
+  return res.json();
+}
+
+function switchTab(tab) {
+  document.getElementById("view-quiz").classList.toggle("active", tab === "quiz");
+  document.getElementById("view-wrong").classList.toggle("active", tab === "wrong");
+  document.getElementById("tab-quiz").classList.toggle("active", tab === "quiz");
+  document.getElementById("tab-wrong").classList.toggle("active", tab === "wrong");
+  document.getElementById("quiz-bottom-bar").style.display = tab === "quiz" ? "flex" : "none";
+  if (tab === "wrong") loadWrongQuestions();
+}
+
+function closeLiff() {
+  try { liff.closeWindow(); } catch (e) { window.close(); }
+}
+
+async function initApp() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+    idToken = liff.getIDToken();
+  } catch (e) {
+    document.getElementById("question-list").innerHTML =
+      '<div class="empty-hint">LIFF 初始化失敗，請確認是從 LINE 內開啟這個頁面。</div>';
+    return;
+  }
+  await loadCategories();
+}
+
+async function loadCategories() {
+  const data = await apiGet("/api/liff/quiz/categories");
+  const categories = data.categories || [];
+  const sel = document.getElementById("select-category");
+  sel.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join("");
+  const wrongSel = document.getElementById("wrong-category-filter");
+  wrongSel.innerHTML = '<option value="">全部錯題</option>' +
+    categories.map(c => `<option value="${c}">${c}</option>`).join("");
+
+  const lastCategory = localStorage.getItem("examLastCategory");
+  const lastScope = localStorage.getItem("examLastScope");
+  if (lastCategory && categories.includes(lastCategory)) sel.value = lastCategory;
+  if (lastScope) document.getElementById("select-scope").value = lastScope;
+
+  sel.addEventListener("change", onFilterChange);
+  document.getElementById("select-scope").addEventListener("change", onFilterChange);
+
+  await loadQuestions();
+}
+
+async function onFilterChange() {
+  localStorage.setItem("examLastCategory", document.getElementById("select-category").value);
+  localStorage.setItem("examLastScope", document.getElementById("select-scope").value);
+  await loadQuestions();
+}
+
+async function loadQuestions() {
+  const category = document.getElementById("select-category").value;
+  const scope = document.getElementById("select-scope").value;
+  currentCategory = category;
+  const params = new URLSearchParams({ category, scope });
+  const data = await apiGet("/api/liff/quiz/questions?" + params.toString());
+  currentQuestions = data.questions || [];
+  revealedAnswers = {};
+  renderQuestions(data.notice);
+}
+
+function renderQuestions(notice) {
+  const list = document.getElementById("question-list");
+  const emptyHint = document.getElementById("quiz-empty");
+  if (notice) {
+    list.innerHTML = "";
+    emptyHint.style.display = "block";
+    emptyHint.textContent = notice;
+    return;
+  }
+  if (!currentQuestions.length) {
+    list.innerHTML = "";
+    emptyHint.style.display = "block";
+    emptyHint.textContent = "這個分類目前還沒有題目";
+    return;
+  }
+  emptyHint.style.display = "none";
+  list.innerHTML = currentQuestions.map((q, idx) => `
+    <div class="q-card" id="qcard-${q.id}">
+      <div class="q-head">
+        <div class="q-title">${idx + 1}. ${escapeHtml(q.question)}</div>
+        <button class="bookmark-btn" id="bm-${q.id}" onclick="toggleBookmark('${q.id}')">🔖</button>
+      </div>
+      <div class="options">
+        ${Object.entries(q.options || {}).map(([key, text]) => `
+          <label class="opt-label" id="opt-${q.id}-${key}">
+            <input type="radio" name="ans-${q.id}" value="${key}" />
+            <span>(${key}) ${escapeHtml(text)}</span>
+          </label>
+        `).join("")}
+      </div>
+      <div class="reveal-answer" id="reveal-${q.id}"></div>
+      <div class="q-tools">
+        <label class="toggle-wrap">
+          <span class="switch">
+            <input type="checkbox" onchange="onToggleReveal('${q.id}', this.checked)" />
+            <span class="slider"></span>
+          </span>
+          顯示答案
+        </label>
+        <button class="link-btn" onclick="openAiPanel('${q.id}', false)">詳解 &amp; AI 即刻問</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+async function onToggleReveal(qid, checked) {
+  const box = document.getElementById(`reveal-${qid}`);
+  if (!checked) { box.classList.remove("show"); return; }
+  if (!revealedAnswers[qid]) {
+    const detail = await apiGet(`/api/liff/quiz/questions/${qid}`);
+    revealedAnswers[qid] = detail;
+  }
+  const d = revealedAnswers[qid];
+  box.textContent = `正確答案：(${d.answer}) ${(d.options || {})[d.answer] || ""}`;
+  box.classList.add("show");
+}
+
+async function toggleBookmark(qid) {
+  const data = await apiPost("/api/liff/quiz/bookmark", { question_id: qid });
+  const btn = document.getElementById(`bm-${qid}`);
+  btn.classList.toggle("active", !!data.bookmarked);
+}
+
+async function submitExam() {
+  const answers = {};
+  currentQuestions.forEach(q => {
+    const picked = document.querySelector(`input[name="ans-${q.id}"]:checked`);
+    if (picked) answers[q.id] = picked.value;
+  });
+  if (!Object.keys(answers).length) {
+    alert("請至少作答一題再交卷");
+    return;
+  }
+  const result = await apiPost("/api/liff/quiz/submit", { category: currentCategory, answers });
+  showResult(result);
+}
+
+function showResult(result) {
+  document.getElementById("grade-num").textContent = result.score;
+  const wrongBox = document.getElementById("wrong-results");
+  const correctBox = document.getElementById("correct-results");
+  const wrongs = (result.results || []).filter(r => !r.is_correct);
+  const corrects = (result.results || []).filter(r => r.is_correct);
+
+  wrongBox.innerHTML = wrongs.length ? wrongs.map(r => `
+    <div class="result-item">
+      <div class="rq-title">${escapeHtml(r.question)}</div>
+      <div class="rq-meta">你的答案：${r.your_answer || "（未作答）"}　正確答案：${r.correct_answer}</div>
+      <button class="link-btn" onclick="openAiPanel('${r.id}', true)">看詳解</button>
+    </div>
+  `).join("") : '<div class="empty-hint">這次全對，沒有錯題 🎉</div>';
+
+  correctBox.innerHTML = corrects.length ? corrects.map(r => `
+    <div class="result-item">
+      <div class="rq-title">${escapeHtml(r.question)}</div>
+      <div class="rq-meta">答對：${r.correct_answer}</div>
+      <button class="link-btn" onclick="openAiPanel('${r.id}', true)">看詳解</button>
+    </div>
+  `).join("") : '<div class="empty-hint">這次沒有答對的題目</div>';
+
+  document.getElementById("result-overlay").classList.add("active");
+}
+
+function closeResult() {
+  // 交卷當下已經在 submit 時存檔完成，這裡單純關閉視窗（對應線框圖「正常關閉」流程）
+  closeLiff();
+}
+
+async function openAiPanel(qid, fromResultPage) {
+  currentAiQuestionId = qid;
+  document.getElementById("ai-panel").classList.add("active");
+  document.getElementById("ai-content").innerHTML = '<span class="ai-loading">產生中...</span>';
+  document.getElementById("ai-followup-input").value = "";
+  const data = await apiPost("/api/liff/quiz/explain", { question_id: qid });
+  document.getElementById("ai-content").textContent = data.reply || data.error || "AI 回覆失敗，請再試一次";
+}
+
+function closeAiPanel() {
+  document.getElementById("ai-panel").classList.remove("active");
+  currentAiQuestionId = null;
+}
+
+async function sendFollowUp() {
+  const input = document.getElementById("ai-followup-input");
+  const text = input.value.trim();
+  if (!text || !currentAiQuestionId) return;
+  document.getElementById("ai-content").innerHTML = '<span class="ai-loading">產生中...</span>';
+  input.value = "";
+  const data = await apiPost("/api/liff/quiz/explain", { question_id: currentAiQuestionId, follow_up: text });
+  document.getElementById("ai-content").textContent = data.reply || data.error || "AI 回覆失敗，請再試一次";
+}
+
+async function loadWrongQuestions() {
+  const category = document.getElementById("wrong-category-filter").value;
+  const params = category ? "?category=" + encodeURIComponent(category) : "";
+  const data = await apiGet("/api/liff/quiz/wrong-questions" + params);
+  const items = data.questions || [];
+  const list = document.getElementById("wrong-list");
+  const emptyHint = document.getElementById("wrong-empty");
+  if (!items.length) {
+    list.innerHTML = "";
+    emptyHint.style.display = "block";
+    return;
+  }
+  emptyHint.style.display = "none";
+  list.innerHTML = items.map(q => `
+    <div class="wrong-item">
+      <div>
+        <div class="wq-text">${escapeHtml(q.question)}</div>
+        <div class="wq-cat">${escapeHtml(q.category || "")} ・ 正確答案：${q.answer}</div>
+      </div>
+      <button class="remove-btn" onclick="removeWrong('${q.id}')" title="移除">✓</button>
+    </div>
+  `).join("");
+}
+
+document.getElementById("wrong-category-filter").addEventListener("change", loadWrongQuestions);
+
+async function removeWrong(qid) {
+  await apiDelete(`/api/liff/quiz/wrong-questions/${qid}`);
+  loadWrongQuestions();
+}
+
+initApp();
+</script>
+</body>
+</html>

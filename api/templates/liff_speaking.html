@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>中醫口說教練</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --primary: #0f766e;
+    --primary-light: #ccfbf1;
+    --wrong: #ea580c;
+    --wrong-light: #fff1e6;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  .view { display: none; height: 100%; flex-direction: column; }
+  .view.active { display: flex; }
+
+  /* ---- 主畫面 ---- */
+  #view-home { padding: 18px; }
+  .home-top { display: flex; justify-content: space-between; align-items: center; }
+  .home-top h1 { font-size: 17px; margin: 0; }
+  .close-x { border: none; background: none; font-size: 22px; cursor: pointer; color: var(--text-muted); }
+  .scenario-list { margin-top: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .scenario-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 18px; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 14px;
+  }
+  .scenario-card .avatar {
+    width: 48px; height: 48px; border-radius: 50%; background: var(--primary-light);
+    display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;
+  }
+  .scenario-card .meta .title { font-size: 15px; font-weight: 700; }
+  .scenario-card .meta .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .home-hint { color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 30px; }
+
+  /* ---- 對話畫面 ---- */
+  #view-dialogue { }
+  .dlg-top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--card); flex-shrink: 0;
+  }
+  .top-btn { border: none; background: none; font-size: 14px; color: var(--text-muted); cursor: pointer; }
+  .hangup-btn {
+    border: none; background: #ef4444; color: #fff; border-radius: 999px;
+    width: 34px; height: 34px; font-size: 16px; cursor: pointer;
+  }
+  .dlg-upper { display: flex; gap: 10px; padding: 12px 14px; flex-shrink: 0; }
+  .char-panel {
+    flex: 0 0 96px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .char-avatar {
+    width: 76px; height: 76px; border-radius: 50%; background: var(--primary-light);
+    display: flex; align-items: center; justify-content: center; font-size: 34px;
+    border: 3px solid transparent;
+  }
+  .char-avatar.speaking { border-color: var(--primary); }
+  .char-name { font-size: 12px; color: var(--text-muted); text-align: center; }
+  .hint-box {
+    flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
+    font-size: 12px; color: var(--text-muted); max-height: 130px; overflow-y: auto;
+  }
+  .hint-box.collapsed .hint-body { display: none; }
+  .hint-box-head { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: 700; color: var(--text); }
+  .hint-body ul { margin: 6px 0 0; padding-left: 16px; }
+  .hint-body h4 { margin: 8px 0 2px; font-size: 12px; color: var(--text); }
+
+  #transcript-log { flex: 1; overflow-y: auto; padding: 6px 14px; }
+  .bubble-row { display: flex; margin-bottom: 10px; }
+  .bubble-row.from-char { justify-content: flex-start; }
+  .bubble-row.from-user { justify-content: flex-end; }
+  .bubble { max-width: 78%; padding: 10px 12px; border-radius: 14px; font-size: 14px; line-height: 1.5; }
+  .from-char .bubble { background: var(--card); border: 1px solid var(--border); border-top-left-radius: 4px; }
+  .from-user .bubble { background: var(--primary); color: #fff; border-top-right-radius: 4px; }
+  .bubble-zh { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .bubble .err { color: var(--wrong); font-weight: 700; text-decoration: underline wavy; }
+  .from-user .bubble .err { color: #ffd7b0; text-decoration: underline wavy #ffd7b0; }
+
+  .mic-bar { flex-shrink: 0; padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; border-top: 1px solid var(--border); background: var(--card); }
+  .mic-btn {
+    width: 60px; height: 60px; border-radius: 50%; border: none; font-size: 24px; cursor: pointer;
+    background: #cbd5e1; color: #fff;
+  }
+  .mic-btn.live { background: var(--primary); }
+  .mic-status { font-size: 12px; color: var(--text-muted); }
+
+  /* ---- 結算頁 ---- */
+  #view-summary { padding: 0; }
+  .sum-top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--card); flex-shrink: 0;
+  }
+  .sum-body { flex: 1; overflow-y: auto; padding: 16px; }
+  .sum-item { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .sum-label { font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
+  .sum-original { font-size: 14px; color: var(--text); }
+  .sum-original .err { color: var(--wrong); background: var(--wrong-light); padding: 0 2px; border-radius: 4px; }
+  .sum-corrected { font-size: 14px; color: var(--primary); margin-top: 8px; font-weight: 600; }
+  .empty-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 10px; }
+</style>
+</head>
+<body>
+
+<!-- 主畫面 -->
+<section id="view-home" class="view active">
+  <div class="home-top">
+    <h1>中醫口說教練</h1>
+    <button class="close-x" onclick="closeLiff()">✕</button>
+  </div>
+  <div class="scenario-list" id="scenario-list"></div>
+  <div class="home-hint">選一個主題開始練習，全程用英文對話</div>
+</section>
+
+<!-- 對話畫面 -->
+<section id="view-dialogue" class="view">
+  <div class="dlg-top">
+    <button class="top-btn" onclick="backToHome(false)">← 回主頁</button>
+    <button class="hangup-btn" onclick="hangUp()" title="結束對話">☎</button>
+  </div>
+  <div class="dlg-upper">
+    <div class="char-panel">
+      <div class="char-avatar" id="char-avatar">🧑‍⚕️</div>
+      <div class="char-name" id="char-name">患者</div>
+    </div>
+    <div class="hint-box collapsed" id="hint-box">
+      <div class="hint-box-head" onclick="toggleHint()">💡 話題提示 <span id="hint-toggle-icon">▸</span></div>
+      <div class="hint-body">
+        <h4>可以聊的方向</h4>
+        <ul id="hint-topics"></ul>
+        <h4>中醫英文詞彙</h4>
+        <ul id="hint-vocab"></ul>
+      </div>
+    </div>
+  </div>
+  <div id="transcript-log"></div>
+  <div class="mic-bar">
+    <button class="mic-btn" id="mic-btn" onclick="toggleMic()">🎤</button>
+    <div class="mic-status" id="mic-status">連線中...</div>
+  </div>
+</section>
+
+<!-- 結算頁 -->
+<section id="view-summary" class="view">
+  <div class="sum-top">
+    <button class="top-btn" onclick="backToHome(true)">← Home</button>
+    <button class="top-btn" onclick="restartConversation()">→ Restart conversation</button>
+  </div>
+  <div class="sum-body" id="summary-body"></div>
+</section>
+
+<audio id="remote-audio" autoplay></audio>
+
+<script>
+const LIFF_ID = "2011558628-VDHP3SsC";
+
+let idToken = null;
+let scenarios = {};
+let currentScenarioKey = null;
+let pc = null;
+let dc = null;
+let localStream = null;
+let micLive = false;
+let transcript = [];       // [{role: 'user'|'assistant', text}]，只存在這次瀏覽器 session
+let charDeltaBuffer = "";
+let charBubbleEl = null;
+
+function authHeaders() {
+  return idToken ? { "Authorization": "Bearer " + idToken, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+}
+async function apiGet(path) {
+  const res = await fetch(path, { headers: authHeaders() });
+  return res.json();
+}
+async function apiPost(path, body) {
+  const res = await fetch(path, { method: "POST", headers: authHeaders(), body: JSON.stringify(body || {}) });
+  return res.json();
+}
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+function renderAnnotated(annotated) {
+  return escapeHtml(annotated).replace(/«(.+?)»/g, '<span class="err">$1</span>');
+}
+
+function closeLiff() {
+  try { liff.closeWindow(); } catch (e) { window.close(); }
+}
+
+function switchView(name) {
+  ["home", "dialogue", "summary"].forEach(v => {
+    document.getElementById("view-" + v).classList.toggle("active", v === name);
+  });
+}
+
+async function initApp() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    idToken = liff.getIDToken();
+  } catch (e) {
+    document.getElementById("scenario-list").innerHTML =
+      '<div class="empty-hint">LIFF 初始化失敗，請確認是從 LINE 內開啟這個頁面。</div>';
+    return;
+  }
+  const data = await apiGet("/api/liff/speaking/scenarios");
+  (data.scenarios || []).forEach(s => { scenarios[s.key] = s; });
+  renderHome();
+}
+
+function renderHome() {
+  const icons = { clinical: "🧑‍⚕️", academic: "👨‍🏫" };
+  const list = document.getElementById("scenario-list");
+  list.innerHTML = Object.values(scenarios).map(s => `
+    <button class="scenario-card" onclick="startConversation('${s.key}')">
+      <div class="avatar">${icons[s.key] || "🗣️"}</div>
+      <div class="meta">
+        <div class="title">${escapeHtml(s.label_zh)}</div>
+        <div class="sub">對話角色：${escapeHtml(s.character_zh)}</div>
+      </div>
+    </button>
+  `).join("");
+}
+
+function toggleHint() {
+  const box = document.getElementById("hint-box");
+  box.classList.toggle("collapsed");
+  document.getElementById("hint-toggle-icon").textContent = box.classList.contains("collapsed") ? "▸" : "▾";
+}
+
+async function startConversation(scenarioKey) {
+  currentScenarioKey = scenarioKey;
+  transcript = [];
+  charDeltaBuffer = "";
+  charBubbleEl = null;
+
+  const s = scenarios[scenarioKey] || {};
+  document.getElementById("char-name").textContent = s.character_zh || "";
+  document.getElementById("char-avatar").textContent = scenarioKey === "academic" ? "👨‍🏫" : "🧑‍⚕️";
+  document.getElementById("hint-topics").innerHTML = (s.hints?.topics || []).map(t => `<li>${escapeHtml(t)}</li>`).join("");
+  document.getElementById("hint-vocab").innerHTML = (s.hints?.vocab || []).map(t => `<li>${escapeHtml(t)}</li>`).join("");
+  document.getElementById("transcript-log").innerHTML = "";
+  document.getElementById("mic-status").textContent = "連線中...";
+  document.getElementById("mic-btn").classList.remove("live");
+  micLive = false;
+
+  switchView("dialogue");
+
+  const sessionRes = await apiPost("/api/liff/speaking/session", { scenario: scenarioKey });
+  if (sessionRes.error || !sessionRes.client_secret) {
+    document.getElementById("mic-status").textContent = "連線失敗：" + (sessionRes.error || "未知錯誤");
+    return;
+  }
+
+  try {
+    await connectRealtime(sessionRes.client_secret, sessionRes.model);
+    document.getElementById("mic-status").textContent = "已連線，按下麥克風開始說話";
+  } catch (e) {
+    console.error("[speaking] connectRealtime failed", e);
+    document.getElementById("mic-status").textContent = "連線失敗，請重新嘗試";
+  }
+}
+
+async function connectRealtime(ephemeralKey, model) {
+  pc = new RTCPeerConnection();
+  pc.ontrack = (e) => { document.getElementById("remote-audio").srcObject = e.streams[0]; };
+
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  localStream.getTracks().forEach(track => {
+    track.enabled = false; // 一開始靜音，按下麥克風才開始傳送
+    pc.addTrack(track, localStream);
+  });
+
+  dc = pc.createDataChannel("oai-events");
+  dc.addEventListener("message", handleRealtimeEvent);
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  const resp = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(model)}`, {
+    method: "POST",
+    body: offer.sdp,
+    headers: {
+      "Authorization": `Bearer ${ephemeralKey}`,
+      "Content-Type": "application/sdp",
+    },
+  });
+  if (!resp.ok) throw new Error("SDP exchange failed: " + resp.status);
+  const answerSdp = await resp.text();
+  await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+}
+
+function toggleMic() {
+  if (!localStream) return;
+  micLive = !micLive;
+  localStream.getTracks().forEach(track => { track.enabled = micLive; });
+  document.getElementById("mic-btn").classList.toggle("live", micLive);
+  document.getElementById("mic-status").textContent = micLive ? "聆聽中，直接開口說話" : "已暫停，按下麥克風繼續";
+}
+
+function handleRealtimeEvent(e) {
+  let evt;
+  try { evt = JSON.parse(e.data); } catch (err) { return; }
+  // 開發用：實際事件名稱以 Realtime API 目前版本為準，先全部印出來方便對照調整
+  console.log("[realtime event]", evt.type, evt);
+
+  if (evt.type === "conversation.item.input_audio_transcription.completed") {
+    handleUserTranscript(evt.transcript || "");
+    return;
+  }
+  if (typeof evt.type === "string" && evt.type.includes("audio_transcript")) {
+    if (evt.type.endsWith(".delta")) {
+      appendCharDelta(evt.delta || "");
+    } else if (evt.type.endsWith(".done")) {
+      finalizeCharLine(evt.transcript || charDeltaBuffer);
+    }
+    return;
+  }
+  if (evt.type === "response.created" || evt.type === "response.output_item.added") {
+    document.getElementById("char-avatar").classList.add("speaking");
+  }
+  if (evt.type === "response.done") {
+    document.getElementById("char-avatar").classList.remove("speaking");
+  }
+  if (evt.type === "error") {
+    console.error("[realtime error]", evt);
+  }
+}
+
+function addBubble(role, text) {
+  const wrap = document.createElement("div");
+  wrap.className = "bubble-row " + (role === "user" ? "from-user" : "from-char");
+  wrap.innerHTML = `
+    <div class="bubble">
+      <div class="bubble-en">${escapeHtml(text)}</div>
+      ${role === "assistant" ? '<div class="bubble-zh"></div>' : ""}
+    </div>`;
+  const log = document.getElementById("transcript-log");
+  log.appendChild(wrap);
+  log.scrollTop = log.scrollHeight;
+  return wrap;
+}
+
+function appendCharDelta(delta) {
+  if (!charBubbleEl) charBubbleEl = addBubble("assistant", "");
+  charDeltaBuffer += delta;
+  charBubbleEl.querySelector(".bubble-en").textContent = charDeltaBuffer;
+}
+
+async function finalizeCharLine(fullText) {
+  const text = (fullText || charDeltaBuffer || "").trim();
+  charDeltaBuffer = "";
+  if (!text) { charBubbleEl = null; return; }
+  transcript.push({ role: "assistant", text });
+  if (!charBubbleEl) charBubbleEl = addBubble("assistant", text);
+  const bubbleForTranslate = charBubbleEl;
+  charBubbleEl = null;
+  try {
+    const zh = await apiPost("/api/liff/speaking/translate", { text });
+    bubbleForTranslate.querySelector(".bubble-zh").textContent = zh.translated || "";
+  } catch (e) { /* 翻譯失敗不影響對話進行 */ }
+}
+
+async function handleUserTranscript(text) {
+  text = (text || "").trim();
+  if (!text) return;
+  transcript.push({ role: "user", text });
+  const bubble = addBubble("user", text);
+  try {
+    const res = await apiPost("/api/liff/speaking/analyze-turn", { text });
+    bubble.querySelector(".bubble-en").innerHTML = renderAnnotated(res.annotated || text);
+  } catch (e) { /* 標註失敗就維持原始文字 */ }
+}
+
+function teardownConnection() {
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  if (dc) { try { dc.close(); } catch (e) {} dc = null; }
+  if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+  micLive = false;
+}
+
+async function hangUp() {
+  teardownConnection();
+  const data = await apiPost("/api/liff/speaking/summary", { transcript });
+  renderSummary(data.items || []);
+  switchView("summary");
+}
+
+function backToHome(fromSummary) {
+  // 對應線框圖「中途異常關閉不存紀錄」：直接切斷連線、不呼叫 summary，逐字稿隨頁面狀態捨棄
+  if (!fromSummary) teardownConnection();
+  transcript = [];
+  switchView("home");
+}
+
+function restartConversation() {
+  if (currentScenarioKey) startConversation(currentScenarioKey);
+}
+
+function renderSummary(items) {
+  const body = document.getElementById("summary-body");
+  if (!items.length) {
+    body.innerHTML = '<div class="empty-hint">這次對話沒有偵測到明顯錯誤，表現得很好！🎉</div>';
+    return;
+  }
+  body.innerHTML = items.map(it => `
+    <div class="sum-item">
+      <div class="sum-label">原句</div>
+      <div class="sum-original">${renderAnnotated(it.original)}</div>
+      <div class="sum-label" style="margin-top:8px;">修正後</div>
+      <div class="sum-corrected">${escapeHtml(it.corrected)}</div>
+    </div>
+  `).join("");
+}
+
+initApp();
+</script>
+</body>
+</html>

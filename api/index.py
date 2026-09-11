@@ -20,7 +20,7 @@ print("ENV CHECK: LINE_CHANNEL_ACCESS_TOKEN exists:", bool(os.getenv("LINE_CHANN
 print("ENV CHECK: LINE_CHANNEL_SECRET exists:", bool(os.getenv("LINE_CHANNEL_SECRET")))
 print("ENV CHECK: OPENAI_API_KEY exists:", bool(os.getenv("OPENAI_API_KEY")))
 
-from flask import Flask, request, abort, Response
+from flask import Flask, request, abort, Response, jsonify
 import requests
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -204,6 +204,55 @@ except ImportError:
         classify_qa_learning_tags = lambda *a, **k: (None, None)
         append_conv_history = lambda *a, **k: None
         get_conv_history = lambda *a, **k: []
+
+try:
+    from api.exam_quiz import (
+        list_categories as exam_list_categories,
+        get_questions_by_category as exam_get_questions_by_category,
+        get_question_detail as exam_get_question_detail,
+        submit_exam as exam_submit_exam,
+        toggle_bookmark as exam_toggle_bookmark,
+        list_wrong_questions as exam_list_wrong_questions,
+        remove_wrong_question as exam_remove_wrong_question,
+    )
+    from api.liff_auth import verify_liff_id_token
+    from api.speaking_liff import (
+        list_scenarios as speaking_list_scenarios,
+        mint_ephemeral_session as speaking_mint_ephemeral_session,
+        annotate_errors as speaking_annotate_errors,
+        translate_to_zh as speaking_translate_to_zh,
+        build_session_summary as speaking_build_session_summary,
+    )
+    from api.writing_liff import (
+        load_topics as writing_load_topics,
+        annotate_realtime as writing_annotate_realtime,
+        full_review as writing_full_review,
+        save_practice as writing_save_practice,
+    )
+except ImportError:
+    from exam_quiz import (
+        list_categories as exam_list_categories,
+        get_questions_by_category as exam_get_questions_by_category,
+        get_question_detail as exam_get_question_detail,
+        submit_exam as exam_submit_exam,
+        toggle_bookmark as exam_toggle_bookmark,
+        list_wrong_questions as exam_list_wrong_questions,
+        remove_wrong_question as exam_remove_wrong_question,
+    )
+    from liff_auth import verify_liff_id_token
+    from speaking_liff import (
+        list_scenarios as speaking_list_scenarios,
+        mint_ephemeral_session as speaking_mint_ephemeral_session,
+        annotate_errors as speaking_annotate_errors,
+        translate_to_zh as speaking_translate_to_zh,
+        build_session_summary as speaking_build_session_summary,
+    )
+    from writing_liff import (
+        load_topics as writing_load_topics,
+        annotate_realtime as writing_annotate_realtime,
+        full_review as writing_full_review,
+        save_practice as writing_save_practice,
+    )
 
 # 1. 初始化
 app = Flask(__name__)
@@ -1057,19 +1106,27 @@ _TCM_SYSTEM_PROMPT = """
 - 若是詢問課程聯絡方式、助教或老師資訊，只需回覆：「相關問題請至課程 LINE 群組發問。」，不需其他內容。
 - 其他問題才依照以下中醫學術助教的原則完整回答。
 
-你是一位嚴謹且親切的中醫學術助教。在回答任何問題時，請遵循以下原則：
+你是中醫學術助教，回答中醫專業問題時請遵循以下原則：
+
+【內容原則】
 1. 優先從「課程教材」、「中醫經典文獻（如：黃帝內經、傷寒雜病論、神農本草經）」以及「PubMed 上的現代醫學論文」中提取資訊。
 2. 嚴禁自行推斷或編造未經證實的療效。若資料庫中無相關記載，請誠實告知。
-3. 回答必須結構清晰，並在文末明確列出【資料來源】（包含書名、章節或論文標題）。
-4. 始終保持專業、客觀的語氣，並在結尾附上醫療警語。
-5. 避免產生幻覺，不確定的資訊不要提供。
-6. 若使用者傳送的是社交短句（如「謝謝」「好的」「再見」），請簡短親切回應（一句話即可），不需要提供中醫內容，也不需要資料來源。
-7. 若使用者詢問課程聯絡方式、助教或老師資訊，請簡短告知：「相關問題請至課程 LINE 群組發問」，不需要其他內容。
-8. 若使用者提出與中醫無直接關聯的一般性問題（如飲食、生活習慣），可簡短從中醫養生角度給一句建議，再邀請繼續提問。
+3. 避免產生幻覺，不確定的資訊不要提供。
+4. 若使用者提出與中醫無直接關聯的一般性問題（如飲食、生活習慣），可簡短從中醫養生角度給一句建議，再邀請繼續提問。
 
-輸出格式（僅限中醫專業問題）：
-- 先給出「回答」內容（條列或分段皆可，務必清楚）。
-- 文末一定要有一段「資料來源：」列出本次回答實際使用的來源。
+【格式規則——嚴格遵守，不可用篇幅表達親切】
+- 回答控制在 3-5 個重點以內，每點不超過 2 句話。
+- 禁止開場白（如「很高興為您解答」「這是一個很好的問題」），直接進入內容。
+- 不要為了顯得親切而重複解釋、加註安慰語句，或延伸沒被問到的內容。
+
+【語氣——靠用詞體現，不是靠篇幅】
+- 避免生硬的醫學術語堆疊，適度使用「你可以想成……」「簡單說……」這類引導語幫助理解。
+- 語氣保持專業、客觀即可，不需要額外句子表現熱情或親切。
+
+【資料來源——依回答深淺選擇性顯示】
+- 簡短回答（3 個重點以內、非深入辨證或處方類問題）：文末只標註一個關鍵字來源即可，例如「資料來源：黃帝內經」。
+- 深入回答（複雜辨證、方劑組成、臨床機轉等）：文末列出完整「資料來源：」，包含書名、章節或論文標題。
+- 兩種情況都必須有「資料來源：」這一行，只是詳細程度不同。
 """.strip()
 
 _TCM_SYSTEM_PROMPT_EN = """
@@ -1078,19 +1135,27 @@ _TCM_SYSTEM_PROMPT_EN = """
 - If it is asking for course contact info, the TA, or the instructor, reply ONLY with: "Please ask in the course LINE group." — nothing more.
 - For all other messages, follow the full TCM guidelines below.
 
-You are a knowledgeable and friendly academic assistant specializing in Traditional Chinese Medicine (TCM). When answering any question, follow these principles:
+You are a TCM (Traditional Chinese Medicine) academic assistant. When answering TCM questions, follow these principles:
+
+[Content principles]
 1. Prioritize information from course materials, TCM classical texts (e.g., Huangdi Neijing, Shang Han Lun, Shen Nong Ben Cao Jing), and modern medical papers on PubMed.
 2. Never fabricate or infer unverified therapeutic effects. If the information is not in the knowledge base, say so honestly.
-3. Answers must be clearly structured, with sources listed at the end (book title, chapter, or paper title).
-4. Maintain a professional and friendly tone at all times, with a medical disclaimer at the end.
-5. Avoid hallucinations — do not provide information you are uncertain about.
-6. If the user sends a social phrase (e.g., "thank you", "got it", "bye"), reply briefly and warmly in one sentence — no TCM content or sources needed.
-7. If the user asks about course contacts, the TA, or the instructor, simply say: "Please ask in the course LINE group." — nothing more needed.
-8. If the user asks a general question not directly related to TCM (e.g., food, lifestyle), give one brief suggestion from a TCM wellness perspective, then invite further questions.
+3. Avoid hallucinations — do not provide information you are uncertain about.
+4. If the user asks a general question not directly related to TCM (e.g., food, lifestyle), give one brief suggestion from a TCM wellness perspective, then invite further questions.
 
-Output format (for TCM professional questions only):
-- Start with the answer (bullet points or paragraphs, must be clear).
-- End with a "Sources:" section listing actual sources used.
+[Format rules — follow strictly; do not express warmth through length]
+- Keep the answer to 3-5 key points at most, no more than 2 sentences per point.
+- No opening filler (e.g. "Great question!", "I'm happy to help") — go straight into the content.
+- Do not repeat yourself, add reassuring filler, or expand into anything not actually asked, just to seem warm.
+
+[Tone — through word choice, not through length]
+- Avoid stacking dense medical jargon; use light guiding phrases like "think of it as..." or "in short..." where helpful.
+- Stay professional and objective — no extra sentences needed to signal warmth or enthusiasm.
+
+[Sources — selective, based on answer depth]
+- Short answers (3 points or fewer, not a deep pattern-differentiation/prescription question): end with just one keyword source, e.g. "Sources: Huangdi Neijing".
+- In-depth answers (complex pattern differentiation, formula composition, clinical mechanism): end with a full "Sources:" line including book title, chapter, or paper title.
+- Either way, always include a "Sources:" line — only the level of detail differs.
 - Respond entirely in English.
 """.strip()
 
@@ -1682,6 +1747,350 @@ def home():
 def favicon():
     """避免瀏覽器/爬蟲請求 favicon 產生 404 日誌。"""
     return "", 204
+
+
+# ============================================================
+# LIFF：國考題庫練習系統
+# ============================================================
+# 業務邏輯（題庫、評分、錯題本）都在 api/exam_quiz.py，這裡只負責：
+# 1. 提供 LIFF 前端頁面（純靜態 HTML，前端用 liff SDK 處理登入與 API 呼叫）
+# 2. 用 LIFF ID Token 驗證使用者身份（api/liff_auth.py），不信任前端自己宣稱的 userId
+# 3. 把 exam_quiz.py 的回傳結果包成 JSON——注意這些函式本身不呼叫 line_bot_api，
+#    跟現有 LINE webhook 業務邏輯（_tcm_openai_reply 等）耦合 push_message 的寫法不同，
+#    這是刻意的，對應 README「平台策略」那節的架構解耦方向。
+
+def _liff_auth_user_id():
+    """從 Authorization: Bearer <idToken> 驗證 LIFF 使用者身份，回傳 user_id；驗證失敗回傳 None。"""
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+    if not token:
+        return None
+    result = verify_liff_id_token(token)
+    return result["user_id"] if result else None
+
+
+def _exam_explain_answer(question_text, correct_answer_text, user_followup=None):
+    """
+    國考題「詳解 / AI 即刻問」：用既有的語意檢索（_semantic_search）找相關知識點當 context，
+    純函式、回傳文字，不寫入 LINE。失敗回傳空字串，由呼叫端決定如何提示使用者。
+    """
+    if not (question_text or "").strip():
+        return ""
+    base_ctx = _semantic_search(question_text, top_k=3) or _build_full_tcm_context()[:4000]
+    if user_followup and user_followup.strip():
+        user_prompt = (
+            f"[背景資料]\n{base_ctx}\n\n[題目]\n{question_text}\n\n[正確答案]\n{correct_answer_text}\n\n"
+            f"[學生追問]\n{user_followup.strip()}\n\n請根據背景資料簡潔回答學生的追問。"
+        )
+    else:
+        user_prompt = (
+            f"[背景資料]\n{base_ctx}\n\n[題目]\n{question_text}\n\n[正確答案]\n{correct_answer_text}\n\n"
+            f"請說明這一題的詳解：為什麼答案是這個選項，並簡要指出其他選項錯在哪裡。"
+        )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _TCM_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=600,
+            temperature=0.2,
+        )
+        return (resp.choices[0].message.content or "").strip()
+    except Exception:
+        traceback.print_exc()
+        return ""
+
+
+@app.route("/liff/quiz", methods=['GET'])
+def liff_quiz_page():
+    """LIFF 考題頁入口：回傳靜態 HTML，登入與 API 呼叫都在前端 JS 處理。"""
+    try:
+        path = os.path.join(os.path.dirname(__file__), "templates", "liff_quiz.html")
+        with open(path, "r", encoding="utf-8") as f:
+            html = f.read()
+        return Response(html, mimetype="text/html")
+    except Exception:
+        traceback.print_exc()
+        return "LIFF page not found", 404
+
+
+@app.route("/api/liff/quiz/categories", methods=['GET'])
+def liff_quiz_categories():
+    """回傳題庫目前有的章節分類（線框圖上方「選類別」下拉選單第二層：依章節）。"""
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"categories": exam_list_categories()})
+
+
+@app.route("/api/liff/quiz/questions", methods=['GET'])
+def liff_quiz_questions():
+    """
+    回傳指定章節的題目（不含答案）。scope=year 目前尚未支援
+    （題庫還沒有年度 metadata，見 api/exam_quiz.py 開頭說明），先回空陣列＋提示訊息。
+    """
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    category = (request.args.get("category") or "").strip()
+    scope = (request.args.get("scope") or "chapter").strip()
+    if scope == "year":
+        return jsonify({"notice": "依年度篩選尚未支援，題庫目前僅有章節分類", "questions": []})
+    return jsonify({"questions": exam_get_questions_by_category(category or None)})
+
+
+@app.route("/api/liff/quiz/questions/<question_id>", methods=['GET'])
+def liff_quiz_question_answer(question_id):
+    """
+    單題詳細內容（含正確答案），給作答中「顯示答案」開關按需查詢用。
+    刻意不在 /api/liff/quiz/questions 的列表裡直接附答案，避免答案一次全部送到前端。
+    """
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    q = exam_get_question_detail(question_id)
+    if not q:
+        return jsonify({"error": "題目不存在"}), 404
+    return jsonify(q)
+
+
+@app.route("/api/liff/quiz/submit", methods=['POST'])
+def liff_quiz_submit():
+    """交卷評分：body = {"category": str, "answers": {question_id: "A"/"B"/"C"/"D"}}。"""
+    user_id = _liff_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    category = (data.get("category") or "").strip()
+    answers = data.get("answers") or {}
+    if not isinstance(answers, dict) or not answers:
+        return jsonify({"error": "answers 不可為空"}), 400
+    result = exam_submit_exam(mongo_db, user_id, category, answers)
+    return jsonify(result)
+
+
+@app.route("/api/liff/quiz/bookmark", methods=['POST'])
+def liff_quiz_bookmark():
+    """作答中手動標記／取消標記單題到錯題本：body = {"question_id": str}。"""
+    user_id = _liff_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    question_id = (data.get("question_id") or "").strip()
+    if not question_id:
+        return jsonify({"error": "缺少 question_id"}), 400
+    bookmarked = exam_toggle_bookmark(mongo_db, user_id, question_id)
+    if bookmarked is None:
+        return jsonify({"error": "資料庫未連線"}), 500
+    return jsonify({"bookmarked": bookmarked})
+
+
+@app.route("/api/liff/quiz/wrong-questions", methods=['GET'])
+def liff_quiz_wrong_questions():
+    """錯題本清單，可用 ?category=xxx 篩單一章節。"""
+    user_id = _liff_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+    category = (request.args.get("category") or "").strip() or None
+    return jsonify({"questions": exam_list_wrong_questions(mongo_db, user_id, category)})
+
+
+@app.route("/api/liff/quiz/wrong-questions/<question_id>", methods=['DELETE'])
+def liff_quiz_wrong_question_delete(question_id):
+    """從錯題本移除單題（對應線框圖再按一次標記圖示）。"""
+    user_id = _liff_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+    removed = exam_remove_wrong_question(mongo_db, user_id, question_id)
+    return jsonify({"removed": removed})
+
+
+@app.route("/api/liff/quiz/explain", methods=['POST'])
+def liff_quiz_explain():
+    """詳解 / AI 即刻問：body = {"question_id": str, "follow_up": str(optional)}。"""
+    user_id = _liff_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    question_id = (data.get("question_id") or "").strip()
+    follow_up = (data.get("follow_up") or "").strip()
+    q = exam_get_question_detail(question_id)
+    if not q:
+        return jsonify({"error": "題目不存在"}), 404
+    answer_letter = q.get("answer") or ""
+    answer_text = f"{answer_letter} {(q.get('options') or {}).get(answer_letter, '')}".strip()
+    reply = _exam_explain_answer(q.get("question", ""), answer_text, follow_up)
+    if not reply:
+        return jsonify({"error": "AI 回覆失敗，請再試一次"}), 500
+    return jsonify({"reply": reply})
+
+
+# ============================================================
+# LIFF：NPC 對話式口說教練
+# ============================================================
+# 語音對話走 OpenAI Realtime API，前端瀏覽器直接用 WebRTC 連線到 OpenAI（延遲最低，
+# 我們的伺服器不中繼音訊）。這裡的路由只做三件事：
+# 1. 提供 LIFF 前端頁面
+# 2. 用主 API Key 換一組短效 ephemeral client secret 給前端（絕不能把主 Key 交給瀏覽器）
+# 3. 逐輪／結算頁的文字錯誤標註（純文字 chat.completions，跟語音對話是分開的兩條路徑）
+# 對話逐字稿刻意不寫入 MongoDB／Redis——只在瀏覽器這次 session 存在，離開結算頁就清空。
+
+@app.route("/liff/speaking", methods=['GET'])
+def liff_speaking_page():
+    """LIFF 口說教練頁入口：回傳靜態 HTML。"""
+    try:
+        path = os.path.join(os.path.dirname(__file__), "templates", "liff_speaking.html")
+        with open(path, "r", encoding="utf-8") as f:
+            html = f.read()
+        return Response(html, mimetype="text/html")
+    except Exception:
+        traceback.print_exc()
+        return "LIFF page not found", 404
+
+
+@app.route("/api/liff/speaking/scenarios", methods=['GET'])
+def liff_speaking_scenarios():
+    """主畫面兩個主題按鈕的資料（臨床衛教／患者、學術討論／教授）。"""
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"scenarios": speaking_list_scenarios()})
+
+
+@app.route("/api/liff/speaking/session", methods=['POST'])
+def liff_speaking_session():
+    """
+    開始一段對話：body = {"scenario": "clinical"|"academic"}。
+    回傳 ephemeral client_secret，前端用它直接對 OpenAI 建立 WebRTC 連線，不經過我們的伺服器。
+    """
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    scenario = (data.get("scenario") or "").strip()
+    session_info = speaking_mint_ephemeral_session(client, scenario)
+    if not session_info:
+        return jsonify({"error": "無法建立語音對話 session，請再試一次"}), 500
+    return jsonify(session_info)
+
+
+@app.route("/api/liff/speaking/translate", methods=['POST'])
+def liff_speaking_translate():
+    """角色台詞即時中譯（雙語字幕用）：body = {"text": str} → {"translated": str}。"""
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"translated": ""})
+    return jsonify({"translated": speaking_translate_to_zh(client, text)})
+
+
+@app.route("/api/liff/speaking/analyze-turn", methods=['POST'])
+def liff_speaking_analyze_turn():
+    """逐輪錯誤標註：body = {"text": str} → {"annotated": 含 «錯誤» 標記的原句}。"""
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"annotated": ""})
+    annotated = speaking_annotate_errors(client, text)
+    return jsonify({"annotated": annotated})
+
+
+@app.route("/api/liff/speaking/summary", methods=['POST'])
+def liff_speaking_summary():
+    """
+    結算頁摘要：body = {"transcript": [{"role": "user"|"assistant", "text": str}, ...]}。
+    回傳這次對話中使用者講錯的句子（原句標錯＋修正版），給結算頁的原句/新句對照用。
+    """
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    transcript = data.get("transcript") or []
+    if not isinstance(transcript, list):
+        return jsonify({"error": "transcript 格式錯誤"}), 400
+    items = speaking_build_session_summary(client, transcript)
+    return jsonify({"items": items})
+
+
+# ============================================================
+# LIFF：Writing Coach（即時標註＋送出批改）
+# ============================================================
+# 即時標註（Grammarly 風格）與送出批改都是純文字 chat.completions，不影響 LINE 現有的
+# _revision_handler。儲存的練習紀錄寫進 MongoDB writing_practice——跟口說 LIFF 不同，
+# 這裡的資料是明確要求要保留的（見線框圖「儲存練習內容」「一鍵同意/確認儲存」）。
+
+@app.route("/liff/writing", methods=['GET'])
+def liff_writing_page():
+    """LIFF 寫作教練頁入口：回傳靜態 HTML。"""
+    try:
+        path = os.path.join(os.path.dirname(__file__), "templates", "liff_writing.html")
+        with open(path, "r", encoding="utf-8") as f:
+            html = f.read()
+        return Response(html, mimetype="text/html")
+    except Exception:
+        traceback.print_exc()
+        return "LIFF page not found", 404
+
+
+@app.route("/api/liff/writing/topics", methods=['GET'])
+def liff_writing_topics():
+    """主畫面題目/範本清單（含「自由寫作」）。"""
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"topics": writing_load_topics()})
+
+
+@app.route("/api/liff/writing/check", methods=['POST'])
+def liff_writing_check():
+    """
+    即時逐字標註：body = {"text": str} → {"annotated": ...}。
+    由前端 debounce 後呼叫（見 liff_writing.html，停止打字約 0.9 秒才送出），避免每個按鍵都打 API。
+    """
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    text = data.get("text") or ""
+    annotated = writing_annotate_realtime(client, text)
+    return jsonify({"annotated": annotated})
+
+
+@app.route("/api/liff/writing/review", methods=['POST'])
+def liff_writing_review():
+    """送出批改：body = {"text": str, "topic_id": str(optional)} → 完整評分＋修正版＋說明。"""
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get("text") or "").strip()
+    topic_id = (data.get("topic_id") or "").strip() or None
+    if not text:
+        return jsonify({"error": "請先輸入內容再送出批改"}), 400
+    result = writing_full_review(client, text, topic_id)
+    if not result:
+        return jsonify({"error": "AI 批改失敗，請再試一次"}), 500
+    return jsonify(result)
+
+
+@app.route("/api/liff/writing/save", methods=['POST'])
+def liff_writing_save():
+    """
+    儲存練習內容：body = {"text": str, "topic_id": str(optional), "kind": "draft"|"reviewed"}。
+    對應線框圖兩顆按鈕——「儲存練習內容」傳 kind=draft（存使用者自己打的原文），
+    「一鍵同意/確認儲存」傳 kind=reviewed（存 AI 修正後版本）。
+    """
+    user_id = _liff_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get("text") or "").strip()
+    topic_id = (data.get("topic_id") or "").strip() or None
+    kind = (data.get("kind") or "draft").strip()
+    if not text:
+        return jsonify({"error": "內容不可為空"}), 400
+    saved_id = writing_save_practice(mongo_db, user_id, topic_id, text, kind)
+    if not saved_id:
+        return jsonify({"error": "儲存失敗（資料庫未連線或參數錯誤）"}), 500
+    return jsonify({"saved_id": saved_id})
+
 
 def _run_voice_background(user_id, message_id, base_url, cron_secret):
     """Background Task：語音轉錄、GPT 分析、TTS、Cloudinary 上傳。不阻塞 webhook 回傳。"""

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>中醫寫作教練</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --primary: #0f766e;
+    --primary-light: #ccfbf1;
+    --wrong: #ea580c;
+    --wrong-light: #fff1e6;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  .view { display: none; height: 100%; flex-direction: column; }
+  .view.active { display: flex; }
+
+  /* ---- 主畫面 ---- */
+  #view-home { padding: 18px; overflow-y: auto; }
+  .home-top { display: flex; justify-content: space-between; align-items: center; }
+  .home-top h1 { font-size: 17px; margin: 0; }
+  .close-x { border: none; background: none; font-size: 22px; cursor: pointer; color: var(--text-muted); }
+  .topic-list { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .topic-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; text-align: left; cursor: pointer;
+  }
+  .topic-card .t-title { font-size: 15px; font-weight: 700; }
+  .topic-card .t-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ---- 寫作畫面 ---- */
+  .wr-top {
+    display: flex; align-items: center; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); background: var(--card); flex-shrink: 0;
+  }
+  .top-btn { border: none; background: none; font-size: 14px; color: var(--text-muted); cursor: pointer; }
+  .wr-body { flex: 1; overflow-y: auto; padding: 14px; }
+
+  .prompt-card {
+    background: var(--primary-light); border: 1px solid var(--primary); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 12px; font-size: 13px; color: var(--text);
+  }
+  .prompt-card .p-label { font-weight: 700; font-size: 12px; color: var(--primary); margin-bottom: 4px; }
+  .prompt-card .p-instruction { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+  .editor-wrap { position: relative; width: 100%; height: 220px; }
+  .editor-layer-base {
+    position: absolute; inset: 0; margin: 0; padding: 12px; border-radius: 12px; border: 1px solid var(--border);
+    font-size: 14px; line-height: 1.7; font-family: inherit;
+    white-space: pre-wrap; word-wrap: break-word; overflow: auto;
+  }
+  #highlight-layer { background: var(--card); color: var(--text); pointer-events: none; }
+  #highlight-layer .err { color: var(--wrong); background: var(--wrong-light); border-radius: 3px; }
+  #editor {
+    background: transparent; color: transparent; -webkit-text-fill-color: transparent;
+    caret-color: var(--text); resize: none; outline: none;
+  }
+  .check-status { font-size: 12px; color: var(--text-muted); margin-top: 6px; height: 16px; }
+
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; }
+  .btn { border: none; border-radius: 10px; padding: 12px 14px; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--text); }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  /* ---- 批改結果面板 ---- */
+  .review-panel { margin-top: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .review-score { display: flex; align-items: center; gap: 14px; }
+  .score-circle {
+    width: 64px; height: 64px; border-radius: 50%; background: var(--primary-light); border: 3px solid var(--primary);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; color: var(--primary); flex-shrink: 0;
+  }
+  .score-breakdown { font-size: 12px; color: var(--text-muted); }
+  .score-breakdown span { display: inline-block; margin-right: 10px; }
+  .review-praise { font-size: 13px; color: var(--primary); margin-top: 12px; font-weight: 600; }
+  .review-block-label { font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 12px 0 4px; }
+  .review-corrected { font-size: 14px; background: var(--bg); border-radius: 10px; padding: 10px; white-space: pre-wrap; }
+  .review-explanation { font-size: 13px; white-space: pre-wrap; color: var(--text); }
+  .empty-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 10px; }
+</style>
+</head>
+<body>
+
+<!-- 主畫面 -->
+<section id="view-home" class="view active">
+  <div class="home-top">
+    <h1>中醫寫作教練</h1>
+    <button class="close-x" onclick="closeLiff()">✕</button>
+  </div>
+  <div class="topic-list" id="topic-list"></div>
+</section>
+
+<!-- 寫作畫面 -->
+<section id="view-writing" class="view">
+  <div class="wr-top">
+    <button class="top-btn" onclick="switchView('home')">← Home</button>
+  </div>
+  <div class="wr-body">
+    <div class="prompt-card" id="prompt-card" style="display:none;">
+      <div class="p-label">題目來源</div>
+      <div id="prompt-source"></div>
+      <div class="p-instruction" id="prompt-instruction"></div>
+    </div>
+
+    <div class="editor-wrap">
+      <div id="highlight-layer" class="editor-layer-base"></div>
+      <textarea id="editor" class="editor-layer-base" placeholder="開始輸入英文寫作內容…" oninput="onEditorInput()" onscroll="syncScroll()"></textarea>
+    </div>
+    <div class="check-status" id="check-status"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="saveDraft()">儲存練習內容</button>
+      <button class="btn btn-primary" id="review-btn" onclick="submitReview()">送出批改</button>
+    </div>
+
+    <div class="review-panel" id="review-panel" style="display:none;"></div>
+  </div>
+</section>
+
+<script>
+const LIFF_ID = "2011558628-VKytwC2e";
+
+let idToken = null;
+let topics = {};
+let currentTopicId = null;
+let debounceTimer = null;
+let lastReviewResult = null;
+
+function authHeaders() {
+  return idToken ? { "Authorization": "Bearer " + idToken, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+}
+async function apiGet(path) {
+  const res = await fetch(path, { headers: authHeaders() });
+  return res.json();
+}
+async function apiPost(path, body) {
+  const res = await fetch(path, { method: "POST", headers: authHeaders(), body: JSON.stringify(body || {}) });
+  return res.json();
+}
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+function renderHighlight(annotated) {
+  return escapeHtml(annotated).replace(/«(.+?)»/g, '<span class="err">$1</span>');
+}
+function closeLiff() {
+  try { liff.closeWindow(); } catch (e) { window.close(); }
+}
+function switchView(name) {
+  ["home", "writing"].forEach(v => document.getElementById("view-" + v).classList.toggle("active", v === name));
+}
+
+async function initApp() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    idToken = liff.getIDToken();
+  } catch (e) {
+    document.getElementById("topic-list").innerHTML =
+      '<div class="empty-hint">LIFF 初始化失敗，請確認是從 LINE 內開啟這個頁面。</div>';
+    return;
+  }
+  const data = await apiGet("/api/liff/writing/topics");
+  (data.topics || []).forEach(t => { topics[t.id] = t; });
+  renderHome();
+}
+
+function renderHome() {
+  const list = document.getElementById("topic-list");
+  list.innerHTML = Object.values(topics).map(t => `
+    <button class="topic-card" onclick="openTopic('${t.id}')">
+      <div class="t-title">${escapeHtml(t.title)}</div>
+      <div class="t-sub">${t.source_zh ? "中譯英摘要練習" : "沒有指定題目，自由發揮"}</div>
+    </button>
+  `).join("");
+}
+
+function openTopic(topicId) {
+  currentTopicId = topicId;
+  const t = topics[topicId] || {};
+  const editor = document.getElementById("editor");
+  editor.value = "";
+  document.getElementById("highlight-layer").innerHTML = "";
+  document.getElementById("check-status").textContent = "";
+  document.getElementById("review-panel").style.display = "none";
+  document.getElementById("review-panel").innerHTML = "";
+  lastReviewResult = null;
+
+  const promptCard = document.getElementById("prompt-card");
+  if (t.source_zh) {
+    promptCard.style.display = "block";
+    document.getElementById("prompt-source").textContent = t.source_zh;
+    document.getElementById("prompt-instruction").textContent = t.instruction_zh || "";
+  } else {
+    promptCard.style.display = "none";
+  }
+  switchView("writing");
+  editor.focus();
+}
+
+function syncScroll() {
+  const ta = document.getElementById("editor");
+  const hl = document.getElementById("highlight-layer");
+  hl.scrollTop = ta.scrollTop;
+  hl.scrollLeft = ta.scrollLeft;
+}
+
+function onEditorInput() {
+  const ta = document.getElementById("editor");
+  // 先同步顯示純文字（不含標色），確保底層文字跟 textarea 永遠對齊，不會因為等待 API 而看起來空白
+  document.getElementById("highlight-layer").innerHTML = escapeHtml(ta.value);
+  syncScroll();
+  document.getElementById("check-status").textContent = "輸入中…";
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(runCheck, 900);
+}
+
+async function runCheck() {
+  const ta = document.getElementById("editor");
+  const text = ta.value;
+  if (text.trim().length < 8) {
+    document.getElementById("check-status").textContent = "";
+    return;
+  }
+  document.getElementById("check-status").textContent = "檢查中…";
+  let res;
+  try {
+    res = await apiPost("/api/liff/writing/check", { text });
+  } catch (e) {
+    document.getElementById("check-status").textContent = "檢查失敗，繼續打字會再試一次";
+    return;
+  }
+  const annotated = res.annotated || text;
+  const stripped = annotated.replace(/[«»]/g, "");
+  // 只有在「去掉標記符號後」跟目前 textarea 內容完全一致才更新標色層，
+  // 避免使用者這期間繼續打字、或 AI 沒有完整保留原文導致標色跟文字對不齊
+  if (stripped === ta.value) {
+    document.getElementById("highlight-layer").innerHTML = renderHighlight(annotated);
+    document.getElementById("check-status").textContent = annotated.includes("«") ? "已標註可能的問題（橘色）" : "看起來沒有問題";
+  } else {
+    document.getElementById("check-status").textContent = "";
+  }
+}
+
+async function saveDraft() {
+  const text = document.getElementById("editor").value.trim();
+  if (!text) { alert("請先輸入內容"); return; }
+  const res = await apiPost("/api/liff/writing/save", { text, topic_id: currentTopicId, kind: "draft" });
+  if (res.error) { alert("儲存失敗：" + res.error); return; }
+  document.getElementById("check-status").textContent = "已儲存 ✓";
+}
+
+async function submitReview() {
+  const text = document.getElementById("editor").value.trim();
+  if (!text) { alert("請先輸入內容再送出批改"); return; }
+  const btn = document.getElementById("review-btn");
+  btn.disabled = true;
+  btn.textContent = "批改中…";
+  const res = await apiPost("/api/liff/writing/review", { text, topic_id: currentTopicId });
+  btn.disabled = false;
+  btn.textContent = "送出批改";
+  if (res.error) { alert("批改失敗：" + res.error); return; }
+  lastReviewResult = res;
+  renderReview(res);
+}
+
+function renderReview(r) {
+  const panel = document.getElementById("review-panel");
+  panel.style.display = "block";
+  const s = r.scores || {};
+  panel.innerHTML = `
+    <div class="review-score">
+      <div class="score-circle">${r.total ?? "--"}</div>
+      <div class="score-breakdown">
+        <span>內容 ${s.content ?? "-"}/25</span><span>語域 ${s.register ?? "-"}/25</span><br/>
+        <span>文法 ${s.grammar ?? "-"}/25</span><span>結構 ${s.structure ?? "-"}/25</span>
+      </div>
+    </div>
+    <div class="review-praise">${escapeHtml(r.praise || "")}</div>
+    <div class="review-block-label">修正後版本</div>
+    <div class="review-corrected">${escapeHtml(r.corrected || "")}</div>
+    <div class="review-block-label">說明</div>
+    <div class="review-explanation">${escapeHtml(r.explanation || "")}</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="adoptCorrected()">一鍵採用並儲存</button>
+    </div>
+  `;
+}
+
+async function adoptCorrected() {
+  if (!lastReviewResult || !lastReviewResult.corrected) return;
+  const res = await apiPost("/api/liff/writing/save", {
+    text: lastReviewResult.corrected, topic_id: currentTopicId, kind: "reviewed",
+  });
+  if (res.error) { alert("儲存失敗：" + res.error); return; }
+  // 採用修正版後，把編輯區同步更新成修正後版本
+  const editor = document.getElementById("editor");
+  editor.value = lastReviewResult.corrected;
+  document.getElementById("highlight-layer").innerHTML = escapeHtml(editor.value);
+  document.getElementById("check-status").textContent = "已採用修正版並儲存 ✓";
+}
+
+initApp();
+</script>
+</body>
+</html>

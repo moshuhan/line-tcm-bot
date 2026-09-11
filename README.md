@@ -86,6 +86,95 @@
 - **長期（階段五：美國針灸師、越南、新加坡）**：國外使用者不在 LINE 生態圈，屆時再把核心邏輯抽成獨立 App／跨平台網站，LIFF 版本自然變成「台灣／日本專屬入口」，獨立 App 是「國際版入口」，兩者並存，不是取代關係。
 - **現在就該做的準備**：業務邏輯不要寫死在 LINE webhook 裡，讓 LIFF 網頁跟未來的獨立 App 都能呼叫同一組 API，屆時階段五只是多寫一個前端，後端不用大改。
 
+#### 考題 LIFF：目前進度
+
+後端與前端已經動工，架構上跟現有 LINE webhook 業務邏輯完全分開（沒有共用 `line_bot_api.push_message`，符合上面「業務邏輯不要寫死在 LINE webhook 裡」的原則）：
+
+- **`api/exam_quiz.py`**：題庫載入（`data/exam_questions.json`，目前是 20 題考古題種子資料，比照 `tcm_master_knowledge.json` 的記憶體快取模式）、交卷評分、錯題本 CRUD（寫入 MongoDB `exam_wrong_questions` / `exam_sessions`）。
+- **`api/liff_auth.py`**：LIFF ID Token 驗證（呼叫 LINE 官方 `oauth2/v2.1/verify` 端點，不信任前端自稱的 userId）。
+- **`api/index.py`** 新增路由（都掛在 `/api/liff/quiz/*`，全部要求 LIFF ID Token）：`categories`、`questions`（依章節）、`questions/<id>`（按需查答案，給「顯示答案」開關用）、`submit`（交卷評分＋自動存錯題）、`bookmark`（手動標記／取消）、`wrong-questions`（GET 清單／DELETE 移除）、`explain`（AI 詳解＋追問，重用既有 `_semantic_search` RAG，純函式不寫 LINE）。
+- **`api/templates/liff_quiz.html`**：前端頁面，涵蓋線框圖三頁（考題頁／評分＋詳解頁／錯題本），用 localStorage 記住上次選的章節。
+- 後端邏輯已用 Flask test client＋直接呼叫函式測試過（題庫載入、分類篩選、評分計算、AI 詳解都實測跑過一次），MongoDB 因本機連不到 Railway internal 網路無法實測寫入，但已確認 `mongo_db=None` 時的 fallback 不會噴例外。
+
+**LIFF ID 已申請並填好（2026-09-11）：**
+三個 LIFF App 都掛在同一個 Messaging API Channel 下，共用同一組 `LIFF_CHANNEL_ID=2011558628`。
+
+| 頁面 | LIFF ID | Endpoint URL |
+|---|---|---|
+| 考題 | `2011558628-8li3MSJw` | `/liff/quiz` |
+| 口說 | `2011558628-VDHP3SsC` | `/liff/speaking` |
+| 寫作 | `2011558628-VKytwC2e` | `/liff/writing` |
+
+三個 `.html` 檔案裡的 `LIFF_ID` 常數、本機 `.env` 的 `LIFF_CHANNEL_ID` 都已經填好正式值。
+
+**Rich Menu 已換版（2026-09-11）：**
+原本 4 個聊天模式切換鈕（中醫問答/口說練習/寫作修訂/課務查詢）已整個替換成 3 個 LIFF 入口，
+使用者現在點 Rich Menu 直接開對應的 LIFF 頁面，不再是純聊天室模式切換。
+
+- 圖：`assets/rich_menu_background_v2.jpg`（原始設計稿 `rich_menu_background_v2.png` 1.94MB 超過 LINE
+  1MB 上限，已轉存 JPEG quality=95 壓到 377KB，肉眼看不出畫質差異）
+- 腳本：`scripts/setup_rich_menu.js`，3 欄等寬（2148x732 圖，每欄 716px），`type: 'uri'` 連到
+  `line://app/{LIFF-ID}`，已用真實 `LINE_CHANNEL_ACCESS_TOKEN` 實際執行過，確認新選單
+  `richmenu-686b2863dd29e0db77e16a112383e491` 已是目前帳號的預設 Rich Menu。
+- 舊的 Rich Menu 沒有被刪除，只是不再是預設，要換回去還救得回來。
+- 帳號底下另外還有 13 個過去測試留下的 `TCM_EMI_Menu`（都是舊的 2500x843 版型），沒有造成問題，
+  之後想清可以用 `client.deleteRichMenu(richMenuId)` 自行清理，這次沒有動它們。
+
+**還缺、要你自己在後台補的：**
+1. **Railway 環境變數加 `LIFF_CHANNEL_ID=2011558628`**（本機 `.env` 不會自動同步到 Railway，這是兩個獨立設定；沒加的話 `verify_liff_id_token` 會一律驗證失敗，所有 `/api/liff/*` 都回 401）。
+2. 確認 LINE Developers Console 裡三個 LIFF App 的 Endpoint URL 對應正確（尤其「寫作」那個中途調整過 ID，容易對錯）。
+4. 題庫目前只有 20 題種子資料，「依年度」篩選還沒做（缺年度/級別 metadata），之後題庫擴充時要在 `data/exam_questions.json` 補齊相關欄位再回來接這段邏輯。
+
+#### 口說 LIFF：目前進度
+
+語音對話走 **OpenAI Realtime API**，前端瀏覽器直接用 **WebRTC** 連到 OpenAI（我們的伺服器不中繼音訊，延遲最低）；架構同樣跟 LINE webhook 業務邏輯完全分開。
+
+- **`api/speaking_liff.py`**：兩種情境（`clinical` 臨床衛教／患者、`academic` 學術討論／教授）的角色 instructions 與提示框內容（話題／詞彙，MVP 先用固定內容，不用 AI 動態產生）、ephemeral client secret 換發（`mint_ephemeral_session`，主 API Key 絕不下發給瀏覽器）、逐輪錯誤標註（`annotate_errors`，回傳原句、錯誤片段用「«」「»」包住）、角色台詞即時中譯（`translate_to_zh`）、結算頁摘要（`build_session_summary`，只回傳「有錯誤」的使用者發言，原句/修正句成對）。
+- **`api/index.py`** 新增路由（都掛在 `/api/liff/speaking/*`，全部要求 LIFF ID Token）：`scenarios`（主畫面兩個主題按鈕資料）、`session`（開始對話，換發 ephemeral secret）、`translate`、`analyze-turn`、`summary`。
+- **`api/templates/liff_speaking.html`**：三頁線框圖（主畫面／對話畫面／結算頁）。對話畫面先做「靜態版」（emoji 頭像佔位，wireframe 說之後才做 canvas/3D 版）；雙語字幕、錯誤標色、可收合提示框、麥克風開關（靜音／取消靜音，搭配 Realtime API 的 server VAD 自動偵測語音起訖）都已實作。
+- **刻意不存 MongoDB／Redis**：整段對話逐字稿只存在瀏覽器記憶體這次 session，符合「口說練習資料只記錄到結束對話之前，離開結算頁就全部清空」——正常掛斷才會呼叫 `summary` 端點產生結算內容；用左上「← 回主頁」中途離開則直接斷線、不產生摘要。
+- **已實測**（Flask test client + 直接呼叫函式，都用真實 API Key 打過一次）：頁面正常回傳、未帶 Token 正確擋 401、情境資料正確、**ephemeral session 換發成功**、錯誤標註正確抓出文法錯誤（例如漏掉冠詞/be動詞）、中譯正確、結算頁摘要正確整理出兩句話的錯誤與修正版。
+
+**還沒測、也測不了的部分（需要你之後在真機／瀏覽器上驗證）：**
+1. **實際的 WebRTC 語音對話**——這個環境沒有瀏覽器跟麥克風，沒辦法測試真人講話、AI 語音回覆、即時字幕这整條路徑。
+2. **Realtime API 事件名稱**：`liff_speaking.html` 裡監聽的事件類型（如 `conversation.item.input_audio_transcription.completed`、`response.audio_transcript.delta/.done`）是依我目前所知的 Realtime API 事件命名寫的，但這個 API 版本更新較快，實際名稱可能有出入。程式碼裡已經把所有收到的事件都 `console.log` 出來，第一次真機測試時請打開瀏覽器 DevTools 的 Console，把實際看到的事件名稱回報給我，我再對照調整。
+3. `LIFF_ID`（`2011558628-VDHP3SsC`）已填好，`LIFF_CHANNEL_ID` 已寫入本機 `.env`——**但 Railway 後台的環境變數、Rich Menu 入口都還沒接**，見上方「考題 LIFF」小節的統整表格。
+4. 麥克風權限：LINE 內建瀏覽器（LIFF 執行環境）能不能正常跳出麥克風授權、iOS/Android 行為是否一致，也需要真機測過才能確定。
+
+#### 寫作 LIFF：目前進度
+
+決定要做「Grammarly 風格即時逐字標註」（開發量較大的那個選項）。核心技術問題是一般
+`<textarea>` 沒辦法在輸入同時插入彩色標註，解法是業界常見的「隱形 textarea 疊在有顏色的
+顯示層上面」：底層 `#highlight-layer` 顯示帶顏色標註的文字，`#editor` 這個 textarea 文字
+是透明的（只看得到游標），兩層用完全一致的字型/行高/padding 對齊，使用者感覺是直接在有顏色
+標註的文字上打字。
+
+- **`api/writing_liff.py`**：題目/範本載入（`data/writing_prompts.json`，「自由寫作」＋兩篇
+  中醫中文段落的中譯英摘要練習，跟考題 LIFF 一樣是佔位種子資料）、即時標註（`annotate_realtime`，
+  沿用跟口說 LIFF 一樣的「錯誤片段用«»包住」慣例）、送出批改（`full_review`，回傳 0-100 評分＋
+  細項＋修正版＋說明）、儲存練習紀錄（`save_practice`，寫入 MongoDB `writing_practice`——**跟口說
+  LIFF 不同，寫作明確要求要保留紀錄**，不是 session 結束就清空）。
+- **`api/index.py`** 新增路由（都掛在 `/api/liff/writing/*`）：`topics`、`check`（即時標註，前端
+  debounce 0.9 秒才呼叫）、`review`（送出批改）、`save`（對應線框圖「儲存練習內容」傳
+  `kind=draft`／「一鍵同意/確認儲存」傳 `kind=reviewed`）。
+- **`api/templates/liff_writing.html`**：主畫面（題目清單）＋寫作畫面（隱形 textarea 疊層編輯器、
+  即時標色、儲存/送出批改兩顆按鈕、批改結果面板含一鍵採用並儲存）。
+- **已知簡化、非正式版本**：
+  1. 「評分標準」是我暫時寫的 rubric（內容/學術語域/文法/結構各 25 分），**不是**跟 TEEMI 做出
+     區隔用的正式評分標準——等有實際規準文件再替換 `writing_liff.py` 裡的 `_REVIEW_SYSTEM_PROMPT`。
+  2. 「中譯英摘要」題目只有 2 篇我暫寫的短段落，之後要擴充直接加進 `data/writing_prompts.json`。
+  3. 標色對齊有個已知風險：如果 AI 回傳的標註文字沒有嚴格保留原文字元（只是包 «»、不改動其他
+     內容），標色層跟 textarea 就會對不齊。已經加了防呆——前端會檢查「去掉 «» 後是否跟目前輸入
+     內容完全一致」，不一致就跳過這次標色更新，不會顯示錯位的標註，但代價是那一輪偶爾不會標色。
+- **已實測**：頁面回傳、401 擋未授權、題目資料正確、**即時標註實測抓到「TCM believe」「human
+  body are」兩個文法錯誤，且去除 «» 後跟原文逐字元一致（標色對齊防呆機制驗證成功）**、送出批改
+  正確產出評分/修正版/說明。過程中抓到一個真的 bug：`explanation` 欄位有時候 AI 會回傳 list 而
+  不是字串（因為 prompt 要求「條列」，模型直接回傳 JSON 陣列），原本會讓 `.strip()` 噴例外——已
+  修成用 `_as_text()` 統一轉字串處理，並在 prompt 裡加強講清楚要單一字串。
+- **沒測、要真機驗證**：疊層編輯器在 LINE 內建瀏覽器（尤其 iOS）的實際對齊效果、手機輸入法
+  （注音/拼音組字中）搭配 debounce 會不會誤觸發標註。`LIFF_ID`（`2011558628-VKytwC2e`）已填好，
+  其餘 Railway 環境變數／Rich Menu 入口見上方「考題 LIFF」小節的統整表格。
+
 #### 現況盤點：業務邏輯與 LINE 傳訊耦合程度
 
 `api/index.py` 全檔案有 **80 處**直接呼叫 `line_bot_api.push_message` / `reply_message`，而且大多數寫在「業務邏輯函式本體內」，不是集中在 webhook handler 那一層：
