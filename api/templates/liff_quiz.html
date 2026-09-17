@@ -5,168 +5,199 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>中醫國考題庫練習</title>
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --primary: #0f766e;
-    --primary-light: #ccfbf1;
-    --wrong: #ea580c;
-    --wrong-light: #ffedd5;
-    --correct: #15803d;
-    --correct-light: #dcfce7;
-    --bg: #f8fafc;
-    --card: #ffffff;
-    --text: #1e293b;
-    --text-muted: #64748b;
-    --border: #e2e8f0;
+    --ink: #2b241d;
+    --ink-soft: #7a6d5c;
+    --paper: #f6efe2;
+    --surface: #fffcf6;
+    --line: #e5d9c3;
+    --terracotta: #b8562f;
+    --terracotta-soft: #f1ddc9;
+    --sage: #5f7052;
+    --sage-soft: #e3e8d9;
+    --gold: #a9843f;
+    --danger: #a8451f;
+    --danger-soft: #f3ded1;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    padding-bottom: 90px;
+    font-family: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    padding-bottom: 92px;
+    -webkit-tap-highlight-color: transparent;
   }
+  h1, h2, h3, .display { font-family: "Noto Serif TC", "Noto Sans TC", serif; }
   header.topbar {
     position: sticky; top: 0; z-index: 10;
-    background: var(--card);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    padding: 12px 16px;
     display: flex; align-items: center; justify-content: space-between;
   }
-  header.topbar h1 { font-size: 16px; margin: 0; font-weight: 700; }
-  .tabbar { display: flex; gap: 6px; }
+  header.topbar h1 { font-size: 17px; margin: 0; font-weight: 800; letter-spacing: .02em; }
+  .tabbar { display: flex; gap: 6px; background: var(--paper); padding: 3px; border-radius: 999px; }
   .tabbar button {
-    border: none; background: var(--bg); color: var(--text-muted);
-    padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer;
+    border: none; background: transparent; color: var(--ink-soft);
+    padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: background .15s ease, color .15s ease;
   }
-  .tabbar button.active { background: var(--primary); color: #fff; }
-  main { padding: 14px; max-width: 640px; margin: 0 auto; }
+  .tabbar button.active { background: var(--terracotta); color: #fff9f2; }
+  main { padding: 16px; max-width: 640px; margin: 0 auto; }
   .view { display: none; }
   .view.active { display: block; }
 
-  .selectors { display: flex; gap: 8px; margin-bottom: 14px; }
+  .selectors { display: flex; gap: 8px; margin-bottom: 16px; }
   select {
-    flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
-    background: var(--card); font-size: 14px; color: var(--text);
+    flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); font-size: 14px; color: var(--ink);
+    font-family: inherit;
   }
 
   .q-card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-    padding: 14px; margin-bottom: 12px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; margin-bottom: 12px;
+    box-shadow: 0 1px 2px rgba(43,36,29,.04);
   }
-  .q-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-  .q-title { font-size: 15px; font-weight: 600; line-height: 1.5; flex: 1; }
+  .q-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .q-title { font-size: 15px; font-weight: 500; line-height: 1.6; flex: 1; }
   .bookmark-btn {
-    border: none; background: none; font-size: 20px; cursor: pointer; line-height: 1;
-    color: var(--text-muted); padding: 2px 4px;
+    border: none; background: none; cursor: pointer; line-height: 1;
+    color: var(--ink-soft); padding: 4px; flex-shrink: 0;
+    transition: color .15s ease, transform .1s ease;
   }
-  .bookmark-btn.active { color: var(--wrong); }
+  .bookmark-btn svg { width: 19px; height: 19px; display: block; }
+  .bookmark-btn:active { transform: scale(.9); }
+  .bookmark-btn.active { color: var(--terracotta); }
+  .bookmark-btn.active svg { fill: var(--terracotta); }
 
-  .options { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .options { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
   .opt-label {
-    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-    border: 1px solid var(--border); border-radius: 10px; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; gap: 9px; padding: 9px 11px;
+    border: 1px solid var(--line); border-radius: 10px; font-size: 14px; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
   }
-  .opt-label input { accent-color: var(--primary); }
-  .opt-label.correct { border-color: var(--correct); background: var(--correct-light); }
-  .opt-label.wrong-pick { border-color: var(--wrong); background: var(--wrong-light); }
+  .opt-label:active { background: var(--paper); }
+  .opt-label input { accent-color: var(--terracotta); }
+  .opt-label.correct { border-color: var(--sage); background: var(--sage-soft); }
+  .opt-label.wrong-pick { border-color: var(--danger); background: var(--danger-soft); }
 
   .q-tools {
     display: flex; align-items: center; justify-content: space-between;
-    margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
   }
-  .toggle-wrap { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
+  .toggle-wrap { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-soft); }
   .switch { position: relative; width: 36px; height: 20px; }
   .switch input { opacity: 0; width: 0; height: 0; }
   .slider {
-    position: absolute; cursor: pointer; inset: 0; background: #cbd5e1; border-radius: 999px; transition: .15s;
+    position: absolute; cursor: pointer; inset: 0; background: #d9cbb0; border-radius: 999px; transition: background .15s ease;
   }
   .slider::before {
     content: ""; position: absolute; height: 16px; width: 16px; left: 2px; top: 2px;
-    background: #fff; border-radius: 50%; transition: .15s;
+    background: #fff; border-radius: 50%; transition: transform .15s ease;
   }
-  input:checked + .slider { background: var(--primary); }
+  input:checked + .slider { background: var(--terracotta); }
   input:checked + .slider::before { transform: translateX(16px); }
 
   .link-btn {
-    border: none; background: none; color: var(--primary); font-size: 13px; cursor: pointer; font-weight: 600;
+    border: none; background: none; color: var(--terracotta); font-size: 13px; cursor: pointer; font-weight: 700;
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px;
   }
+  .link-btn:active { opacity: .6; }
 
   .reveal-answer {
-    margin-top: 8px; font-size: 13px; color: var(--correct); font-weight: 600; display: none;
+    margin-top: 10px; font-size: 13px; color: var(--sage); font-weight: 700; display: none;
+    background: var(--sage-soft); padding: 8px 10px; border-radius: 8px;
   }
   .reveal-answer.show { display: block; }
 
   .bottom-bar {
-    position: fixed; bottom: 0; left: 0; right: 0; background: var(--card);
-    border-top: 1px solid var(--border); padding: 10px 14px;
+    position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface);
+    border-top: 1px solid var(--line); padding: 10px 14px;
     display: flex; gap: 10px; justify-content: space-between;
   }
   .btn {
-    border: none; border-radius: 10px; padding: 12px 18px; font-size: 15px; font-weight: 700; cursor: pointer;
+    border: none; border-radius: 10px; padding: 13px 18px; font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: transform .1s ease, opacity .15s ease;
+    font-family: inherit;
   }
-  .btn-primary { background: var(--primary); color: #fff; flex: 1; }
-  .btn-ghost { background: var(--bg); color: var(--text-muted); }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--terracotta); color: #fff9f2; flex: 1; }
+  .btn-ghost { background: var(--paper); color: var(--ink-soft); }
 
-  .empty-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 30px 10px; }
+  .empty-hint { color: var(--ink-soft); font-size: 14px; text-align: center; padding: 34px 10px; }
 
   /* 結果頁 */
   .result-overlay {
-    display: none; position: fixed; inset: 0; background: var(--bg); z-index: 50; overflow-y: auto;
+    display: none; position: fixed; inset: 0; background: var(--paper); z-index: 50; overflow-y: auto;
   }
   .result-overlay.active { display: block; }
   .result-header {
-    position: sticky; top: 0; background: var(--card); border-bottom: 1px solid var(--border);
-    padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+    font-family: "Noto Serif TC", serif; font-weight: 700;
   }
-  .close-x { border: none; background: none; font-size: 22px; cursor: pointer; color: var(--text-muted); }
+  .close-x { border: none; background: none; font-size: 20px; cursor: pointer; color: var(--ink-soft); line-height: 1; padding: 4px; }
   .grade-box {
-    margin: 20px auto; width: 140px; height: 140px; border-radius: 50%;
-    background: var(--primary-light); border: 4px solid var(--primary);
+    margin: 24px auto 8px; width: 136px; height: 136px; border-radius: 50%;
+    background: var(--terracotta-soft); border: 3px solid var(--terracotta);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
-  .grade-box .num { font-size: 34px; font-weight: 800; color: var(--primary); }
-  .grade-box .label { font-size: 12px; color: var(--text-muted); }
+  .grade-box .num { font-family: "Noto Serif TC", serif; font-size: 36px; font-weight: 800; color: var(--terracotta); font-variant-numeric: tabular-nums; }
+  .grade-box .label { font-size: 11px; color: var(--ink-soft); letter-spacing: .08em; text-transform: uppercase; }
   .section-title {
-    font-size: 14px; font-weight: 700; margin: 18px 0 8px; padding: 6px 10px; border-radius: 8px;
+    font-size: 13px; font-weight: 700; margin: 20px 0 8px; padding: 7px 11px; border-radius: 8px;
+    letter-spacing: .02em;
   }
-  .section-title.wrong { background: var(--wrong-light); color: var(--wrong); }
-  .section-title.correct { background: var(--correct-light); color: var(--correct); }
+  .section-title.wrong { background: var(--danger-soft); color: var(--danger); }
+  .section-title.correct { background: var(--sage-soft); color: var(--sage); }
   .result-item {
-    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-    padding: 12px; margin-bottom: 8px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 13px; margin-bottom: 8px;
   }
-  .result-item .rq-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-  .result-item .rq-meta { font-size: 12px; color: var(--text-muted); }
+  .result-item .rq-title { font-size: 14px; font-weight: 500; margin-bottom: 5px; line-height: 1.5; }
+  .result-item .rq-meta { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
 
-  /* AI 詳解面板（仿 Chrome AI mode：從下往上蓋一層） */
+  /* AI 詳解面板（從下往上蓋一層） */
   .ai-panel {
-    display: none; position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 60;
+    display: none; position: fixed; inset: 0; background: rgba(43,36,29,.45); z-index: 60;
   }
   .ai-panel.active { display: flex; align-items: flex-end; }
   .ai-panel-inner {
-    background: var(--card); width: 100%; max-height: 80vh; overflow-y: auto;
-    border-radius: 18px 18px 0 0; padding: 16px; position: relative;
+    background: var(--surface); width: 100%; max-height: 80vh; overflow-y: auto;
+    border-radius: 20px 20px 0 0; padding: 18px; position: relative;
   }
-  .ai-panel-inner h3 { margin: 0 0 10px; font-size: 15px; padding-right: 30px; }
-  .ai-panel .close-x { position: absolute; top: 12px; right: 12px; }
-  .ai-content { font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: var(--text); }
-  .ai-followup { display: flex; gap: 6px; margin-top: 12px; }
+  .ai-panel-inner h3 { margin: 0 0 10px; font-size: 16px; padding-right: 30px; }
+  .ai-panel .close-x { position: absolute; top: 14px; right: 14px; }
+  .ai-content { font-size: 14px; line-height: 1.75; white-space: pre-wrap; color: var(--ink); }
+  .ai-followup { display: flex; gap: 6px; margin-top: 14px; }
   .ai-followup input {
-    flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px;
+    flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 14px;
+    font-family: inherit;
   }
-  .ai-loading { color: var(--text-muted); font-size: 13px; }
+  .ai-loading { color: var(--ink-soft); font-size: 13px; }
 
   /* 錯題本 */
   .wrong-item {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-    padding: 12px; margin-bottom: 8px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 13px; margin-bottom: 8px;
   }
-  .wrong-item .wq-text { font-size: 14px; flex: 1; }
-  .wrong-item .wq-cat { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-  .remove-btn { border: none; background: none; font-size: 20px; color: var(--wrong); cursor: pointer; }
+  .wrong-item .wq-text { font-size: 14px; flex: 1; line-height: 1.5; }
+  .wrong-item .wq-cat { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+  .remove-btn {
+    border: none; background: var(--sage-soft); color: var(--sage); cursor: pointer;
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .1s ease;
+  }
+  .remove-btn:active { transform: scale(.9); }
+  .remove-btn svg { width: 15px; height: 15px; }
 </style>
 </head>
 <body>
@@ -245,6 +276,14 @@
 
 <script>
 const LIFF_ID = "2011558628-8li3MSJw";
+// 本機 ngrok 預覽用：網址加 ?debug=1 就跳過真的 LINE 登入。這個 token 要跟後端
+// LIFF_DEBUG_TOKEN 環境變數一致，且只能在本機測試時使用，正式站不會設這個變數，
+// 所以就算這串字外流也連不進真正上線的 API。
+const DEBUG_MODE = new URLSearchParams(location.search).get("debug") === "1";
+const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
+
+const ICON_BOOKMARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
 
 let idToken = null;
 let currentCategory = "";
@@ -283,6 +322,11 @@ function closeLiff() {
 }
 
 async function initApp() {
+  if (DEBUG_MODE) {
+    idToken = DEBUG_TOKEN;
+    await loadCategories();
+    return;
+  }
   try {
     await liff.init({ liffId: LIFF_ID });
     if (!liff.isLoggedIn()) {
@@ -355,7 +399,7 @@ function renderQuestions(notice) {
     <div class="q-card" id="qcard-${q.id}">
       <div class="q-head">
         <div class="q-title">${idx + 1}. ${escapeHtml(q.question)}</div>
-        <button class="bookmark-btn" id="bm-${q.id}" onclick="toggleBookmark('${q.id}')">🔖</button>
+        <button class="bookmark-btn" id="bm-${q.id}" onclick="toggleBookmark('${q.id}')" title="標記錯題">${ICON_BOOKMARK}</button>
       </div>
       <div class="options">
         ${Object.entries(q.options || {}).map(([key, text]) => `
@@ -429,7 +473,7 @@ function showResult(result) {
       <div class="rq-meta">你的答案：${r.your_answer || "（未作答）"}　正確答案：${r.correct_answer}</div>
       <button class="link-btn" onclick="openAiPanel('${r.id}', true)">看詳解</button>
     </div>
-  `).join("") : '<div class="empty-hint">這次全對，沒有錯題 🎉</div>';
+  `).join("") : '<div class="empty-hint">這次全對，沒有錯題。</div>';
 
   correctBox.innerHTML = corrects.length ? corrects.map(r => `
     <div class="result-item">
@@ -490,7 +534,7 @@ async function loadWrongQuestions() {
         <div class="wq-text">${escapeHtml(q.question)}</div>
         <div class="wq-cat">${escapeHtml(q.category || "")} ・ 正確答案：${q.answer}</div>
       </div>
-      <button class="remove-btn" onclick="removeWrong('${q.id}')" title="移除">✓</button>
+      <button class="remove-btn" onclick="removeWrong('${q.id}')" title="移除">${ICON_CHECK}</button>
     </div>
   `).join("");
 }

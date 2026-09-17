@@ -1760,11 +1760,21 @@ def favicon():
 #    這是刻意的，對應 README「平台策略」那節的架構解耦方向。
 
 def _liff_auth_user_id():
-    """從 Authorization: Bearer <idToken> 驗證 LIFF 使用者身份，回傳 user_id；驗證失敗回傳 None。"""
+    """
+    從 Authorization: Bearer <idToken> 驗證 LIFF 使用者身份，回傳 user_id；驗證失敗回傳 None。
+
+    本機開發用後門：若設定 LIFF_DEBUG_TOKEN 環境變數，且傳入的 token 剛好等於這個值，
+    直接放行為固定的 "debug-user"，跳過真正打 LINE 驗證端點——只給 `?debug=1` 的本機
+    ngrok 預覽用。LIFF_DEBUG_TOKEN 沒設定時這段完全不影響原本邏輯，正式環境（Railway）
+    絕對不要設這個環境變數。
+    """
     auth_header = request.headers.get("Authorization", "")
     token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
     if not token:
         return None
+    debug_token = os.getenv("LIFF_DEBUG_TOKEN", "").strip()
+    if debug_token and token == debug_token:
+        return "debug-user"
     result = verify_liff_id_token(token)
     return result["user_id"] if result else None
 

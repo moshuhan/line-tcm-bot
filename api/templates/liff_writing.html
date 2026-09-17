@@ -5,89 +5,105 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>中醫寫作教練</title>
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --primary: #0f766e;
-    --primary-light: #ccfbf1;
-    --wrong: #ea580c;
-    --wrong-light: #fff1e6;
-    --bg: #f8fafc;
-    --card: #ffffff;
-    --text: #1e293b;
-    --text-muted: #64748b;
-    --border: #e2e8f0;
+    --ink: #2b241d;
+    --ink-soft: #7a6d5c;
+    --paper: #f6efe2;
+    --surface: #fffcf6;
+    --line: #e5d9c3;
+    --terracotta: #b8562f;
+    --terracotta-soft: #f1ddc9;
+    --sage: #5f7052;
+    --sage-soft: #e3e8d9;
+    --gold: #a9843f;
+    --danger: #a8451f;
+    --danger-soft: #f3ded1;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; height: 100vh; overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
-    background: var(--bg); color: var(--text);
+    font-family: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--paper); color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
   }
+  h1, h2, h3 { font-family: "Noto Serif TC", "Noto Sans TC", serif; }
   .view { display: none; height: 100%; flex-direction: column; }
   .view.active { display: flex; }
 
   /* ---- 主畫面 ---- */
-  #view-home { padding: 18px; overflow-y: auto; }
+  #view-home { padding: 20px; overflow-y: auto; }
   .home-top { display: flex; justify-content: space-between; align-items: center; }
-  .home-top h1 { font-size: 17px; margin: 0; }
-  .close-x { border: none; background: none; font-size: 22px; cursor: pointer; color: var(--text-muted); }
-  .topic-list { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .home-top h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: .02em; }
+  .close-x { border: none; background: none; font-size: 20px; cursor: pointer; color: var(--ink-soft); line-height: 1; padding: 4px; }
+  .topic-list { margin-top: 22px; display: flex; flex-direction: column; gap: 11px; }
   .topic-card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
     padding: 16px; text-align: left; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(43,36,29,.04);
+    transition: transform .1s ease, border-color .15s ease;
   }
+  .topic-card:active { transform: scale(.98); border-color: var(--gold); }
   .topic-card .t-title { font-size: 15px; font-weight: 700; }
-  .topic-card .t-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .topic-card .t-sub { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
 
   /* ---- 寫作畫面 ---- */
   .wr-top {
     display: flex; align-items: center; padding: 10px 14px;
-    border-bottom: 1px solid var(--border); background: var(--card); flex-shrink: 0;
+    border-bottom: 1px solid var(--line); background: var(--surface); flex-shrink: 0;
   }
-  .top-btn { border: none; background: none; font-size: 14px; color: var(--text-muted); cursor: pointer; }
-  .wr-body { flex: 1; overflow-y: auto; padding: 14px; }
+  .top-btn { border: none; background: none; font-size: 14px; color: var(--ink-soft); cursor: pointer; font-weight: 500; padding: 6px 4px; }
+  .wr-body { flex: 1; overflow-y: auto; padding: 16px; }
 
   .prompt-card {
-    background: var(--primary-light); border: 1px solid var(--primary); border-radius: 12px;
-    padding: 12px 14px; margin-bottom: 12px; font-size: 13px; color: var(--text);
+    background: var(--terracotta-soft); border: 1px solid var(--terracotta); border-radius: 12px;
+    padding: 13px 15px; margin-bottom: 14px; font-size: 13px; color: var(--ink);
   }
-  .prompt-card .p-label { font-weight: 700; font-size: 12px; color: var(--primary); margin-bottom: 4px; }
-  .prompt-card .p-instruction { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .prompt-card .p-label { font-weight: 700; font-size: 12px; color: var(--terracotta); margin-bottom: 5px; letter-spacing: .02em; }
+  .prompt-card .p-instruction { font-size: 12px; color: var(--ink-soft); margin-top: 7px; }
 
   .editor-wrap { position: relative; width: 100%; height: 220px; }
   .editor-layer-base {
-    position: absolute; inset: 0; margin: 0; padding: 12px; border-radius: 12px; border: 1px solid var(--border);
+    position: absolute; inset: 0; margin: 0; padding: 13px; border-radius: 12px; border: 1px solid var(--line);
     font-size: 14px; line-height: 1.7; font-family: inherit;
     white-space: pre-wrap; word-wrap: break-word; overflow: auto;
   }
-  #highlight-layer { background: var(--card); color: var(--text); pointer-events: none; }
-  #highlight-layer .err { color: var(--wrong); background: var(--wrong-light); border-radius: 3px; }
+  #highlight-layer { background: var(--surface); color: var(--ink); pointer-events: none; }
+  #highlight-layer .err { color: var(--danger); background: var(--danger-soft); border-radius: 3px; }
   #editor {
     background: transparent; color: transparent; -webkit-text-fill-color: transparent;
-    caret-color: var(--text); resize: none; outline: none;
+    caret-color: var(--ink); resize: none; outline: none;
   }
-  .check-status { font-size: 12px; color: var(--text-muted); margin-top: 6px; height: 16px; }
+  .check-status { font-size: 12px; color: var(--ink-soft); margin-top: 7px; height: 16px; }
 
-  .btn-row { display: flex; gap: 10px; margin-top: 14px; }
-  .btn { border: none; border-radius: 10px; padding: 12px 14px; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; }
-  .btn-primary { background: var(--primary); color: #fff; }
-  .btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--text); }
+  .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+  .btn {
+    border: none; border-radius: 10px; padding: 13px 14px; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1;
+    font-family: inherit; transition: transform .1s ease, opacity .15s ease;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--terracotta); color: #fff9f2; }
+  .btn-ghost { background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
   .btn:disabled { opacity: .5; cursor: default; }
 
   /* ---- 批改結果面板 ---- */
-  .review-panel { margin-top: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
-  .review-score { display: flex; align-items: center; gap: 14px; }
+  .review-panel { margin-top: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .review-score { display: flex; align-items: center; gap: 16px; }
   .score-circle {
-    width: 64px; height: 64px; border-radius: 50%; background: var(--primary-light); border: 3px solid var(--primary);
-    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; color: var(--primary); flex-shrink: 0;
+    width: 64px; height: 64px; border-radius: 50%; background: var(--terracotta-soft); border: 3px solid var(--terracotta);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; color: var(--terracotta); flex-shrink: 0;
+    font-family: "Noto Serif TC", serif; font-variant-numeric: tabular-nums;
   }
-  .score-breakdown { font-size: 12px; color: var(--text-muted); }
-  .score-breakdown span { display: inline-block; margin-right: 10px; }
-  .review-praise { font-size: 13px; color: var(--primary); margin-top: 12px; font-weight: 600; }
-  .review-block-label { font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 12px 0 4px; }
-  .review-corrected { font-size: 14px; background: var(--bg); border-radius: 10px; padding: 10px; white-space: pre-wrap; }
-  .review-explanation { font-size: 13px; white-space: pre-wrap; color: var(--text); }
-  .empty-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 10px; }
+  .score-breakdown { font-size: 12px; color: var(--ink-soft); line-height: 1.9; }
+  .score-breakdown span { display: inline-block; margin-right: 12px; }
+  .review-praise { font-size: 13px; color: var(--sage); margin-top: 14px; font-weight: 700; }
+  .review-block-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 14px 0 5px; letter-spacing: .02em; }
+  .review-corrected { font-size: 14px; background: var(--paper); border-radius: 10px; padding: 11px; white-space: pre-wrap; line-height: 1.6; }
+  .review-explanation { font-size: 13px; white-space: pre-wrap; color: var(--ink); line-height: 1.7; }
+  .empty-hint { color: var(--ink-soft); font-size: 14px; text-align: center; padding: 44px 10px; }
 </style>
 </head>
 <body>
@@ -130,6 +146,10 @@
 
 <script>
 const LIFF_ID = "2011558628-VKytwC2e";
+// 本機 ngrok 預覽用：網址加 ?debug=1 就跳過真的 LINE 登入，token 要跟後端
+// LIFF_DEBUG_TOKEN 環境變數一致，正式站不會設這個變數。
+const DEBUG_MODE = new URLSearchParams(location.search).get("debug") === "1";
+const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
 
 let idToken = null;
 let topics = {};
@@ -162,14 +182,18 @@ function switchView(name) {
 }
 
 async function initApp() {
-  try {
-    await liff.init({ liffId: LIFF_ID });
-    if (!liff.isLoggedIn()) { liff.login(); return; }
-    idToken = liff.getIDToken();
-  } catch (e) {
-    document.getElementById("topic-list").innerHTML =
-      '<div class="empty-hint">LIFF 初始化失敗，請確認是從 LINE 內開啟這個頁面。</div>';
-    return;
+  if (!DEBUG_MODE) {
+    try {
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) { liff.login(); return; }
+      idToken = liff.getIDToken();
+    } catch (e) {
+      document.getElementById("topic-list").innerHTML =
+        '<div class="empty-hint">LIFF 初始化失敗，請確認是從 LINE 內開啟這個頁面。</div>';
+      return;
+    }
+  } else {
+    idToken = DEBUG_TOKEN;
   }
   const data = await apiGet("/api/liff/writing/topics");
   (data.topics || []).forEach(t => { topics[t.id] = t; });
