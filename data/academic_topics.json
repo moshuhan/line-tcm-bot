@@ -1,0 +1,167 @@
+[
+  {
+    "topic_id": "qi_stagnation_01",
+    "difficulty": "beginner",
+    "title": "Qi Stagnation",
+    "background": "Qi stagnation (氣滯) is one of the most fundamental TCM pathological patterns, often linked to emotional stress and the Liver's role in ensuring the smooth flow of Qi throughout the body.",
+    "key_concepts": [
+      "Qi as the fundamental moving/functional energy in TCM physiology",
+      "the Liver's role in maintaining free coursing (疏泄) of Qi",
+      "how emotional stress can lead to Qi stagnation",
+      "typical presentations: distending pain, mood swings, sighing"
+    ],
+    "TCM_terms": ["Qi (氣)", "Liver Qi stagnation (肝氣鬱結)", "free coursing (疏泄)", "distending pain (脹痛)"],
+    "western_medicine_terms": ["stress response", "psychosomatic symptoms", "irritable bowel syndrome"],
+    "discussion_questions": [
+      "What does it mean for Qi to 'stagnate', and how is this different from Qi deficiency?",
+      "Why is the Liver specifically associated with Qi stagnation in TCM theory?",
+      "Can you give an example of a symptom pattern caused by Qi stagnation?"
+    ],
+    "challenge_questions": [
+      "How would you explain Qi stagnation to a Western-trained physician who is skeptical of energy-based concepts?",
+      "Is there a Western physiological correlate you could use to make Qi stagnation more relatable?"
+    ],
+    "learning_objectives": [
+      "explain Qi stagnation and its typical clinical presentation in English",
+      "connect emotional/psychological stress to TCM pattern theory",
+      "practice comparing TCM and Western explanatory frameworks"
+    ],
+    "expected_vocabulary": ["stagnation", "distending pain", "free coursing", "emotional constraint", "irritability"],
+    "possible_followups": [
+      "ask the student to compare Qi stagnation with Blood stasis",
+      "ask the student how they would treat a Qi stagnation pattern (acupuncture points, herbs)"
+    ]
+  },
+  {
+    "topic_id": "yin_deficiency_01",
+    "difficulty": "intermediate",
+    "title": "Yin Deficiency",
+    "background": "Yin deficiency (陰虛) describes a state where the body's cooling, moistening, and nourishing substances are insufficient, often leading to signs of heat and dryness.",
+    "key_concepts": [
+      "Yin as the material, cooling, moistening aspect of the body",
+      "how Yin deficiency generates 'deficiency heat' (虛熱)",
+      "common signs: night sweats, malar flush, dry mouth, insomnia",
+      "the relationship between Yin deficiency and aging or chronic illness"
+    ],
+    "TCM_terms": ["Yin (陰)", "deficiency heat (虛熱)", "night sweats (盜汗)", "five-center heat (五心煩熱)"],
+    "western_medicine_terms": ["menopause", "chronic dehydration", "hyperthyroidism (differential)"],
+    "discussion_questions": [
+      "How does Yin deficiency differ from excess heat patterns?",
+      "Why do Yin deficiency patients often present with symptoms worse in the afternoon or evening?",
+      "What organs are most commonly associated with Yin deficiency?"
+    ],
+    "challenge_questions": [
+      "How would you differentiate Yin deficiency from a Western diagnosis like menopause or hyperthyroidism using only symptom description?",
+      "What is the risk of mistakenly treating a Yin deficiency patient with warming herbs?"
+    ],
+    "learning_objectives": [
+      "describe Yin deficiency and its characteristic signs in English",
+      "distinguish deficiency heat from excess heat patterns",
+      "practice comparing a TCM pattern with overlapping Western diagnoses"
+    ],
+    "expected_vocabulary": ["deficiency heat", "night sweats", "malar flush", "dryness", "nourish Yin"],
+    "possible_followups": [
+      "ask the student how lifestyle or diet could aggravate Yin deficiency",
+      "ask the student to suggest a treatment principle (e.g., nourish Yin, clear deficiency heat)"
+    ]
+  },
+  {
+    "topic_id": "pattern_vs_diagnosis_01",
+    "difficulty": "advanced",
+    "title": "TCM Pattern Identification vs. Western Diagnosis",
+    "background": "TCM pattern differentiation (辨證) and Western biomedical diagnosis operate on different logics — one organizes signs and symptoms into a functional pattern, the other identifies a specific disease entity, often via lab tests or imaging.",
+    "key_concepts": [
+      "pattern differentiation (辨證論治) as a holistic, symptom-based reasoning process",
+      "the same Western diagnosis can map to multiple different TCM patterns (辨病與辨證的差異)",
+      "the same TCM pattern can appear across different Western diagnoses",
+      "implications for individualized treatment in TCM vs standardized treatment in biomedicine"
+    ],
+    "TCM_terms": ["pattern differentiation (辨證論治)", "same disease, different treatment (同病異治)", "different disease, same treatment (異病同治)"],
+    "western_medicine_terms": ["differential diagnosis", "evidence-based medicine", "personalized medicine"],
+    "discussion_questions": [
+      "Can you give an example where two patients with the same Western diagnosis would receive different TCM treatments?",
+      "What are the strengths and limitations of pattern-based reasoning compared to diagnosis-based reasoning?",
+      "How might TCM pattern differentiation and Western diagnosis be used together in an integrative setting?"
+    ],
+    "challenge_questions": [
+      "A Western physician says TCM pattern differentiation is 'unscientific' because it isn't standardized across patients — how would you respond?",
+      "How would you design a study to evaluate the clinical validity of TCM pattern differentiation?"
+    ],
+    "learning_objectives": [
+      "explain the concept of 'same disease, different treatment' and vice versa",
+      "critically compare TCM and Western diagnostic reasoning in English",
+      "practice defending TCM methodology using academic, evidence-aware language"
+    ],
+    "expected_vocabulary": ["pattern differentiation", "individualized treatment", "standardization", "holistic reasoning", "evidence-based"],
+    "possible_followups": [
+      "push the student to give a concrete clinical example, not just theory",
+      "ask the student to propose how integrative medicine clinics could combine both approaches"
+    ]
+  },
+  {
+    "topic_id": "acupuncture_explained_01",
+    "difficulty": "beginner",
+    "title": "Explaining Acupuncture to a Western Audience",
+    "background": "Acupuncture is one of the most internationally recognized TCM therapies, but explaining its mechanism to a Western-trained audience requires bridging traditional theory (meridians, Qi) with modern research (neurophysiology, pain gate theory).",
+    "key_concepts": [
+      "meridian theory (經絡) as the traditional explanatory framework",
+      "modern research on acupuncture: endorphin release, gate control theory of pain",
+      "common conditions acupuncture is used for (pain, nausea, some functional disorders)",
+      "the difference between traditional and 'medical acupuncture' framing"
+    ],
+    "TCM_terms": ["meridians (經絡)", "acupoints (穴位)", "De Qi sensation (得氣)"],
+    "western_medicine_terms": ["gate control theory", "endorphin release", "neuromodulation"],
+    "discussion_questions": [
+      "How would you explain what 'Qi' means when describing acupuncture to someone unfamiliar with TCM?",
+      "What modern scientific explanations exist for how acupuncture may relieve pain?",
+      "What conditions have the strongest evidence base for acupuncture treatment?"
+    ],
+    "challenge_questions": [
+      "A skeptical colleague says acupuncture is 'just placebo' — how would you respond using both TCM theory and research evidence?",
+      "How would you explain the concept of De Qi sensation to a patient who has never had acupuncture?"
+    ],
+    "learning_objectives": [
+      "explain acupuncture's traditional and modern rationale in accessible English",
+      "practice addressing skepticism professionally and evidence-based",
+      "build vocabulary for describing acupuncture technique and sensation"
+    ],
+    "expected_vocabulary": ["meridian", "acupoint", "De Qi", "needle retention", "neuromodulation"],
+    "possible_followups": [
+      "ask the student to describe a specific acupoint and its indication",
+      "ask the student how they would explain acupuncture safety to a nervous first-time patient"
+    ]
+  },
+  {
+    "topic_id": "integrative_medicine_01",
+    "difficulty": "advanced",
+    "title": "Evidence-Based Discussion of Integrative Medicine",
+    "background": "Integrative medicine combines TCM and biomedicine in clinical practice. This raises questions about evidence standards, safety (e.g., herb-drug interactions), and how practitioners from both traditions can collaborate.",
+    "key_concepts": [
+      "definition and goals of integrative medicine",
+      "evidence hierarchy and how TCM research is evaluated (RCTs, systematic reviews)",
+      "herb-drug interaction risk as a key safety concern",
+      "models of collaboration between TCM and Western physicians"
+    ],
+    "TCM_terms": ["combined therapy (中西醫結合)", "herb-drug interaction"],
+    "western_medicine_terms": ["randomized controlled trial (RCT)", "systematic review", "polypharmacy", "clinical evidence hierarchy"],
+    "discussion_questions": [
+      "What are the main challenges in designing rigorous clinical trials for TCM herbal formulas?",
+      "Can you give an example of a known herb-drug interaction that a practitioner should be aware of?",
+      "What would an ideal integrative medicine clinic workflow look like?"
+    ],
+    "challenge_questions": [
+      "A hospital administrator asks you to justify why TCM services should be covered in an integrative program with limited evidence for some conditions — how do you respond?",
+      "How should a TCM practitioner handle a patient who doesn't want to disclose their Western medications?"
+    ],
+    "learning_objectives": [
+      "discuss the evidence landscape of TCM research critically in English",
+      "explain herb-drug interaction risk to a professional audience",
+      "practice proposing collaborative, patient-safety-focused solutions"
+    ],
+    "expected_vocabulary": ["randomized controlled trial", "herb-drug interaction", "evidence hierarchy", "collaborative care", "polypharmacy"],
+    "possible_followups": [
+      "ask the student for a specific example of TCM research they know of",
+      "push the student to address the safety angle, not just the philosophical angle"
+    ]
+  }
+]

@@ -2,152 +2,137 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
 <title>中醫寫作教練</title>
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
-  :root {
-    --ink: #2b241d;
-    --ink-soft: #7a6d5c;
-    --paper: #f6efe2;
-    --surface: #fffcf6;
-    --line: #e5d9c3;
-    --terracotta: #b8562f;
-    --terracotta-soft: #f1ddc9;
-    --sage: #5f7052;
-    --sage-soft: #e3e8d9;
-    --gold: #a9843f;
-    --danger: #a8451f;
-    --danger-soft: #f3ded1;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; height: 100vh; overflow: hidden;
-    font-family: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
-    background: var(--paper); color: var(--ink);
-    -webkit-tap-highlight-color: transparent;
-  }
-  h1, h2, h3 { font-family: "Noto Serif TC", "Noto Sans TC", serif; }
-  .view { display: none; height: 100%; flex-direction: column; }
-  .view.active { display: flex; }
-
-  /* ---- 主畫面 ---- */
-  #view-home { padding: 20px; overflow-y: auto; }
-  .home-top { display: flex; justify-content: space-between; align-items: center; }
-  .home-top h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: .02em; }
-  .close-x { border: none; background: none; font-size: 20px; cursor: pointer; color: var(--ink-soft); line-height: 1; padding: 4px; }
-  .topic-list { margin-top: 22px; display: flex; flex-direction: column; gap: 11px; }
-  .topic-card {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
-    padding: 16px; text-align: left; cursor: pointer;
-    box-shadow: 0 1px 2px rgba(43,36,29,.04);
-    transition: transform .1s ease, border-color .15s ease;
-  }
-  .topic-card:active { transform: scale(.98); border-color: var(--gold); }
-  .topic-card .t-title { font-size: 15px; font-weight: 700; }
-  .topic-card .t-sub { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
-
-  /* ---- 寫作畫面 ---- */
-  .wr-top {
-    display: flex; align-items: center; padding: 10px 14px;
-    border-bottom: 1px solid var(--line); background: var(--surface); flex-shrink: 0;
-  }
-  .top-btn { border: none; background: none; font-size: 14px; color: var(--ink-soft); cursor: pointer; font-weight: 500; padding: 6px 4px; }
-  .wr-body { flex: 1; overflow-y: auto; padding: 16px; }
-
-  .prompt-card {
-    background: var(--terracotta-soft); border: 1px solid var(--terracotta); border-radius: 12px;
-    padding: 13px 15px; margin-bottom: 14px; font-size: 13px; color: var(--ink);
-  }
-  .prompt-card .p-label { font-weight: 700; font-size: 12px; color: var(--terracotta); margin-bottom: 5px; letter-spacing: .02em; }
-  .prompt-card .p-instruction { font-size: 12px; color: var(--ink-soft); margin-top: 7px; }
-
-  .editor-wrap { position: relative; width: 100%; height: 220px; }
-  .editor-layer-base {
-    position: absolute; inset: 0; margin: 0; padding: 13px; border-radius: 12px; border: 1px solid var(--line);
-    font-size: 14px; line-height: 1.7; font-family: inherit;
-    white-space: pre-wrap; word-wrap: break-word; overflow: auto;
-  }
-  #highlight-layer { background: var(--surface); color: var(--ink); pointer-events: none; }
-  #highlight-layer .err { color: var(--danger); background: var(--danger-soft); border-radius: 3px; }
-  #editor {
-    background: transparent; color: transparent; -webkit-text-fill-color: transparent;
-    caret-color: var(--ink); resize: none; outline: none;
-  }
-  .check-status { font-size: 12px; color: var(--ink-soft); margin-top: 7px; height: 16px; }
-
-  .btn-row { display: flex; gap: 10px; margin-top: 16px; }
-  .btn {
-    border: none; border-radius: 10px; padding: 13px 14px; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1;
-    font-family: inherit; transition: transform .1s ease, opacity .15s ease;
-  }
-  .btn:active { transform: scale(.97); }
-  .btn-primary { background: var(--terracotta); color: #fff9f2; }
-  .btn-ghost { background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
-  .btn:disabled { opacity: .5; cursor: default; }
-
-  /* ---- 批改結果面板 ---- */
-  .review-panel { margin-top: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
-  .review-score { display: flex; align-items: center; gap: 16px; }
-  .score-circle {
-    width: 64px; height: 64px; border-radius: 50%; background: var(--terracotta-soft); border: 3px solid var(--terracotta);
-    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; color: var(--terracotta); flex-shrink: 0;
-    font-family: "Noto Serif TC", serif; font-variant-numeric: tabular-nums;
-  }
-  .score-breakdown { font-size: 12px; color: var(--ink-soft); line-height: 1.9; }
-  .score-breakdown span { display: inline-block; margin-right: 12px; }
-  .review-praise { font-size: 13px; color: var(--sage); margin-top: 14px; font-weight: 700; }
-  .review-block-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 14px 0 5px; letter-spacing: .02em; }
-  .review-corrected { font-size: 14px; background: var(--paper); border-radius: 10px; padding: 11px; white-space: pre-wrap; line-height: 1.6; }
-  .review-explanation { font-size: 13px; white-space: pre-wrap; color: var(--ink); line-height: 1.7; }
-  .empty-hint { color: var(--ink-soft); font-size: 14px; text-align: center; padding: 44px 10px; }
+  @layer base { html, body { width: 100vw; margin: 0; padding: 0; } body { overscroll-behavior: none; } }
+  ::-webkit-scrollbar { display: none; }
+  body { font-family: 'Plus Jakarta Sans', 'PingFang TC', 'Noto Sans TC', system-ui, sans-serif; background: #f8fafc; color: #1e293b; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .page { display: none; }
+  .page.active { display: flex; }
+  .editor-wrap { position: relative; width: 100%; min-height: 220px; }
+  .editor-layer-base { position: absolute; inset: 0; margin: 0; padding: 16px; border-radius: 12px; font-size: 15px; line-height: 1.7; font-family: inherit; white-space: pre-wrap; word-wrap: break-word; overflow: auto; box-sizing: border-box; }
+  #highlight-layer { background: #ffffff; color: #1e293b; pointer-events: none; border: 1px solid #e2e8f0; }
+  #highlight-layer .err { color: #E11D48; background: #FFE4E6; border-radius: 3px; text-decoration: underline wavy #E11D48; }
+  #editor { background: transparent; color: transparent; -webkit-text-fill-color: transparent; caret-color: #1e293b; resize: none; outline: none; border: 1px solid transparent; }
 </style>
 </head>
-<body>
+<body class="flex flex-col min-h-screen">
 
-<!-- 主畫面 -->
-<section id="view-home" class="view active">
-  <div class="home-top">
-    <h1>中醫寫作教練</h1>
-    <button class="close-x" onclick="closeLiff()">✕</button>
+<header class="fixed top-0 w-full z-50 pt-safe bg-white/90 backdrop-blur-xl border-b border-slate-200">
+  <div class="h-12 px-4 max-w-[480px] mx-auto flex items-center justify-between">
+    <div class="flex items-center gap-2 min-w-0">
+      <button id="back-btn" onclick="goBack()" class="w-7 h-7 flex items-center justify-center text-[#0D5C46]" style="display:none;">
+        <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+      </button>
+      <div class="flex flex-col min-w-0">
+        <span class="text-[10px] font-bold text-[#0D5C46] tracking-wide">SCHOLARFLOW LIFF</span>
+        <span class="text-[15px] font-semibold text-slate-800 truncate" id="header-title">Writing Dashboard</span>
+      </div>
+    </div>
+    <div class="w-7 h-7 rounded-full bg-[#0D5C46] flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined text-white text-[16px]">person</span>
+    </div>
   </div>
-  <div class="topic-list" id="topic-list"></div>
-</section>
+</header>
 
-<!-- 寫作畫面 -->
-<section id="view-writing" class="view">
-  <div class="wr-top">
-    <button class="top-btn" onclick="switchView('home')">← Home</button>
+<main class="flex flex-col w-full max-w-[480px] mx-auto px-4 pt-16 pb-24 flex-1">
+
+  <!-- ============ PAGE: HOME (topic gallery) ============ -->
+  <div class="page flex-col w-full gap-3" id="page-home">
+    <h1 class="text-lg font-bold text-slate-800">精選練習主題與範本</h1>
+    <div id="topic-groups" class="flex flex-col gap-4"></div>
   </div>
-  <div class="wr-body">
-    <div class="prompt-card" id="prompt-card" style="display:none;">
-      <div class="p-label">題目來源</div>
-      <div id="prompt-source"></div>
-      <div class="p-instruction" id="prompt-instruction"></div>
+
+  <!-- ============ PAGE: EDITOR ============ -->
+  <div class="page flex-col w-full gap-3" id="page-editor">
+    <div id="prompt-card" class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm" style="display:none;">
+      <button class="w-full flex items-center justify-between" onclick="togglePrompt()">
+        <span class="flex items-center gap-1.5 text-[12px] font-bold text-[#0D5C46]"><span class="w-1 h-4 rounded-full bg-[#0D5C46]"></span>中文原始文獻段落 (Source)</span>
+        <span class="material-symbols-outlined text-[18px] text-slate-400" id="prompt-toggle-icon">expand_less</span>
+      </button>
+      <div id="prompt-body" class="mt-2">
+        <p class="text-[14px] text-slate-700 leading-relaxed" id="prompt-source"></p>
+        <p class="text-[12px] text-slate-500 mt-2 leading-relaxed" id="prompt-instruction"></p>
+        <div class="flex flex-wrap gap-1.5 mt-2" id="prompt-keywords"></div>
+      </div>
     </div>
 
+    <div class="flex items-center justify-between px-1">
+      <span class="text-[12px] mono text-slate-500" id="word-count">0 words</span>
+      <span class="text-[12px] text-slate-400" id="autosave-status"></span>
+    </div>
     <div class="editor-wrap">
       <div id="highlight-layer" class="editor-layer-base"></div>
-      <textarea id="editor" class="editor-layer-base" placeholder="開始輸入英文寫作內容…" oninput="onEditorInput()" onscroll="syncScroll()"></textarea>
+      <textarea id="editor" class="editor-layer-base" placeholder="請在此輸入您的英文寫作或翻譯…建議運用上述專業詞彙與學術避險 (Hedging) 語氣進行撰寫。" oninput="onEditorInput()" onscroll="syncScroll()"></textarea>
     </div>
-    <div class="check-status" id="check-status"></div>
+    <div class="text-[12px] text-slate-500 h-4" id="check-status"></div>
 
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="saveDraft()">儲存練習內容</button>
-      <button class="btn btn-primary" id="review-btn" onclick="submitReview()">送出批改</button>
+    <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex items-start gap-2">
+      <span class="material-symbols-outlined text-[#6366F1] text-[18px] mt-0.5">tips_and_updates</span>
+      <p class="text-[12px] text-slate-600 leading-relaxed"><span class="font-bold text-[#6366F1]">學術寫作小叮嚀 (IMRaD Guidance):</span> 引言與背景描述建議使用現在式或現在完成式；研究目的（本研究旨在...）在 SCI 摘要中常見句型為 "This study aims to evaluate..." 或 "The present investigation sought to clarify..."</p>
     </div>
 
-    <div class="review-panel" id="review-panel" style="display:none;"></div>
+    <div id="review-panel" class="flex flex-col gap-3" style="display:none;"></div>
   </div>
-</section>
+
+  <!-- ============ PAGE: DRAFTS (草稿箱) ============ -->
+  <div class="page flex-col w-full gap-3" id="page-drafts">
+    <div>
+      <h1 class="text-lg font-bold text-slate-800">草稿箱</h1>
+      <p class="text-[13px] text-slate-500 mt-1">暫存未完成的寫作練習，點擊可立即回到編輯器繼續練習。</p>
+    </div>
+    <div id="drafts-list" class="flex flex-col gap-3"></div>
+    <div id="drafts-empty" class="text-center text-slate-400 text-sm py-16" style="display:none;">目前沒有暫存的草稿</div>
+  </div>
+
+  <!-- ============ PAGE: HISTORY (過往練習記錄) ============ -->
+  <div class="page flex-col w-full gap-3" id="page-history">
+    <div>
+      <h1 class="text-lg font-bold text-slate-800">過往練習記錄</h1>
+      <p class="text-[13px] text-slate-500 mt-1">已儲存的學術寫作練習，隨時查看 AI 評分與對照解析。</p>
+    </div>
+    <div id="history-list" class="flex flex-col gap-3"></div>
+    <div id="history-empty" class="text-center text-slate-400 text-sm py-16" style="display:none;">目前沒有已儲存的練習記錄</div>
+  </div>
+
+</main>
+
+<!-- Editor bottom action bar -->
+<div class="fixed bottom-16 left-0 right-0 z-40 px-4 pointer-events-none" id="editor-action-bar" style="display:none;">
+  <div class="max-w-[480px] mx-auto pointer-events-auto bg-white/95 backdrop-blur-md rounded-xl p-2 shadow-lg border border-slate-200 flex gap-2">
+    <button type="button" onclick="saveDraft()" class="flex-1 py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold text-sm active:scale-[0.98] transition">暫存草稿</button>
+    <button type="button" onclick="submitReview()" id="review-btn" class="flex-[1.5] py-3 rounded-lg bg-[#0D5C46] text-white font-semibold text-sm flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+      <span class="material-symbols-outlined text-[18px]">auto_awesome</span><span>送出批改</span>
+    </button>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<nav class="fixed bottom-0 w-full z-50 pb-safe bg-white/90 backdrop-blur-xl border-t border-slate-200">
+  <div class="max-w-[480px] mx-auto flex justify-around items-center h-16 px-2">
+    <a href="#" id="nav-home" onclick="event.preventDefault(); goHome();" class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] rounded-xl">
+      <span class="material-symbols-outlined text-[22px] leading-none">edit_note</span><span class="text-[11px] mt-1">論文寫作</span>
+    </a>
+    <a href="#" id="nav-history" onclick="event.preventDefault(); showPage('history');" class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] rounded-xl">
+      <span class="material-symbols-outlined text-[22px] leading-none">history</span><span class="text-[11px] mt-1">過往練習記錄</span>
+    </a>
+    <a href="#" id="nav-drafts" onclick="event.preventDefault(); showPage('drafts');" class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] rounded-xl">
+      <span class="material-symbols-outlined text-[22px] leading-none">archive</span><span class="text-[11px] mt-1">草稿箱</span>
+    </a>
+  </div>
+</nav>
 
 <script>
 const LIFF_ID = "2011558628-VKytwC2e";
-// 本機 ngrok 預覽用：網址加 ?debug=1 就跳過真的 LINE 登入，token 要跟後端
-// LIFF_DEBUG_TOKEN 環境變數一致，正式站不會設這個變數。
 const DEBUG_MODE = new URLSearchParams(location.search).get("debug") === "1";
 const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
 
@@ -156,6 +141,7 @@ let topics = {};
 let currentTopicId = null;
 let debounceTimer = null;
 let lastReviewResult = null;
+let currentPage = "home";
 
 function authHeaders() {
   return idToken ? { "Authorization": "Bearer " + idToken, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
@@ -168,18 +154,36 @@ async function apiPost(path, body) {
   const res = await fetch(path, { method: "POST", headers: authHeaders(), body: JSON.stringify(body || {}) });
   return res.json();
 }
+async function apiDelete(path) {
+  const res = await fetch(path, { method: "DELETE", headers: authHeaders() });
+  return res.json();
+}
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
 function renderHighlight(annotated) {
   return escapeHtml(annotated).replace(/«(.+?)»/g, '<span class="err">$1</span>');
 }
-function closeLiff() {
-  try { liff.closeWindow(); } catch (e) { window.close(); }
+function closeLiff() { try { liff.closeWindow(); } catch (e) { window.close(); } }
+
+function showPage(name) {
+  currentPage = name;
+  document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
+  document.getElementById("page-" + name).classList.add("active");
+  document.getElementById("editor-action-bar").style.display = name === "editor" ? "block" : "none";
+  document.getElementById("back-btn").style.display = name === "editor" ? "flex" : "none";
+  const titles = { home: "Writing Dashboard", editor: "Editor Focus Session", drafts: "Draft Box", history: "Practice History" };
+  document.getElementById("header-title").textContent = titles[name] || "Writing Dashboard";
+  ["home", "history", "drafts"].forEach(k => {
+    const el = document.getElementById("nav-" + k);
+    const active = (k === "home" && (name === "home" || name === "editor")) || (k === name);
+    el.className = "flex flex-col items-center justify-center min-w-[44px] min-h-[44px] rounded-xl " + (active ? "text-[#0D5C46] font-semibold" : "text-slate-400");
+  });
+  if (name === "drafts") loadDrafts();
+  if (name === "history") loadHistory();
 }
-function switchView(name) {
-  ["home", "writing"].forEach(v => document.getElementById("view-" + v).classList.toggle("active", v === name));
-}
+function goHome() { showPage(currentTopicId && currentPage === "editor" ? "editor" : "home"); }
+function goBack() { showPage("home"); }
 
 async function initApp() {
   if (!DEBUG_MODE) {
@@ -188,8 +192,7 @@ async function initApp() {
       if (!liff.isLoggedIn()) { liff.login(); return; }
       idToken = liff.getIDToken();
     } catch (e) {
-      document.getElementById("topic-list").innerHTML =
-        '<div class="empty-hint">LIFF 初始化失敗，請確認是從 LINE 內開啟這個頁面。</div>';
+      document.getElementById("topic-groups").innerHTML = '<div class="text-center text-slate-400 text-sm py-16">LIFF 初始化失敗，請從 LINE 內開啟這個頁面。</div>';
       return;
     }
   } else {
@@ -198,15 +201,27 @@ async function initApp() {
   const data = await apiGet("/api/liff/writing/topics");
   (data.topics || []).forEach(t => { topics[t.id] = t; });
   renderHome();
+  showPage("home");
 }
 
 function renderHome() {
-  const list = document.getElementById("topic-list");
-  list.innerHTML = Object.values(topics).map(t => `
-    <button class="topic-card" onclick="openTopic('${t.id}')">
-      <div class="t-title">${escapeHtml(t.title)}</div>
-      <div class="t-sub">${t.source_zh ? "中譯英摘要練習" : "沒有指定題目，自由發揮"}</div>
-    </button>
+  const groups = {};
+  Object.values(topics).forEach(t => {
+    const g = t.group || "其他範本";
+    (groups[g] = groups[g] || []).push(t);
+  });
+  const box = document.getElementById("topic-groups");
+  box.innerHTML = Object.entries(groups).map(([groupName, items]) => `
+    <div class="flex flex-col gap-2">
+      <span class="text-[12px] font-bold text-slate-500 tracking-wide">${escapeHtml(groupName)}</span>
+      ${items.map(t => `
+        <button type="button" onclick="openTopic('${t.id}')" class="text-left bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm active:scale-[0.99] transition">
+          <div class="text-[15px] font-semibold text-slate-800 leading-snug">${escapeHtml(t.title)}</div>
+          ${t.source_zh ? `<div class="text-[12px] text-slate-500 mt-1 line-clamp-2">${escapeHtml(t.source_zh)}</div>` : `<div class="text-[12px] text-slate-500 mt-1">沒有指定題目，自由發揮</div>`}
+          ${(t.keywords || []).length ? `<div class="flex flex-wrap gap-1 mt-2">${t.keywords.slice(0, 4).map(k => `<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] mono">${escapeHtml(k)}</span>`).join("")}</div>` : ""}
+        </button>
+      `).join("")}
+    </div>
   `).join("");
 }
 
@@ -217,6 +232,8 @@ function openTopic(topicId) {
   editor.value = "";
   document.getElementById("highlight-layer").innerHTML = "";
   document.getElementById("check-status").textContent = "";
+  document.getElementById("autosave-status").textContent = "";
+  document.getElementById("word-count").textContent = "0 words";
   document.getElementById("review-panel").style.display = "none";
   document.getElementById("review-panel").innerHTML = "";
   lastReviewResult = null;
@@ -226,11 +243,20 @@ function openTopic(topicId) {
     promptCard.style.display = "block";
     document.getElementById("prompt-source").textContent = t.source_zh;
     document.getElementById("prompt-instruction").textContent = t.instruction_zh || "";
+    document.getElementById("prompt-keywords").innerHTML = (t.keywords || []).map(k => `<span class="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] mono">${escapeHtml(k)}</span>`).join("");
   } else {
     promptCard.style.display = "none";
   }
-  switchView("writing");
+  showPage("editor");
   editor.focus();
+}
+
+function togglePrompt() {
+  const body = document.getElementById("prompt-body");
+  const icon = document.getElementById("prompt-toggle-icon");
+  const collapsed = body.style.display === "none";
+  body.style.display = collapsed ? "block" : "none";
+  icon.textContent = collapsed ? "expand_less" : "expand_more";
 }
 
 function syncScroll() {
@@ -242,10 +268,12 @@ function syncScroll() {
 
 function onEditorInput() {
   const ta = document.getElementById("editor");
-  // 先同步顯示純文字（不含標色），確保底層文字跟 textarea 永遠對齊，不會因為等待 API 而看起來空白
   document.getElementById("highlight-layer").innerHTML = escapeHtml(ta.value);
   syncScroll();
+  const words = ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0;
+  document.getElementById("word-count").textContent = words + " words";
   document.getElementById("check-status").textContent = "輸入中…";
+  document.getElementById("autosave-status").textContent = "";
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(runCheck, 900);
 }
@@ -253,10 +281,7 @@ function onEditorInput() {
 async function runCheck() {
   const ta = document.getElementById("editor");
   const text = ta.value;
-  if (text.trim().length < 8) {
-    document.getElementById("check-status").textContent = "";
-    return;
-  }
+  if (text.trim().length < 8) { document.getElementById("check-status").textContent = ""; return; }
   document.getElementById("check-status").textContent = "檢查中…";
   let res;
   try {
@@ -267,11 +292,9 @@ async function runCheck() {
   }
   const annotated = res.annotated || text;
   const stripped = annotated.replace(/[«»]/g, "");
-  // 只有在「去掉標記符號後」跟目前 textarea 內容完全一致才更新標色層，
-  // 避免使用者這期間繼續打字、或 AI 沒有完整保留原文導致標色跟文字對不齊
   if (stripped === ta.value) {
     document.getElementById("highlight-layer").innerHTML = renderHighlight(annotated);
-    document.getElementById("check-status").textContent = annotated.includes("«") ? "已標註可能的問題（橘色）" : "看起來沒有問題";
+    document.getElementById("check-status").textContent = annotated.includes("«") ? "已標註可能的問題" : "看起來沒有問題";
   } else {
     document.getElementById("check-status").textContent = "";
   }
@@ -282,7 +305,7 @@ async function saveDraft() {
   if (!text) { alert("請先輸入內容"); return; }
   const res = await apiPost("/api/liff/writing/save", { text, topic_id: currentTopicId, kind: "draft" });
   if (res.error) { alert("儲存失敗：" + res.error); return; }
-  document.getElementById("check-status").textContent = "已儲存 ✓";
+  document.getElementById("autosave-status").textContent = "已儲存草稿 ✓ " + new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
 }
 
 async function submitReview() {
@@ -290,10 +313,10 @@ async function submitReview() {
   if (!text) { alert("請先輸入內容再送出批改"); return; }
   const btn = document.getElementById("review-btn");
   btn.disabled = true;
-  btn.textContent = "批改中…";
+  btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span><span>批改中…</span>';
   const res = await apiPost("/api/liff/writing/review", { text, topic_id: currentTopicId });
   btn.disabled = false;
-  btn.textContent = "送出批改";
+  btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">auto_awesome</span><span>送出批改</span>';
   if (res.error) { alert("批改失敗：" + res.error); return; }
   lastReviewResult = res;
   renderReview(res);
@@ -301,38 +324,115 @@ async function submitReview() {
 
 function renderReview(r) {
   const panel = document.getElementById("review-panel");
-  panel.style.display = "block";
+  panel.style.display = "flex";
   const s = r.scores || {};
+  const dims = [["內容", s.content, 25], ["語域", s.register, 25], ["文法", s.grammar, 25], ["結構", s.structure, 25]];
   panel.innerHTML = `
-    <div class="review-score">
-      <div class="score-circle">${r.total ?? "--"}</div>
-      <div class="score-breakdown">
-        <span>內容 ${s.content ?? "-"}/25</span><span>語域 ${s.register ?? "-"}/25</span><br/>
-        <span>文法 ${s.grammar ?? "-"}/25</span><span>結構 ${s.structure ?? "-"}/25</span>
+    <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      <div class="flex items-center gap-4">
+        <div class="w-16 h-16 rounded-full border-4 border-[#0D5C46] bg-[#E6F4EA] flex items-center justify-center shrink-0">
+          <span class="text-xl font-bold text-[#0D5C46] mono">${r.total ?? "--"}</span>
+        </div>
+        <div class="flex-1 flex flex-col gap-1.5">
+          ${dims.map(([label, val, max]) => `
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] text-slate-500 w-8 shrink-0">${label}</span>
+              <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-[#0D5C46] rounded-full" style="width:${Math.round((val || 0) / max * 100)}%"></div></div>
+              <span class="text-[11px] text-slate-500 mono w-10 text-right">${val ?? "-"}/${max}</span>
+            </div>
+          `).join("")}
+        </div>
       </div>
+      <p class="text-[13px] text-[#0D5C46] font-semibold mt-3">${escapeHtml(r.praise || "")}</p>
+      <div class="text-[12px] font-bold text-slate-500 mt-3 mb-1">修正後版本</div>
+      <div class="text-[14px] bg-slate-50 rounded-lg p-3 whitespace-pre-wrap leading-relaxed">${escapeHtml(r.corrected || "")}</div>
+      <div class="text-[12px] font-bold text-slate-500 mt-3 mb-1">說明</div>
+      <div class="text-[13px] whitespace-pre-wrap leading-relaxed text-slate-700">${escapeHtml(r.explanation || "")}</div>
     </div>
-    <div class="review-praise">${escapeHtml(r.praise || "")}</div>
-    <div class="review-block-label">修正後版本</div>
-    <div class="review-corrected">${escapeHtml(r.corrected || "")}</div>
-    <div class="review-block-label">說明</div>
-    <div class="review-explanation">${escapeHtml(r.explanation || "")}</div>
-    <div class="btn-row">
-      <button class="btn btn-primary" onclick="adoptCorrected()">一鍵採用並儲存</button>
-    </div>
+    <button type="button" onclick="adoptCorrected()" class="w-full py-3 rounded-lg bg-[#0D5C46] text-white font-semibold text-sm flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+      <span class="material-symbols-outlined text-[18px]">check_circle</span><span>一鍵同意修正並儲存</span>
+    </button>
   `;
 }
 
 async function adoptCorrected() {
   if (!lastReviewResult || !lastReviewResult.corrected) return;
   const res = await apiPost("/api/liff/writing/save", {
-    text: lastReviewResult.corrected, topic_id: currentTopicId, kind: "reviewed",
+    text: lastReviewResult.corrected, topic_id: currentTopicId, kind: "reviewed", review: lastReviewResult,
   });
   if (res.error) { alert("儲存失敗：" + res.error); return; }
-  // 採用修正版後，把編輯區同步更新成修正後版本
   const editor = document.getElementById("editor");
   editor.value = lastReviewResult.corrected;
   document.getElementById("highlight-layer").innerHTML = escapeHtml(editor.value);
-  document.getElementById("check-status").textContent = "已採用修正版並儲存 ✓";
+  document.getElementById("autosave-status").textContent = "已採用修正版並儲存 ✓";
+}
+
+async function loadDrafts() {
+  const data = await apiGet("/api/liff/writing/practice?kind=draft");
+  const items = data.items || [];
+  const list = document.getElementById("drafts-list");
+  const empty = document.getElementById("drafts-empty");
+  if (!items.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  list.innerHTML = items.map(d => `
+    <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-[15px] font-semibold text-slate-800">${escapeHtml(d.topic_title)}</span>
+        <span class="text-[11px] text-slate-400 mono">${d.word_count} words</span>
+      </div>
+      <p class="text-[13px] text-slate-600 line-clamp-2">${escapeHtml(d.text)}</p>
+      <div class="flex gap-2 mt-1">
+        <button type="button" onclick="discardDraft('${d.id}')" class="px-3 py-2 rounded-lg border border-slate-300 text-slate-600 text-[13px] font-semibold flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">delete</span>捨棄</button>
+        <button type="button" onclick="resumeDraft('${d.id}')" class="flex-1 py-2 rounded-lg bg-[#0D5C46] text-white text-[13px] font-semibold flex items-center justify-center gap-1">繼續編輯寫作<span class="material-symbols-outlined text-[16px]">arrow_forward</span></button>
+      </div>
+    </div>
+  `).join("");
+  window._draftsById = Object.fromEntries(items.map(d => [d.id, d]));
+}
+function resumeDraft(id) {
+  const d = (window._draftsById || {})[id];
+  if (!d) return;
+  currentTopicId = d.topic_id;
+  const t = topics[d.topic_id] || {};
+  document.getElementById("editor").value = d.text;
+  const promptCard = document.getElementById("prompt-card");
+  if (t.source_zh) {
+    promptCard.style.display = "block";
+    document.getElementById("prompt-source").textContent = t.source_zh;
+    document.getElementById("prompt-instruction").textContent = t.instruction_zh || "";
+    document.getElementById("prompt-keywords").innerHTML = (t.keywords || []).map(k => `<span class="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] mono">${escapeHtml(k)}</span>`).join("");
+  } else {
+    promptCard.style.display = "none";
+  }
+  onEditorInput();
+  document.getElementById("review-panel").style.display = "none";
+  showPage("editor");
+}
+async function discardDraft(id) {
+  await apiDelete(`/api/liff/writing/practice/${id}`);
+  loadDrafts();
+}
+
+async function loadHistory() {
+  const data = await apiGet("/api/liff/writing/practice?kind=reviewed");
+  const items = data.items || [];
+  const list = document.getElementById("history-list");
+  const empty = document.getElementById("history-empty");
+  if (!items.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  list.innerHTML = items.map(d => {
+    const r = d.review || {};
+    return `
+    <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-[15px] font-semibold text-slate-800">${escapeHtml(d.topic_title)}</span>
+        ${r.total != null ? `<span class="px-2 py-0.5 rounded-full bg-[#E6F4EA] text-[#0D5C46] text-[11px] font-bold mono">${r.total} 分</span>` : ""}
+      </div>
+      <p class="text-[13px] text-slate-600 line-clamp-2 italic">"${escapeHtml(d.text)}"</p>
+      <span class="text-[11px] text-slate-400">${d.created_at ? new Date(d.created_at).toLocaleDateString("zh-TW") : ""} · ${d.word_count} words</span>
+    </div>
+  `;
+  }).join("");
 }
 
 initApp();

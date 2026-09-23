@@ -3,21 +3,36 @@
     "id": "free",
     "title": "自由寫作",
     "title_en": "Free Writing",
+    "group": "自由練習",
     "source_zh": null,
-    "instruction_zh": "沒有指定題目，想寫什麼都可以，AI 一樣會即時標註文法與用詞問題。"
+    "instruction_zh": "沒有指定題目，想寫什麼都可以，AI 一樣會即時標註文法與用詞問題。",
+    "keywords": []
+  },
+  {
+    "id": "sci-abstract-01",
+    "title": "中藥複方治療抗發炎機轉——國際期刊摘要練習",
+    "title_en": "SCI Abstract: Anti-inflammatory Mechanisms of Herbal Formulae",
+    "group": "SCI 摘要範本",
+    "source_zh": "黃連解毒湯在傳統中醫常用於清熱解毒。近年現代藥理研究表明，其主要活性成分小檗鹼能有效抑制脂多醣（LPS）誘導的促發炎細胞因子表現，並透過調控 NF-κB 訊號傳導路徑發揮抗炎功效。本研究旨在評估該複方對慢性發炎小鼠模型的調節作用。",
+    "instruction_zh": "請將上面這段中文段落改寫成 80-120 字之英文期刊 Abstract 背景與結論段落，練習使用學術客觀語態（Academic Tone）與被動句法。",
+    "keywords": ["attenuates", "LPS-induced", "modulating signaling pathway", "demonstrates", "marked"]
   },
   {
     "id": "summary-01",
     "title": "中譯英摘要：整體觀",
     "title_en": "Summarize: The Holistic Concept",
+    "group": "中翻英摘要練習",
     "source_zh": "中醫強調「整體觀」：人體內部的臟腑、組織、器官彼此聯繫，構成一個有機整體；同時人體與外在環境（季節、氣候、地理）也是統一的。因此治療疾病時，不能只看局部的病灶，而必須考慮全身的平衡，以及人與自然環境之間的關係。",
-    "instruction_zh": "請讀完上面這段中文，用 2-4 句英文摘要重點，練習用英文表達中醫的核心概念。"
+    "instruction_zh": "請讀完上面這段中文，用 2-4 句英文摘要重點，練習用英文表達中醫的核心概念。",
+    "keywords": ["holistic concept", "Zang-Fu organs", "dynamic balance"]
   },
   {
     "id": "summary-02",
     "title": "中譯英摘要：陰陽學說",
     "title_en": "Summarize: Yin-Yang Theory",
+    "group": "中翻英摘要練習",
     "source_zh": "陰陽學說認為，宇宙間一切事物都存在對立統一的兩面。陽代表向上、明亮、溫暖、活動；陰代表向下、黑暗、寒冷、靜止。兩者互根互用，彼此消長，維持動態平衡；若平衡被打破，就會產生疾病，中醫稱為「陰勝則寒，陽勝則熱」。",
-    "instruction_zh": "請讀完上面這段中文，用 2-4 句英文摘要重點，練習用英文表達中醫的核心概念。"
+    "instruction_zh": "請讀完上面這段中文，用 2-4 句英文摘要重點，練習用英文表達中醫的核心概念。",
+    "keywords": ["Yin-Yang theory", "mutual rooting", "dynamic equilibrium"]
   }
 ]

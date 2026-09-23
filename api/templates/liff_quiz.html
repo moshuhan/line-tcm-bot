@@ -2,274 +2,321 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-<title>中醫國考題庫練習</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>中醫國考刷題系統</title>
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script id="tailwind-config">
+tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'on-primary-fixed-variant': '#1e4f3a', 'surface-container-low': '#ecf5fe', 'secondary-fixed-dim': '#ffb77d', 'surface': '#f6faff', 'on-secondary-fixed': '#2f1500', 'secondary-fixed': '#ffdcc3', 'inverse-surface': '#293138', 'inverse-on-surface': '#e9f2fb', 'on-tertiary': '#ffffff', 'primary': '#0c412d', 'on-primary': '#ffffff', 'primary-fixed-dim': '#9ed2b6', 'secondary': '#904d00', 'on-error-container': '#93000a', 'on-tertiary-container': '#aec9b6', 'on-secondary-container': '#663500', 'surface-dim': '#d2dbe4', 'on-background': '#141d23', 'on-surface': '#141d23', 'outline': '#717973', 'outline-variant': '#c0c9c1', 'inverse-primary': '#9ed2b6', 'secondary-container': '#fe932c', 'error': '#ba1a1a', 'on-secondary-fixed-variant': '#6e3900', 'error-container': '#ffdad6', 'primary-container': '#285943', 'on-tertiary-fixed': '#082014', 'tertiary': '#263e30', 'on-tertiary-fixed-variant': '#344c3e', 'surface-tint': '#376851', 'surface-bright': '#f6faff', 'on-error': '#ffffff', 'tertiary-fixed-dim': '#b2cdba', 'on-primary-container': '#9aceb2', 'on-primary-fixed': '#002114', 'surface-variant': '#dbe4ed', 'surface-container-high': '#e0e9f2', 'primary-fixed': '#b9eed1', 'on-secondary': '#ffffff', 'on-surface-variant': '#414943', 'background': '#f6faff', 'surface-container-lowest': '#ffffff', 'tertiary-container': '#3d5546', 'surface-container-highest': '#dbe4ed', 'surface-container': '#e6eff8', 'tertiary-fixed': '#cee9d6' }, borderRadius: { 'DEFAULT': '0.25rem', 'lg': '0.5rem', 'xl': '0.75rem', 'full': '9999px' }, spacing: { 'space-xl': '1.75rem', 'margin': '1rem', 'space-xs': '0.25rem', 'space-lg': '1.25rem', 'gutter': '0.75rem', 'space-md': '0.875rem', 'space-sm': '0.5rem' }, fontFamily: { 'headline-lg': ['Plus Jakarta Sans'], 'label-lg': ['Plus Jakarta Sans'], 'body-sm': ['Noto Sans'], 'label-sm': ['Plus Jakarta Sans'], 'headline-sm': ['Plus Jakarta Sans'], 'headline-md': ['Plus Jakarta Sans'], 'body-md': ['Noto Sans'], 'label-md': ['Plus Jakarta Sans'], 'body-lg': ['Noto Sans'] }, fontSize: { 'headline-lg': ['26px', { lineHeight: '34px', letterSpacing: '-0.01em', fontWeight: '700' }], 'label-lg': ['14px', { lineHeight: '20px', fontWeight: '600' }], 'body-sm': ['13px', { lineHeight: '20px', fontWeight: '400' }], 'label-sm': ['11px', { lineHeight: '14px', letterSpacing: '0.04em', fontWeight: '500' }], 'headline-sm': ['18px', { lineHeight: '26px', fontWeight: '600' }], 'headline-md': ['20px', { lineHeight: '28px', fontWeight: '600' }], 'body-md': ['15px', { lineHeight: '24px', letterSpacing: '0.01em', fontWeight: '400' }], 'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.02em', fontWeight: '600' }], 'body-lg': ['17px', { lineHeight: '28px', letterSpacing: '0.015em', fontWeight: '400' }] } } } }
+</script>
 <style>
-  :root {
-    --ink: #2b241d;
-    --ink-soft: #7a6d5c;
-    --paper: #f6efe2;
-    --surface: #fffcf6;
-    --line: #e5d9c3;
-    --terracotta: #b8562f;
-    --terracotta-soft: #f1ddc9;
-    --sage: #5f7052;
-    --sage-soft: #e3e8d9;
-    --gold: #a9843f;
-    --danger: #a8451f;
-    --danger-soft: #f3ded1;
+  @layer base {
+    html, body { width: 100vw; margin: 0; padding: 0; background-color: #f6faff; }
+    body { overscroll-behavior: none; min-height: max(884px, 100dvh); }
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
-    background: var(--paper);
-    color: var(--ink);
-    padding-bottom: 92px;
-    -webkit-tap-highlight-color: transparent;
-  }
-  h1, h2, h3, .display { font-family: "Noto Serif TC", "Noto Sans TC", serif; }
-  header.topbar {
-    position: sticky; top: 0; z-index: 10;
-    background: var(--surface);
-    border-bottom: 1px solid var(--line);
-    padding: 12px 16px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  header.topbar h1 { font-size: 17px; margin: 0; font-weight: 800; letter-spacing: .02em; }
-  .tabbar { display: flex; gap: 6px; background: var(--paper); padding: 3px; border-radius: 999px; }
-  .tabbar button {
-    border: none; background: transparent; color: var(--ink-soft);
-    padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; cursor: pointer;
-    transition: background .15s ease, color .15s ease;
-  }
-  .tabbar button.active { background: var(--terracotta); color: #fff9f2; }
-  main { padding: 16px; max-width: 640px; margin: 0 auto; }
-  .view { display: none; }
-  .view.active { display: block; }
-
-  .selectors { display: flex; gap: 8px; margin-bottom: 16px; }
-  select {
-    flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
-    background: var(--surface); font-size: 14px; color: var(--ink);
-    font-family: inherit;
-  }
-
-  .q-card {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
-    padding: 16px; margin-bottom: 12px;
-    box-shadow: 0 1px 2px rgba(43,36,29,.04);
-  }
-  .q-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-  .q-title { font-size: 15px; font-weight: 500; line-height: 1.6; flex: 1; }
-  .bookmark-btn {
-    border: none; background: none; cursor: pointer; line-height: 1;
-    color: var(--ink-soft); padding: 4px; flex-shrink: 0;
-    transition: color .15s ease, transform .1s ease;
-  }
-  .bookmark-btn svg { width: 19px; height: 19px; display: block; }
-  .bookmark-btn:active { transform: scale(.9); }
-  .bookmark-btn.active { color: var(--terracotta); }
-  .bookmark-btn.active svg { fill: var(--terracotta); }
-
-  .options { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
-  .opt-label {
-    display: flex; align-items: center; gap: 9px; padding: 9px 11px;
-    border: 1px solid var(--line); border-radius: 10px; font-size: 14px; cursor: pointer;
-    transition: border-color .15s ease, background .15s ease;
-  }
-  .opt-label:active { background: var(--paper); }
-  .opt-label input { accent-color: var(--terracotta); }
-  .opt-label.correct { border-color: var(--sage); background: var(--sage-soft); }
-  .opt-label.wrong-pick { border-color: var(--danger); background: var(--danger-soft); }
-
-  .q-tools {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
-  }
-  .toggle-wrap { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-soft); }
-  .switch { position: relative; width: 36px; height: 20px; }
-  .switch input { opacity: 0; width: 0; height: 0; }
-  .slider {
-    position: absolute; cursor: pointer; inset: 0; background: #d9cbb0; border-radius: 999px; transition: background .15s ease;
-  }
-  .slider::before {
-    content: ""; position: absolute; height: 16px; width: 16px; left: 2px; top: 2px;
-    background: #fff; border-radius: 50%; transition: transform .15s ease;
-  }
-  input:checked + .slider { background: var(--terracotta); }
-  input:checked + .slider::before { transform: translateX(16px); }
-
-  .link-btn {
-    border: none; background: none; color: var(--terracotta); font-size: 13px; cursor: pointer; font-weight: 700;
-    display: inline-flex; align-items: center; gap: 4px; padding: 2px;
-  }
-  .link-btn:active { opacity: .6; }
-
-  .reveal-answer {
-    margin-top: 10px; font-size: 13px; color: var(--sage); font-weight: 700; display: none;
-    background: var(--sage-soft); padding: 8px 10px; border-radius: 8px;
-  }
-  .reveal-answer.show { display: block; }
-
-  .bottom-bar {
-    position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface);
-    border-top: 1px solid var(--line); padding: 10px 14px;
-    display: flex; gap: 10px; justify-content: space-between;
-  }
-  .btn {
-    border: none; border-radius: 10px; padding: 13px 18px; font-size: 15px; font-weight: 700; cursor: pointer;
-    transition: transform .1s ease, opacity .15s ease;
-    font-family: inherit;
-  }
-  .btn:active { transform: scale(.97); }
-  .btn-primary { background: var(--terracotta); color: #fff9f2; flex: 1; }
-  .btn-ghost { background: var(--paper); color: var(--ink-soft); }
-
-  .empty-hint { color: var(--ink-soft); font-size: 14px; text-align: center; padding: 34px 10px; }
-
-  /* 結果頁 */
-  .result-overlay {
-    display: none; position: fixed; inset: 0; background: var(--paper); z-index: 50; overflow-y: auto;
-  }
-  .result-overlay.active { display: block; }
-  .result-header {
-    position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line);
-    padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
-    font-family: "Noto Serif TC", serif; font-weight: 700;
-  }
-  .close-x { border: none; background: none; font-size: 20px; cursor: pointer; color: var(--ink-soft); line-height: 1; padding: 4px; }
-  .grade-box {
-    margin: 24px auto 8px; width: 136px; height: 136px; border-radius: 50%;
-    background: var(--terracotta-soft); border: 3px solid var(--terracotta);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-  }
-  .grade-box .num { font-family: "Noto Serif TC", serif; font-size: 36px; font-weight: 800; color: var(--terracotta); font-variant-numeric: tabular-nums; }
-  .grade-box .label { font-size: 11px; color: var(--ink-soft); letter-spacing: .08em; text-transform: uppercase; }
-  .section-title {
-    font-size: 13px; font-weight: 700; margin: 20px 0 8px; padding: 7px 11px; border-radius: 8px;
-    letter-spacing: .02em;
-  }
-  .section-title.wrong { background: var(--danger-soft); color: var(--danger); }
-  .section-title.correct { background: var(--sage-soft); color: var(--sage); }
-  .result-item {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-    padding: 13px; margin-bottom: 8px;
-  }
-  .result-item .rq-title { font-size: 14px; font-weight: 500; margin-bottom: 5px; line-height: 1.5; }
-  .result-item .rq-meta { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
-
-  /* AI 詳解面板（從下往上蓋一層） */
-  .ai-panel {
-    display: none; position: fixed; inset: 0; background: rgba(43,36,29,.45); z-index: 60;
-  }
-  .ai-panel.active { display: flex; align-items: flex-end; }
-  .ai-panel-inner {
-    background: var(--surface); width: 100%; max-height: 80vh; overflow-y: auto;
-    border-radius: 20px 20px 0 0; padding: 18px; position: relative;
-  }
-  .ai-panel-inner h3 { margin: 0 0 10px; font-size: 16px; padding-right: 30px; }
-  .ai-panel .close-x { position: absolute; top: 14px; right: 14px; }
-  .ai-content { font-size: 14px; line-height: 1.75; white-space: pre-wrap; color: var(--ink); }
-  .ai-followup { display: flex; gap: 6px; margin-top: 14px; }
-  .ai-followup input {
-    flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 14px;
-    font-family: inherit;
-  }
-  .ai-loading { color: var(--ink-soft); font-size: 13px; }
-
-  /* 錯題本 */
-  .wrong-item {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-    padding: 13px; margin-bottom: 8px;
-  }
-  .wrong-item .wq-text { font-size: 14px; flex: 1; line-height: 1.5; }
-  .wrong-item .wq-cat { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
-  .remove-btn {
-    border: none; background: var(--sage-soft); color: var(--sage); cursor: pointer;
-    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    transition: transform .1s ease;
-  }
-  .remove-btn:active { transform: scale(.9); }
-  .remove-btn svg { width: 15px; height: 15px; }
+  ::-webkit-scrollbar { display: none; }
+  .page { display: none; }
+  .page.active { display: flex; }
+  .opt-row.selected { background-color: rgba(184,238,209,0.4); }
+  .opt-row.selected .opt-letter { background-color: #0c412d; color: #fff; }
+  .switch-track { transition: background-color .15s ease; }
+  .switch-thumb { transition: transform .15s ease; }
 </style>
 </head>
-<body>
+<body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen">
 
-<header class="topbar">
-  <h1>中醫國考題庫練習</h1>
-  <div class="tabbar">
-    <button id="tab-quiz" class="active" onclick="switchTab('quiz')">考題</button>
-    <button id="tab-wrong" onclick="switchTab('wrong')">錯題本</button>
+<header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
+  <div class="h-16 px-margin max-w-[480px] mx-auto flex items-center justify-between">
+    <div class="flex items-center gap-space-sm">
+      <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm">
+        <span class="material-symbols-outlined text-on-primary text-[18px]">spa</span>
+      </div>
+      <div class="flex flex-col">
+        <span class="font-label-md text-label-md text-primary font-bold leading-none tracking-tight">中醫國考刷題系統</span>
+        <span class="font-label-sm text-label-sm text-on-surface-variant font-medium mt-space-xs leading-none" id="header-subtitle">Practice</span>
+      </div>
+    </div>
+    <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm">
+      <span class="material-symbols-outlined text-on-primary text-[18px]">person</span>
+    </div>
   </div>
 </header>
 
-<main>
-  <!-- ① 考題頁 -->
-  <section id="view-quiz" class="view active">
-    <div class="selectors">
-      <select id="select-category"></select>
-      <select id="select-scope">
-        <option value="chapter">依章節</option>
-        <option value="year">依年度（尚未支援）</option>
-      </select>
-    </div>
-    <div id="question-list"></div>
-    <div id="quiz-empty" class="empty-hint" style="display:none;">這個分類目前還沒有題目</div>
-  </section>
+<main class="flex flex-col relative w-full max-w-[480px] mx-auto px-margin pt-16 pb-28 bg-surface min-h-screen">
 
-  <!-- ③ 錯題本 -->
-  <section id="view-wrong" class="view">
-    <div class="selectors">
-      <select id="wrong-category-filter">
-        <option value="">全部錯題</option>
-      </select>
+  <!-- ============ PAGE: HOME ============ -->
+  <div class="page flex-col w-full gap-space-md" id="page-home">
+    <div class="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 rounded-2xl p-space-md shadow-md text-on-primary">
+      <div class="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-emerald-400/20 pointer-events-none blur-2xl"></div>
+      <div class="relative z-10">
+        <div class="flex items-center gap-space-xs mb-1">
+          <span class="material-symbols-outlined text-emerald-200 text-[18px]">spa</span>
+          <span class="font-label-sm text-label-sm text-emerald-100 tracking-wide font-semibold">國考備考輔助系統</span>
+        </div>
+        <h1 class="font-headline-sm text-headline-sm font-bold text-white" id="home-greeting">早安</h1>
+        <p class="font-body-sm text-body-sm text-emerald-100/90 mt-1">「熟讀王叔和，不如臨證多。」選好範圍，開始今天的練習。</p>
+      </div>
     </div>
-    <div id="wrong-list"></div>
-    <div id="wrong-empty" class="empty-hint" style="display:none;">目前沒有標記的錯題</div>
-  </section>
+
+    <section class="bg-surface-container-lowest rounded-xl shadow-sm p-space-md flex flex-col gap-space-md">
+      <div class="flex items-center gap-space-xs pb-space-xs">
+        <div class="w-7 h-7 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+          <span class="material-symbols-outlined text-[18px]">category</span>
+        </div>
+        <span class="font-label-lg text-label-lg font-bold text-on-surface">選擇出題範圍</span>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="font-label-sm text-label-sm font-medium text-on-surface-variant">依章節分類</label>
+        <div class="relative">
+          <select id="select-category" class="w-full appearance-none bg-surface-container-low text-on-surface font-label-lg text-label-lg font-semibold rounded-xl py-3 pl-3.5 pr-10 outline-none focus:bg-surface-container transition-all cursor-pointer"></select>
+          <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[20px]">unfold_more</span>
+        </div>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <span class="font-label-sm text-label-sm font-medium text-on-surface-variant">刷題組織方式</span>
+        <div class="grid grid-cols-2 gap-space-xs p-1 bg-surface-container-low rounded-xl" id="modeSelector">
+          <button type="button" id="mode-chapter" class="py-2.5 px-3 rounded-lg font-label-md text-label-md font-bold bg-surface-container-lowest text-primary shadow-sm flex items-center justify-center gap-1.5 transition-all" onclick="setScope('chapter')">
+            <span class="material-symbols-outlined text-[18px]">menu_book</span><span>依章節練習</span>
+          </button>
+          <button type="button" id="mode-year" class="py-2.5 px-3 rounded-lg font-label-md text-label-md font-medium text-on-surface-variant flex items-center justify-center gap-1.5 transition-all" onclick="setScope('year')">
+            <span class="material-symbols-outlined text-[18px]">history_edu</span><span>依年度</span>
+          </button>
+        </div>
+      </div>
+      <label class="flex items-center gap-2.5 cursor-pointer select-none py-1">
+        <input type="checkbox" id="rememberSelection" checked class="accent-primary w-4 h-4 rounded cursor-pointer">
+        <span class="font-body-sm text-body-sm text-on-surface-variant font-medium">記住我上次的選擇</span>
+      </label>
+      <button type="button" onclick="startQuiz()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white active:scale-[0.99] transition-all py-3.5 px-4 rounded-xl font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-sm">
+        <span>開始進入測驗</span><span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+      </button>
+    </section>
+
+    <div class="relative overflow-hidden rounded-xl bg-surface-container-low p-space-md flex items-center justify-between">
+      <div class="flex flex-col max-w-[260px]">
+        <span class="font-label-sm text-label-sm font-semibold text-secondary">靈蘭秘典 · 每日經義</span>
+        <p class="font-body-sm text-body-sm text-on-surface font-medium mt-1">「心者，君主之官也，神明出焉。」</p>
+        <span class="font-label-sm text-label-sm text-on-surface-variant mt-0.5">——《素問·靈蘭秘典論》</span>
+      </div>
+      <div class="w-14 h-14 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm shrink-0">
+        <span class="material-symbols-outlined text-primary text-[26px]">eco</span>
+      </div>
+    </div>
+
+    <section class="flex flex-col gap-space-md">
+      <div class="flex items-center gap-space-xs">
+        <span class="material-symbols-outlined text-secondary text-[22px]">lightbulb</span>
+        <h2 class="font-headline-sm text-headline-sm font-bold text-on-surface">新手上路指南</h2>
+      </div>
+      <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+        <div class="flex items-center gap-space-xs">
+          <div class="w-6 h-6 rounded-full bg-primary text-on-primary font-label-sm text-label-sm font-bold flex items-center justify-center">1</div>
+          <h3 class="font-label-lg text-label-lg font-bold text-on-surface">3步驟快速開刷</h3>
+        </div>
+        <div class="grid grid-cols-3 gap-space-xs pt-1">
+          <div class="bg-surface-container-low rounded-lg p-2 flex flex-col items-center text-center">
+            <span class="material-symbols-outlined text-primary text-[20px] mb-1">ballot</span>
+            <span class="font-label-sm text-label-sm font-bold text-on-surface">1. 選定題庫</span>
+          </div>
+          <div class="bg-surface-container-low rounded-lg p-2 flex flex-col items-center text-center">
+            <span class="material-symbols-outlined text-primary text-[20px] mb-1">auto_awesome</span>
+            <span class="font-label-sm text-label-sm font-bold text-on-surface">2. 開啟解析</span>
+          </div>
+          <div class="bg-surface-container-low rounded-lg p-2 flex flex-col items-center text-center">
+            <span class="material-symbols-outlined text-primary text-[20px] mb-1">folder_special</span>
+            <span class="font-label-sm text-label-sm font-bold text-on-surface">3. 錯題歸檔</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+        <div class="flex items-center gap-space-xs">
+          <div class="w-6 h-6 rounded-full bg-secondary text-on-secondary font-label-sm text-label-sm font-bold flex items-center justify-center">2</div>
+          <h3 class="font-label-lg text-label-lg font-bold text-on-surface">AI 醫典即時診室</h3>
+        </div>
+        <p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">作答遇到爭議或生僻條文時，點擊每題下方的「AI 即刻問」，即時比對經典原文，精準辨析考點。</p>
+      </div>
+    </section>
+
+    <section class="flex flex-col gap-space-xs pb-4" id="quick-nav-section">
+      <h3 class="font-label-lg text-label-lg font-bold text-on-surface mb-1">常考科重點直達</h3>
+      <div class="grid grid-cols-2 gap-space-xs" id="quick-nav-list"></div>
+    </section>
+  </div>
+
+  <!-- ============ PAGE: QUIZ ============ -->
+  <div class="page flex-col w-full gap-space-md" id="page-quiz">
+    <div class="flex items-center justify-between px-space-xs">
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded-md bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-semibold" id="quiz-category-chip">—</span>
+      </div>
+      <div class="flex items-center gap-1 text-primary font-label-sm text-label-sm font-bold">
+        <span class="material-symbols-outlined text-[16px]">timer</span><span id="quiz-timer">00:00</span>
+      </div>
+    </div>
+    <div id="question-list" class="flex flex-col gap-space-md"></div>
+    <div id="quiz-empty" class="font-body-sm text-on-surface-variant text-center py-10" style="display:none;"></div>
+    <div class="h-20 w-full shrink-0"></div>
+  </div>
+
+  <!-- ============ PAGE: RESULTS ============ -->
+  <div class="page flex-col w-full gap-space-lg" id="page-results">
+    <div id="results-empty" class="font-body-sm text-on-surface-variant text-center py-16" style="display:none;">尚無最近的測驗成績，先去作答一份題目吧。</div>
+    <div id="results-body" class="flex flex-col gap-space-lg" style="display:none;">
+      <div class="relative w-full rounded-xl bg-surface-container-lowest shadow-sm overflow-hidden p-space-lg flex flex-col gap-space-md">
+        <div class="flex items-center justify-between">
+          <span class="inline-flex items-center px-space-sm py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm" id="results-category-label">—</span>
+          <div class="flex items-center gap-1 text-primary" id="results-pass-badge">
+            <span class="material-symbols-outlined text-[18px]">verified</span>
+            <span class="font-label-sm text-label-sm font-semibold">合格通過</span>
+          </div>
+        </div>
+        <div class="flex items-end justify-between pt-space-xs">
+          <div class="flex flex-col">
+            <span class="font-label-md text-label-md text-on-surface-variant font-medium">測驗綜合得分</span>
+            <div class="flex items-baseline gap-space-xs">
+              <span class="font-headline-lg text-[44px] leading-none font-bold text-primary tracking-tight" id="results-score">0</span>
+              <span class="font-headline-sm text-headline-sm text-on-surface-variant">/ 100 分</span>
+            </div>
+            <div class="flex items-center gap-1 mt-1 text-on-surface-variant">
+              <span class="material-symbols-outlined text-[14px]">flag</span>
+              <span class="font-label-sm text-label-sm">合格標準為 60 分</span>
+            </div>
+          </div>
+          <div class="relative w-16 h-16 flex items-center justify-center">
+            <svg class="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+              <path class="text-surface-container-highest" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3.5"></path>
+              <path class="text-primary-container" id="results-donut" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="0,100" stroke-linecap="round" stroke-width="3.5"></path>
+            </svg>
+            <div class="absolute flex flex-col items-center justify-center text-center">
+              <span class="font-headline-sm text-[13px] font-bold text-primary leading-none" id="results-accuracy">0%</span>
+              <span class="font-label-sm text-[9px] text-on-surface-variant leading-none mt-0.5">正確率</span>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-space-sm pt-space-xs">
+          <div class="flex flex-col p-space-sm bg-surface-container rounded-lg items-center text-center">
+            <div class="flex items-center gap-1 text-primary"><span class="material-symbols-outlined text-[16px]">check_circle</span><span class="font-label-sm text-label-sm">答對</span></div>
+            <span class="font-headline-sm text-headline-sm font-bold text-on-surface mt-0.5" id="results-correct-count">0 題</span>
+          </div>
+          <div class="flex flex-col p-space-sm bg-secondary-fixed/50 rounded-lg items-center text-center">
+            <div class="flex items-center gap-1 text-secondary"><span class="material-symbols-outlined text-[16px]">cancel</span><span class="font-label-sm text-label-sm">錯題</span></div>
+            <span class="font-headline-sm text-headline-sm font-bold text-on-secondary-fixed mt-0.5" id="results-wrong-count">0 題</span>
+          </div>
+          <div class="flex flex-col p-space-sm bg-surface-container rounded-lg items-center text-center">
+            <div class="flex items-center gap-1 text-on-surface-variant"><span class="material-symbols-outlined text-[16px]">timer</span><span class="font-label-sm text-label-sm">耗時</span></div>
+            <span class="font-headline-sm text-headline-sm font-bold text-on-surface mt-0.5" id="results-elapsed">—</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-space-sm p-space-sm rounded-lg bg-surface-container-low text-on-surface-variant text-body-sm font-body-sm">
+          <span class="material-symbols-outlined text-primary text-[16px]">cloud_done</span>
+          <span>交卷已自動存入 LINE 雲端個人數據庫</span>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-space-sm">
+        <div class="flex items-center gap-space-xs px-space-xs">
+          <div class="w-2.5 h-2.5 rounded-full bg-secondary"></div>
+          <span class="font-headline-sm text-headline-sm font-bold text-on-surface">錯題診斷</span>
+        </div>
+        <div class="flex flex-col gap-space-sm" id="results-wrong-list"></div>
+      </div>
+
+      <div class="flex flex-col gap-space-sm">
+        <div class="flex items-center gap-space-xs px-space-xs">
+          <span class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+          <span class="font-headline-sm text-headline-sm font-bold text-on-surface">作答正確題目</span>
+        </div>
+        <div class="flex flex-col gap-space-sm" id="results-correct-list"></div>
+      </div>
+
+      <button type="button" onclick="showPage('home')" class="w-full py-3.5 px-space-md rounded-xl bg-primary text-on-primary font-label-lg text-label-lg font-bold flex items-center justify-center gap-space-xs shadow-sm active:scale-[0.99] transition">
+        <span class="material-symbols-outlined text-[20px]">replay</span><span>重新測驗</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ PAGE: MISTAKES ============ -->
+  <div class="page flex-col w-full gap-space-md" id="page-mistakes">
+    <div class="flex items-center gap-space-xs bg-surface-container-lowest px-space-md py-2.5 rounded-xl shadow-sm">
+      <span class="material-symbols-outlined text-outline text-[20px]">search</span>
+      <input id="mistakes-search" type="text" oninput="renderMistakes()" placeholder="搜尋題目關鍵字..." class="bg-transparent font-body-sm text-body-sm text-on-surface outline-none w-full placeholder:text-outline">
+    </div>
+    <div class="flex flex-wrap gap-1.5" id="mistakes-category-pills"></div>
+    <div class="flex flex-col gap-space-sm" id="mistakes-list"></div>
+    <div id="mistakes-empty" class="font-body-sm text-on-surface-variant text-center py-16" style="display:none;">目前沒有標記的錯題</div>
+  </div>
+
 </main>
 
-<div class="bottom-bar" id="quiz-bottom-bar">
-  <button class="btn btn-ghost" onclick="closeLiff()">✕ 離開</button>
-  <button class="btn btn-primary" onclick="submitExam()">交卷</button>
-</div>
-
-<!-- ② 詳解與評分頁 -->
-<div class="result-overlay" id="result-overlay">
-  <div class="result-header">
-    <strong>作答結果</strong>
-    <button class="close-x" onclick="closeResult()">✕</button>
-  </div>
-  <main>
-    <div class="grade-box">
-      <div class="num" id="grade-num">--</div>
-      <div class="label">Grade / 100</div>
+<!-- Quiz bottom sticky action bar -->
+<div class="fixed bottom-16 left-0 right-0 z-40 px-margin pointer-events-none" id="quiz-action-bar" style="display:none;">
+  <div class="max-w-[480px] mx-auto pointer-events-auto bg-surface/95 backdrop-blur-md rounded-2xl p-space-sm shadow-xl flex items-center gap-space-sm">
+    <div class="flex-1 flex flex-col justify-center bg-surface-container-low px-space-md py-2 rounded-xl">
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-label-sm text-label-sm text-on-surface-variant font-medium">作答進度</span>
+        <span class="font-label-md text-label-md text-primary font-bold" id="quiz-progress-text">0%</span>
+      </div>
+      <div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+        <div class="h-full bg-primary rounded-full transition-all duration-300" id="quiz-progress-bar" style="width:0%;"></div>
+      </div>
     </div>
-
-    <div class="section-title wrong">錯題 &amp; Concepts</div>
-    <div id="wrong-results"></div>
-
-    <div class="section-title correct">Correct</div>
-    <div id="correct-results"></div>
-  </main>
+    <button type="button" onclick="submitExam()" class="h-12 px-space-md rounded-xl bg-[#059669] hover:bg-[#10b981] text-white font-label-md text-label-md font-bold flex items-center justify-center gap-1.5 shadow-[0_4px_14px_rgba(5,150,105,0.32)] active:scale-95 transition-all shrink-0">
+      <span class="material-symbols-outlined text-[20px]">assignment_turned_in</span><span id="quiz-submit-label">交卷</span>
+    </button>
+  </div>
 </div>
 
-<!-- AI 詳解面板 -->
-<div class="ai-panel" id="ai-panel">
-  <div class="ai-panel-inner">
-    <button class="close-x" onclick="closeAiPanel()">✕</button>
-    <h3 id="ai-panel-title">詳解</h3>
-    <div class="ai-content" id="ai-content"><span class="ai-loading">產生中...</span></div>
-    <div class="ai-followup">
-      <input id="ai-followup-input" type="text" placeholder="還有問題？直接問 AI" />
-      <button class="link-btn" onclick="sendFollowUp()">問</button>
+<!-- Bottom nav -->
+<nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/80 backdrop-blur-xl shadow-[0_-2px_12px_rgba(40,89,67,0.06)]">
+  <div class="max-w-[480px] mx-auto flex justify-around items-center h-16 px-space-xs">
+    <a href="#" id="nav-practice" class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] px-space-xs py-1 rounded-xl transition-colors" onclick="event.preventDefault(); goPractice();">
+      <span class="material-symbols-outlined text-[22px] leading-none">edit_note</span><span class="font-label-sm text-label-sm mt-1">考題練習</span>
+    </a>
+    <a href="#" id="nav-results" class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] px-space-xs py-1 rounded-xl transition-colors" onclick="event.preventDefault(); showPage('results');">
+      <span class="material-symbols-outlined text-[22px] leading-none">analytics</span><span class="font-label-sm text-label-sm mt-1">成績詳解</span>
+    </a>
+    <a href="#" id="nav-mistakes" class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] px-space-xs py-1 rounded-xl transition-colors" onclick="event.preventDefault(); showPage('mistakes');">
+      <span class="material-symbols-outlined text-[22px] leading-none">bookmark_border</span><span class="font-label-sm text-label-sm mt-1">錯題本</span>
+    </a>
+  </div>
+</nav>
+
+<!-- AI Explain Drawer -->
+<div class="fixed inset-0 z-[60] bg-inverse-surface/60 backdrop-blur-sm transition-opacity duration-300 opacity-0 hidden" id="aiDrawerBackdrop" onclick="closeAiDrawer()">
+  <div class="w-full max-w-[480px] mx-auto h-full flex flex-col justify-end">
+    <div class="w-full bg-surface-container-lowest rounded-t-3xl shadow-xl flex flex-col max-h-[85vh] transform transition-transform duration-300 ease-out translate-y-full" id="aiDrawerCard" onclick="event.stopPropagation()">
+      <div class="w-full flex flex-col items-center pt-3 pb-2 px-space-lg bg-surface-container-lowest shrink-0">
+        <div class="w-10 h-1.5 rounded-full bg-surface-container-highest mb-2"></div>
+        <div class="w-full flex items-center justify-between">
+          <div class="flex items-center gap-space-xs">
+            <div class="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center text-primary">
+              <span class="material-symbols-outlined text-[18px]">auto_awesome</span>
+            </div>
+            <span class="font-headline-sm text-[16px] font-bold text-on-surface leading-tight">AI 即刻解惑</span>
+          </div>
+          <button type="button" class="px-space-sm py-1 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm flex items-center gap-0.5" onclick="closeAiDrawer()">
+            <span class="material-symbols-outlined text-[16px]">close</span><span>關閉</span>
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto px-space-lg py-space-md flex flex-col gap-space-md" id="ai-drawer-body">
+        <div class="font-body-sm text-on-surface-variant text-center py-10">產生中...</div>
+      </div>
+      <div class="p-space-md bg-surface-container-lowest shrink-0 shadow-[0_-2px_12px_rgba(0,0,0,0.04)]">
+        <form class="w-full flex items-center gap-space-xs bg-surface-container rounded-full px-space-md py-1.5" onsubmit="sendFollowUp(event)">
+          <span class="material-symbols-outlined text-primary text-[20px]">smart_toy</span>
+          <input id="ai-followup-input" type="text" placeholder="對這題還有疑問？輸入問題即刻追問..." class="flex-1 bg-transparent border-0 outline-none text-body-sm font-body-sm text-on-surface placeholder:text-on-surface-variant">
+          <button type="submit" class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-[18px]">arrow_upward</span>
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 </div>
@@ -277,273 +324,613 @@
 <script>
 const LIFF_ID = "2011558628-8li3MSJw";
 // 本機 ngrok 預覽用：網址加 ?debug=1 就跳過真的 LINE 登入。這個 token 要跟後端
-// LIFF_DEBUG_TOKEN 環境變數一致，且只能在本機測試時使用，正式站不會設這個變數，
-// 所以就算這串字外流也連不進真正上線的 API。
+// LIFF_DEBUG_TOKEN 環境變數一致，正式站不會設這個變數，外流也連不進線上 API。
 const DEBUG_MODE = new URLSearchParams(location.search).get("debug") === "1";
 const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
-
-const ICON_BOOKMARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>';
-const ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
+// 錄 demo 影片用：網址加 ?demo=1，整個頁面吃假資料，不打真的 API、不需要登入。
+const DEMO_MODE = new URLSearchParams(location.search).get("demo") === "1";
 
 let idToken = null;
+let displayName = "同學";
+let categories = [];
 let currentCategory = "";
-let currentQuestions = [];   // 目前這份考卷的題目（不含答案）
-let revealedAnswers = {};    // question_id -> 完整題目detail（含答案），按需快取
-let currentAiQuestionId = null;
+let currentScope = "chapter";
+let currentQuestions = [];
+let selectedAnswers = {};
+let revealedAnswers = {};
+let bookmarked = new Set();
+let quizStartedAt = null;
+let quizTimerHandle = null;
+let lastResult = null;
+let wrongList = [];
+let mistakesActiveCategory = "";
+let aiDrawerContext = null;
+let currentPage = "home";
 
+// ---------- demo data (保留原始 Stitch 卡片，方便直接開 ?demo=1 錄影片) ----------
+const DEMO_CATEGORY = "中醫基礎理論與方劑學";
+const DEMO_QUESTIONS = [
+  { id: "demo-q1", category: DEMO_CATEGORY, question: "下列何者不屬於「傷寒論」中所述桂枝湯的組成藥物？",
+    options: { A: "桂枝（去皮）", B: "白芍", C: "生薑（切）", D: "乾薑", E: "大棗（擘）" } },
+  { id: "demo-q2", category: "黃帝內經靈素", question: "依「內經」所述，有關五臟藏象與五行相剋規律，下列何者正確？",
+    options: { A: "肝木剋脾土，脾之液為涎", B: "心火剋肺金，肺氣虛則口苦善太息", C: "腎水剋心火，心主身之血脈，通於冬氣", D: "肺金剋肝木，肝在體合筋，其華在爪" } }
+];
+const DEMO_ANSWERS = { "demo-q1": "D", "demo-q2": "D" };
+const DEMO_EXPLAIN_Q1 = {
+  core: "《傷寒論》桂枝湯原方組成共五味：「桂枝、芍藥、生薑、大棗、炙甘草」。題目所列選項中，本方所用為「生薑」專事解表調營，而非溫中守裏之「乾薑」。",
+  breakdown_title: "君臣佐使．配伍深析",
+  breakdown: [
+    { role: "君藥", name: "桂枝（三兩）", tag: "辛甘溫．歸心肺膀胱", note: "辛溫解肌發表、散外感風寒；宣通陽氣以助衛陽，為解肌表之主藥。" },
+    { role: "臣藥", name: "芍藥（三兩）", tag: "酸苦微寒．歸肝脾", note: "酸苦微寒，益陰斂營以和陰；與桂枝等量配伍，一散一收，使「發汗而不傷陰，斂陰而不留邪」。" },
+    { role: "佐藥", name: "生薑（三兩）＋大棗（十二枚）", tag: "相須相使．資汗源", note: "生薑辛溫，協同桂枝解肌散邪、溫胃降逆；大棗甘平，補脾益氣生津。兩藥同調脾胃、充盛氣血，為外感發汗之重要資助。" },
+    { role: "使藥", name: "炙甘草（二兩）", tag: "甘溫．益氣補中", note: "甘溫益氣，健脾和中；合桂枝辛甘化陽、合芍藥酸甘化陰，兼調和諸藥。" }
+  ],
+  trap_title: "國考高頻陷阱：生薑 vs 乾薑",
+  trap_note: "國考速記：「桂枝解表必用生，理中溫中始用乾」。生薑辛溫走表，乾薑辛熱入裡守中，兩者主治方向完全不同，是歷屆最容易混淆的配伍考點之一。",
+  mnemonic: "「貴婦騎大江」（桂、甘、芍、棗、生薑）——大江流動意在生氣流暢、走表發散，故必定是生薑，非乾守之薑。",
+  citation_source: "《傷寒論》第 12 條",
+  citation_quote: "太陽中風，陽浮而陰弱，陽浮者，熱自發；陰弱者，汗自出...桂枝三兩，芍藥三兩，甘草二兩（炙），生薑三兩（切），大棗十二枚（擘）。",
+  extension: "桂枝湯原方中「桂枝：芍藥 = 1：1」（各三兩）。若太陰病下利腹滿痛，倍芍藥成「桂枝加芍藥湯」；若脈促胸滿，去芍藥防礙陽氣成「桂枝去芍藥湯」。此為歷屆極高頻變方題！",
+  follow_ups: ["理中湯與桂枝湯中「生薑」與「乾薑」配伍之辨？", "再給我一道關於「桂枝湯組方化裁」的歷屆試題", "白芍與赤芍在解表方劑與清熱方中的考點比較"]
+};
+function demoResult() {
+  return {
+    score: 85, correct_count: 17, total: 20,
+    results: [
+      { id: "demo-q1", category: "中醫方劑學", question: "傷寒論桂枝湯藥物組成辨析：桂枝湯中之「生薑」與「大棗」相伍，其主要配伍用意為何？下列何者非其本方之主治原意？", options: {}, your_answer: "B", correct_answer: "D", is_correct: false },
+      { id: "demo-q8", category: "臨床診斷學", question: "金匱要略水氣病篇辨證論治：寸口脈浮而緊，按之反規，小便不利，兩脛逆冷，此為水氣何種證型？", options: {}, your_answer: "C", correct_answer: "A", is_correct: false },
+      { id: "demo-q15", category: "針灸經絡腧穴", question: "足少陰腎經郄穴定位與五輸穴配合", options: {}, your_answer: "A", correct_answer: "B", is_correct: false },
+      { id: "demo-q2", category: "中醫內科學", question: "黃連解毒湯清熱瀉火之三焦分佈探討", options: {}, your_answer: "A", correct_answer: "A", is_correct: true },
+      { id: "demo-q3", category: "中醫基礎理論", question: "素問・陰陽應象大論「治病必求於本」之核心", options: {}, your_answer: "B", correct_answer: "B", is_correct: true },
+      { id: "demo-q4", category: "本草備要", question: "當歸身與當歸尾補血活血之藥用部位差異", options: {}, your_answer: "C", correct_answer: "C", is_correct: true }
+    ]
+  };
+}
+function demoWrongList() {
+  return [
+    { id: "demo-q1", category: "方劑學", question: "有關桂枝湯之組成與藥物配伍比例，下列敘述何者最為正確？", options: DEMO_QUESTIONS[0].options, answer: "D", source: "auto" },
+    { id: "demo-wq2", category: "針灸科學", question: "足陽明胃經之五輸穴中，「合穴」且兼具胃之「下合穴」為何？", options: { A: "上巨虛", B: "下巨虛", C: "足三里", D: "豐隆" }, answer: "C", source: "auto" },
+    { id: "demo-wq3", category: "中基", question: "依《中醫基礎理論》，「氣為血之帥」於臨床病理轉化中，最不易直接導致何種證候？", options: { A: "氣虛血滯致血瘀證", B: "氣不攝血致各種出血證", C: "氣虛生化乏源致血虛證", D: "大出血致氣隨血脫亡陽證" }, answer: "D", source: "auto" }
+  ];
+}
+
+// ---------- fetch helpers（demo 模式直接吃假資料，不打 API） ----------
 function authHeaders() {
   return idToken ? { "Authorization": "Bearer " + idToken, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 }
-
 async function apiGet(path) {
+  if (DEMO_MODE) return demoRoute("GET", path, null);
   const res = await fetch(path, { headers: authHeaders() });
   return res.json();
 }
 async function apiPost(path, body) {
+  if (DEMO_MODE) return demoRoute("POST", path, body);
   const res = await fetch(path, { method: "POST", headers: authHeaders(), body: JSON.stringify(body || {}) });
   return res.json();
 }
 async function apiDelete(path) {
+  if (DEMO_MODE) return demoRoute("DELETE", path, null);
   const res = await fetch(path, { method: "DELETE", headers: authHeaders() });
   return res.json();
 }
-
-function switchTab(tab) {
-  document.getElementById("view-quiz").classList.toggle("active", tab === "quiz");
-  document.getElementById("view-wrong").classList.toggle("active", tab === "wrong");
-  document.getElementById("tab-quiz").classList.toggle("active", tab === "quiz");
-  document.getElementById("tab-wrong").classList.toggle("active", tab === "wrong");
-  document.getElementById("quiz-bottom-bar").style.display = tab === "quiz" ? "flex" : "none";
-  if (tab === "wrong") loadWrongQuestions();
-}
-
-function closeLiff() {
-  try { liff.closeWindow(); } catch (e) { window.close(); }
-}
-
-async function initApp() {
-  if (DEBUG_MODE) {
-    idToken = DEBUG_TOKEN;
-    await loadCategories();
-    return;
+async function demoRoute(method, path, body) {
+  await new Promise(r => setTimeout(r, 250));
+  if (path.startsWith("/api/liff/quiz/categories")) return { categories: [DEMO_CATEGORY, "黃帝內經靈素", "中醫方劑學", "針灸經絡腧穴"] };
+  if (path.startsWith("/api/liff/quiz/questions/")) {
+    const id = path.split("/").pop();
+    const q = DEMO_QUESTIONS.find(x => x.id === id);
+    if (!q) return { error: "題目不存在" };
+    return { ...q, answer: DEMO_ANSWERS[id], explanation: null };
   }
-  try {
-    await liff.init({ liffId: LIFF_ID });
-    if (!liff.isLoggedIn()) {
-      liff.login();
-      return;
-    }
-    idToken = liff.getIDToken();
-  } catch (e) {
-    document.getElementById("question-list").innerHTML =
-      '<div class="empty-hint">LIFF 初始化失敗，請確認是從 LINE 內開啟這個頁面。</div>';
-    return;
+  if (path.startsWith("/api/liff/quiz/questions")) return { questions: DEMO_QUESTIONS };
+  if (path.startsWith("/api/liff/quiz/submit")) return demoResult();
+  if (path.startsWith("/api/liff/quiz/bookmark")) {
+    const id = body.question_id;
+    if (bookmarked.has(id)) { bookmarked.delete(id); return { bookmarked: false }; }
+    bookmarked.add(id); return { bookmarked: true };
   }
-  await loadCategories();
-}
-
-async function loadCategories() {
-  const data = await apiGet("/api/liff/quiz/categories");
-  const categories = data.categories || [];
-  const sel = document.getElementById("select-category");
-  sel.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join("");
-  const wrongSel = document.getElementById("wrong-category-filter");
-  wrongSel.innerHTML = '<option value="">全部錯題</option>' +
-    categories.map(c => `<option value="${c}">${c}</option>`).join("");
-
-  const lastCategory = localStorage.getItem("examLastCategory");
-  const lastScope = localStorage.getItem("examLastScope");
-  if (lastCategory && categories.includes(lastCategory)) sel.value = lastCategory;
-  if (lastScope) document.getElementById("select-scope").value = lastScope;
-
-  sel.addEventListener("change", onFilterChange);
-  document.getElementById("select-scope").addEventListener("change", onFilterChange);
-
-  await loadQuestions();
-}
-
-async function onFilterChange() {
-  localStorage.setItem("examLastCategory", document.getElementById("select-category").value);
-  localStorage.setItem("examLastScope", document.getElementById("select-scope").value);
-  await loadQuestions();
-}
-
-async function loadQuestions() {
-  const category = document.getElementById("select-category").value;
-  const scope = document.getElementById("select-scope").value;
-  currentCategory = category;
-  const params = new URLSearchParams({ category, scope });
-  const data = await apiGet("/api/liff/quiz/questions?" + params.toString());
-  currentQuestions = data.questions || [];
-  revealedAnswers = {};
-  renderQuestions(data.notice);
-}
-
-function renderQuestions(notice) {
-  const list = document.getElementById("question-list");
-  const emptyHint = document.getElementById("quiz-empty");
-  if (notice) {
-    list.innerHTML = "";
-    emptyHint.style.display = "block";
-    emptyHint.textContent = notice;
-    return;
+  if (path.startsWith("/api/liff/quiz/wrong-questions") && method === "GET") return { questions: demoWrongList() };
+  if (path.startsWith("/api/liff/quiz/wrong-questions") && method === "DELETE") return { removed: true };
+  if (path.startsWith("/api/liff/quiz/explain")) {
+    if (body && body.follow_up) return { reply: "（Demo 模式）這是示範用的追問回覆，正式環境會呼叫真正的 AI 詳解。" };
+    if (body && body.question_id === "demo-q1") return { ...DEMO_EXPLAIN_Q1, question: DEMO_QUESTIONS[0].question, answer: "D", answer_text: "乾薑", category: DEMO_CATEGORY };
+    const q = DEMO_QUESTIONS.find(x => x.id === (body && body.question_id)) || { question: "", category: "" };
+    return { core: "（Demo 模式）這是示範用的簡化詳解卡片。", breakdown_title: "", breakdown: [], trap_title: null, trap_note: null, mnemonic: null, citation_source: null, citation_quote: null, extension: null, follow_ups: [], question: q.question, answer: DEMO_ANSWERS[q.id] || "", answer_text: "", category: q.category };
   }
-  if (!currentQuestions.length) {
-    list.innerHTML = "";
-    emptyHint.style.display = "block";
-    emptyHint.textContent = "這個分類目前還沒有題目";
-    return;
-  }
-  emptyHint.style.display = "none";
-  list.innerHTML = currentQuestions.map((q, idx) => `
-    <div class="q-card" id="qcard-${q.id}">
-      <div class="q-head">
-        <div class="q-title">${idx + 1}. ${escapeHtml(q.question)}</div>
-        <button class="bookmark-btn" id="bm-${q.id}" onclick="toggleBookmark('${q.id}')" title="標記錯題">${ICON_BOOKMARK}</button>
-      </div>
-      <div class="options">
-        ${Object.entries(q.options || {}).map(([key, text]) => `
-          <label class="opt-label" id="opt-${q.id}-${key}">
-            <input type="radio" name="ans-${q.id}" value="${key}" />
-            <span>(${key}) ${escapeHtml(text)}</span>
-          </label>
-        `).join("")}
-      </div>
-      <div class="reveal-answer" id="reveal-${q.id}"></div>
-      <div class="q-tools">
-        <label class="toggle-wrap">
-          <span class="switch">
-            <input type="checkbox" onchange="onToggleReveal('${q.id}', this.checked)" />
-            <span class="slider"></span>
-          </span>
-          顯示答案
-        </label>
-        <button class="link-btn" onclick="openAiPanel('${q.id}', false)">詳解 &amp; AI 即刻問</button>
-      </div>
-    </div>
-  `).join("");
+  return {};
 }
 
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
 
-async function onToggleReveal(qid, checked) {
+// ---------- init ----------
+async function initApp() {
+  if (DEMO_MODE) {
+    idToken = "demo"; displayName = "陳醫師";
+    await afterAuth();
+    return;
+  }
+  if (DEBUG_MODE) {
+    idToken = DEBUG_TOKEN; displayName = "測試帳號";
+    await afterAuth();
+    return;
+  }
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    idToken = liff.getIDToken();
+    try {
+      const decoded = liff.getDecodedIDToken();
+      if (decoded && decoded.name) displayName = decoded.name;
+    } catch (e) {}
+  } catch (e) {
+    document.getElementById("question-list").innerHTML = '<div class="font-body-sm text-on-surface-variant text-center py-10">LIFF 初始化失敗，請從 LINE 內開啟這個頁面。</div>';
+    return;
+  }
+  await afterAuth();
+}
+
+async function afterAuth() {
+  const hour = new Date().getHours();
+  const greetWord = hour < 11 ? "早安" : hour < 18 ? "午安" : "晚安";
+  document.getElementById("home-greeting").textContent = `${greetWord}，${displayName}`;
+  const data = await apiGet("/api/liff/quiz/categories");
+  categories = data.categories || [];
+  const sel = document.getElementById("select-category");
+  sel.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  const lastCategory = localStorage.getItem("examLastCategory");
+  const lastScope = localStorage.getItem("examLastScope");
+  if (lastCategory && categories.includes(lastCategory)) sel.value = lastCategory;
+  currentCategory = sel.value || categories[0] || "";
+  setScope(lastScope === "year" ? "year" : "chapter");
+  renderQuickNav();
+  showPage("home");
+}
+
+function renderQuickNav() {
+  const box = document.getElementById("quick-nav-list");
+  const icons = ["prescriptions", "accessibility_new", "menu_book", "psychology"];
+  box.innerHTML = categories.slice(0, 4).map((c, i) => `
+    <div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm flex items-center gap-space-xs cursor-pointer hover:bg-surface-container-low transition-colors" onclick="quickNavStart('${escapeHtml(c)}')">
+      <div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+        <span class="material-symbols-outlined text-[18px]">${icons[i % icons.length]}</span>
+      </div>
+      <div class="flex flex-col min-w-0">
+        <span class="font-label-md text-label-md font-bold text-on-surface truncate">${escapeHtml(c)}</span>
+        <span class="font-label-sm text-label-sm text-on-surface-variant">章節真題練習</span>
+      </div>
+    </div>
+  `).join("");
+}
+function quickNavStart(category) {
+  document.getElementById("select-category").value = category;
+  startQuiz();
+}
+
+function setScope(scope) {
+  currentScope = scope;
+  const chapterBtn = document.getElementById("mode-chapter");
+  const yearBtn = document.getElementById("mode-year");
+  const activeCls = "py-2.5 px-3 rounded-lg font-label-md text-label-md font-bold bg-surface-container-lowest text-primary shadow-sm flex items-center justify-center gap-1.5 transition-all";
+  const inactiveCls = "py-2.5 px-3 rounded-lg font-label-md text-label-md font-medium text-on-surface-variant flex items-center justify-center gap-1.5 transition-all";
+  chapterBtn.className = scope === "chapter" ? activeCls : inactiveCls;
+  yearBtn.className = scope === "year" ? activeCls : inactiveCls;
+}
+
+// ---------- page switching ----------
+function showPage(name) {
+  currentPage = name;
+  document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
+  document.getElementById("page-" + name).classList.add("active");
+  document.getElementById("quiz-action-bar").style.display = name === "quiz" ? "block" : "none";
+  document.getElementById("header-subtitle").textContent = { home: "Practice", quiz: "Practice", results: "Results Review", mistakes: "Mistakes" }[name] || "Practice";
+  ["practice", "results", "mistakes"].forEach(k => {
+    const el = document.getElementById("nav-" + k);
+    const active = (k === "practice" && (name === "home" || name === "quiz")) || (k === "results" && name === "results") || (k === "mistakes" && name === "mistakes");
+    el.className = "flex flex-col items-center justify-center min-w-[44px] min-h-[44px] px-space-xs py-1 rounded-xl transition-colors " + (active ? "text-primary font-semibold" : "text-on-surface-variant hover:text-on-surface");
+  });
+  if (name === "quiz") startQuizTimer(); else stopQuizTimer();
+  if (name === "results") renderResults();
+  if (name === "mistakes") loadMistakes();
+}
+function goPractice() {
+  showPage(currentQuestions.length ? "quiz" : "home");
+}
+
+// ---------- quiz ----------
+async function startQuiz() {
+  currentCategory = document.getElementById("select-category").value;
+  if (document.getElementById("rememberSelection").checked) {
+    localStorage.setItem("examLastCategory", currentCategory);
+    localStorage.setItem("examLastScope", currentScope);
+  }
+  document.getElementById("quiz-category-chip").textContent = currentCategory || "全部";
+  const params = new URLSearchParams({ category: currentCategory, scope: currentScope });
+  const data = await apiGet("/api/liff/quiz/questions?" + params.toString());
+  currentQuestions = data.questions || [];
+  selectedAnswers = {};
+  revealedAnswers = {};
+  renderQuestions(data.notice);
+  showPage("quiz");
+}
+
+function renderQuestions(notice) {
+  const list = document.getElementById("question-list");
+  const empty = document.getElementById("quiz-empty");
+  if (notice) { list.innerHTML = ""; empty.style.display = "block"; empty.textContent = notice; updateProgress(); return; }
+  if (!currentQuestions.length) { list.innerHTML = ""; empty.style.display = "block"; empty.textContent = "這個分類目前還沒有題目"; updateProgress(); return; }
+  empty.style.display = "none";
+  list.innerHTML = currentQuestions.map((q, idx) => `
+    <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-md" id="qcard-${q.id}">
+      <div class="flex items-start justify-between gap-space-sm">
+        <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold leading-snug">Q${idx + 1}. ${escapeHtml(q.question)}</h3>
+        <button type="button" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container-low text-on-surface-variant active:scale-95 transition-all" id="bm-${q.id}" onclick="toggleBookmark('${q.id}')" title="標記儲存至複習">
+          <span class="material-symbols-outlined text-[20px]">bookmark_border</span>
+        </button>
+      </div>
+      <div class="flex flex-col gap-2" id="opts-${q.id}">
+        ${Object.entries(q.options || {}).map(([key, text]) => `
+          <label class="opt-row flex items-center justify-between p-space-sm rounded-xl bg-surface-container-low/60 text-on-surface transition-colors cursor-pointer" id="opt-${q.id}-${key}">
+            <div class="flex items-center gap-space-sm">
+              <span class="opt-letter w-7 h-7 rounded-full bg-surface-container flex items-center justify-center font-label-md text-label-md font-bold text-on-surface-variant shrink-0">${key}</span>
+              <span class="font-body-md text-body-md">${escapeHtml(text)}</span>
+            </div>
+            <input type="radio" name="ans-${q.id}" value="${key}" class="sr-only" onchange="onSelectOption('${q.id}','${key}')">
+          </label>
+        `).join("")}
+      </div>
+      <div class="flex items-center justify-between pt-space-xs">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-[18px] text-on-surface-variant" id="reveal-icon-${q.id}">visibility_off</span>
+          <span class="font-label-md text-label-md text-on-surface font-semibold">顯示答案</span>
+        </div>
+        <button type="button" class="w-12 h-6 rounded-full p-0.5 flex items-center switch-track bg-surface-container-high justify-start" id="reveal-switch-${q.id}" onclick="onToggleReveal('${q.id}')">
+          <div class="w-5 h-5 rounded-full bg-surface-container-lowest shadow-sm switch-thumb"></div>
+        </button>
+      </div>
+      <div class="bg-surface-container-low p-space-md rounded-xl hidden" id="reveal-${q.id}"></div>
+      <button type="button" class="h-11 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] text-white font-label-md text-label-md font-bold flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(16,185,129,0.28)] active:scale-95 transition-all" onclick="openAiDrawer('${q.id}')">
+        <span class="material-symbols-outlined text-[18px]">auto_awesome</span><span>AI 即刻問</span>
+      </button>
+    </div>
+  `).join("");
+  updateProgress();
+}
+
+function onSelectOption(qid, key) {
+  selectedAnswers[qid] = key;
+  document.querySelectorAll(`#opts-${qid} .opt-row`).forEach(el => el.classList.remove("selected"));
+  document.getElementById(`opt-${qid}-${key}`).classList.add("selected");
+  updateProgress();
+}
+
+function updateProgress() {
+  const total = currentQuestions.length;
+  const answered = Object.keys(selectedAnswers).filter(id => currentQuestions.some(q => q.id === id)).length;
+  const pct = total ? Math.round((answered / total) * 100) : 0;
+  document.getElementById("quiz-progress-text").textContent = pct + "%";
+  document.getElementById("quiz-progress-bar").style.width = pct + "%";
+  document.getElementById("quiz-submit-label").textContent = `交卷 (${answered}/${total}題)`;
+}
+
+async function onToggleReveal(qid) {
+  const sw = document.getElementById(`reveal-switch-${qid}`);
+  const icon = document.getElementById(`reveal-icon-${qid}`);
   const box = document.getElementById(`reveal-${qid}`);
-  if (!checked) { box.classList.remove("show"); return; }
+  const isOn = sw.classList.contains("bg-primary");
+  if (isOn) {
+    sw.className = "w-12 h-6 rounded-full p-0.5 flex items-center switch-track bg-surface-container-high justify-start";
+    sw.innerHTML = '<div class="w-5 h-5 rounded-full bg-surface-container-lowest shadow-sm switch-thumb"></div>';
+    icon.textContent = "visibility_off";
+    box.classList.add("hidden");
+    return;
+  }
   if (!revealedAnswers[qid]) {
-    const detail = await apiGet(`/api/liff/quiz/questions/${qid}`);
-    revealedAnswers[qid] = detail;
+    revealedAnswers[qid] = await apiGet(`/api/liff/quiz/questions/${qid}`);
   }
   const d = revealedAnswers[qid];
-  box.textContent = `正確答案：(${d.answer}) ${(d.options || {})[d.answer] || ""}`;
-  box.classList.add("show");
+  sw.className = "w-12 h-6 rounded-full p-0.5 flex items-center switch-track bg-primary justify-end";
+  sw.innerHTML = '<div class="w-5 h-5 rounded-full bg-surface-container-lowest shadow-sm switch-thumb flex items-center justify-center text-primary"><span class="material-symbols-outlined text-[13px] font-bold">check</span></div>';
+  icon.textContent = "visibility";
+  box.innerHTML = `<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary text-[18px]">verified</span><span class="font-label-md text-label-md text-primary font-bold">標準答案：(${d.answer}) ${escapeHtml((d.options || {})[d.answer] || "")}</span></div>`;
+  box.classList.remove("hidden");
 }
 
 async function toggleBookmark(qid) {
   const data = await apiPost("/api/liff/quiz/bookmark", { question_id: qid });
   const btn = document.getElementById(`bm-${qid}`);
-  btn.classList.toggle("active", !!data.bookmarked);
+  if (data.bookmarked) {
+    btn.className = "shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-secondary-fixed text-secondary shadow-sm active:scale-95 transition-transform";
+    btn.querySelector("span").textContent = "bookmark";
+  } else {
+    btn.className = "shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container-low text-on-surface-variant active:scale-95 transition-all";
+    btn.querySelector("span").textContent = "bookmark_border";
+  }
+}
+
+function startQuizTimer() {
+  if (quizTimerHandle) return;
+  if (!quizStartedAt) quizStartedAt = Date.now();
+  quizTimerHandle = setInterval(() => {
+    const secs = Math.floor((Date.now() - quizStartedAt) / 1000);
+    const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+    const ss = String(secs % 60).padStart(2, "0");
+    document.getElementById("quiz-timer").textContent = `${mm}:${ss}`;
+  }, 1000);
+}
+function stopQuizTimer() {
+  if (quizTimerHandle) { clearInterval(quizTimerHandle); quizTimerHandle = null; }
 }
 
 async function submitExam() {
-  const answers = {};
-  currentQuestions.forEach(q => {
-    const picked = document.querySelector(`input[name="ans-${q.id}"]:checked`);
-    if (picked) answers[q.id] = picked.value;
-  });
-  if (!Object.keys(answers).length) {
-    alert("請至少作答一題再交卷");
-    return;
-  }
-  const result = await apiPost("/api/liff/quiz/submit", { category: currentCategory, answers });
-  showResult(result);
+  if (!Object.keys(selectedAnswers).length) { alert("請至少作答一題再交卷"); return; }
+  const elapsedMs = quizStartedAt ? Date.now() - quizStartedAt : 0;
+  const result = await apiPost("/api/liff/quiz/submit", { category: currentCategory, answers: selectedAnswers });
+  lastResult = { ...result, elapsedMs, category: currentCategory };
+  quizStartedAt = null;
+  currentQuestions = [];
+  showPage("results");
 }
 
-function showResult(result) {
-  document.getElementById("grade-num").textContent = result.score;
-  const wrongBox = document.getElementById("wrong-results");
-  const correctBox = document.getElementById("correct-results");
-  const wrongs = (result.results || []).filter(r => !r.is_correct);
-  const corrects = (result.results || []).filter(r => r.is_correct);
+// ---------- results ----------
+function renderResults() {
+  const empty = document.getElementById("results-empty");
+  const body = document.getElementById("results-body");
+  if (!lastResult) { empty.style.display = "block"; body.style.display = "none"; return; }
+  empty.style.display = "none"; body.style.display = "flex";
+  const results = lastResult.results || [];
+  const wrongs = results.filter(r => !r.is_correct);
+  const corrects = results.filter(r => r.is_correct);
+  document.getElementById("results-category-label").textContent = lastResult.category || "練習測驗";
+  document.getElementById("results-score").textContent = lastResult.score;
+  document.getElementById("results-accuracy").textContent = lastResult.score + "%";
+  document.getElementById("results-donut").setAttribute("stroke-dasharray", `${lastResult.score}, 100`);
+  document.getElementById("results-correct-count").textContent = corrects.length + " 題";
+  document.getElementById("results-wrong-count").textContent = wrongs.length + " 題";
+  const mins = Math.round((lastResult.elapsedMs || 0) / 60000);
+  document.getElementById("results-elapsed").textContent = mins > 0 ? mins + " 分鐘" : "< 1 分鐘";
+  const passBadge = document.getElementById("results-pass-badge");
+  passBadge.style.display = lastResult.score >= 60 ? "flex" : "none";
 
-  wrongBox.innerHTML = wrongs.length ? wrongs.map(r => `
-    <div class="result-item">
-      <div class="rq-title">${escapeHtml(r.question)}</div>
-      <div class="rq-meta">你的答案：${r.your_answer || "（未作答）"}　正確答案：${r.correct_answer}</div>
-      <button class="link-btn" onclick="openAiPanel('${r.id}', true)">看詳解</button>
-    </div>
-  `).join("") : '<div class="empty-hint">這次全對，沒有錯題。</div>';
-
-  correctBox.innerHTML = corrects.length ? corrects.map(r => `
-    <div class="result-item">
-      <div class="rq-title">${escapeHtml(r.question)}</div>
-      <div class="rq-meta">答對：${r.correct_answer}</div>
-      <button class="link-btn" onclick="openAiPanel('${r.id}', true)">看詳解</button>
-    </div>
-  `).join("") : '<div class="empty-hint">這次沒有答對的題目</div>';
-
-  document.getElementById("result-overlay").classList.add("active");
-}
-
-function closeResult() {
-  // 交卷當下已經在 submit 時存檔完成，這裡單純關閉視窗（對應線框圖「正常關閉」流程）
-  closeLiff();
-}
-
-async function openAiPanel(qid, fromResultPage) {
-  currentAiQuestionId = qid;
-  document.getElementById("ai-panel").classList.add("active");
-  document.getElementById("ai-content").innerHTML = '<span class="ai-loading">產生中...</span>';
-  document.getElementById("ai-followup-input").value = "";
-  const data = await apiPost("/api/liff/quiz/explain", { question_id: qid });
-  document.getElementById("ai-content").textContent = data.reply || data.error || "AI 回覆失敗，請再試一次";
-}
-
-function closeAiPanel() {
-  document.getElementById("ai-panel").classList.remove("active");
-  currentAiQuestionId = null;
-}
-
-async function sendFollowUp() {
-  const input = document.getElementById("ai-followup-input");
-  const text = input.value.trim();
-  if (!text || !currentAiQuestionId) return;
-  document.getElementById("ai-content").innerHTML = '<span class="ai-loading">產生中...</span>';
-  input.value = "";
-  const data = await apiPost("/api/liff/quiz/explain", { question_id: currentAiQuestionId, follow_up: text });
-  document.getElementById("ai-content").textContent = data.reply || data.error || "AI 回覆失敗，請再試一次";
-}
-
-async function loadWrongQuestions() {
-  const category = document.getElementById("wrong-category-filter").value;
-  const params = category ? "?category=" + encodeURIComponent(category) : "";
-  const data = await apiGet("/api/liff/quiz/wrong-questions" + params);
-  const items = data.questions || [];
-  const list = document.getElementById("wrong-list");
-  const emptyHint = document.getElementById("wrong-empty");
-  if (!items.length) {
-    list.innerHTML = "";
-    emptyHint.style.display = "block";
-    return;
-  }
-  emptyHint.style.display = "none";
-  list.innerHTML = items.map(q => `
-    <div class="wrong-item">
-      <div>
-        <div class="wq-text">${escapeHtml(q.question)}</div>
-        <div class="wq-cat">${escapeHtml(q.category || "")} ・ 正確答案：${q.answer}</div>
+  document.getElementById("results-wrong-list").innerHTML = wrongs.length ? wrongs.map(r => `
+    <div class="w-full bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm cursor-pointer active:scale-[0.99] transition" onclick="openAiDrawerFromResult('${r.id}')">
+      <div class="flex items-center justify-between">
+        <span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">${escapeHtml(r.category || "")}</span>
+        <span class="font-label-sm text-label-sm text-error font-medium flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">cancel</span> 你的答案：${escapeHtml(r.your_answer || "未作答")}</span>
       </div>
-      <button class="remove-btn" onclick="removeWrong('${q.id}')" title="移除">${ICON_CHECK}</button>
+      <p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">${escapeHtml(r.question)}</p>
+      <div class="flex items-center justify-between pt-space-xs mt-1">
+        <span class="font-label-sm text-label-sm text-on-surface-variant">正確答案：${escapeHtml(r.correct_answer)}</span>
+        <button type="button" class="px-space-md py-1.5 rounded-lg bg-primary text-on-primary font-label-md text-label-md flex items-center gap-1" style="background-color:#059669;">
+          <span>查看詳解</span><span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+        </button>
+      </div>
+    </div>
+  `).join("") : '<div class="font-body-sm text-on-surface-variant text-center py-6">這次全對，沒有錯題。</div>';
+
+  document.getElementById("results-correct-list").innerHTML = corrects.length ? corrects.map(r => `
+    <div class="w-full bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex items-center justify-between cursor-pointer" onclick="openAiDrawerFromResult('${r.id}')">
+      <div class="flex flex-col min-w-0">
+        <span class="font-label-sm text-label-sm text-on-surface-variant">${escapeHtml(r.category || "")}</span>
+        <span class="font-body-md text-body-md font-medium text-on-surface truncate">${escapeHtml(r.question)}</span>
+      </div>
+      <button type="button" class="shrink-0 ml-space-sm px-space-sm py-1 rounded-lg bg-surface-container text-primary font-label-sm text-label-sm">詳解</button>
+    </div>
+  `).join("") : '<div class="font-body-sm text-on-surface-variant text-center py-6">這次沒有答對的題目</div>';
+}
+function openAiDrawerFromResult(qid) {
+  const r = (lastResult.results || []).find(x => x.id === qid);
+  openAiDrawer(qid, r ? { question: r.question, category: r.category, your_answer: r.your_answer, correct_answer: r.correct_answer, is_correct: r.is_correct } : null);
+}
+
+// ---------- mistakes ----------
+async function loadMistakes() {
+  const data = await apiGet("/api/liff/quiz/wrong-questions");
+  wrongList = data.questions || [];
+  const pillsBox = document.getElementById("mistakes-category-pills");
+  const cats = ["全部章節", ...Array.from(new Set(wrongList.map(q => q.category).filter(Boolean)))];
+  pillsBox.innerHTML = cats.map(c => `
+    <button type="button" class="cat-pill px-space-sm py-1 rounded-full font-label-sm text-label-sm ${((c === "全部章節" && !mistakesActiveCategory) || c === mistakesActiveCategory) ? "bg-primary text-on-primary" : "bg-surface-container-lowest text-on-surface"}" onclick="setMistakesCategory('${c === "全部章節" ? "" : escapeHtml(c)}')">${escapeHtml(c)}</button>
+  `).join("");
+  renderMistakes();
+}
+function setMistakesCategory(c) { mistakesActiveCategory = c; loadMistakes(); }
+function renderMistakes() {
+  const search = (document.getElementById("mistakes-search").value || "").trim();
+  let items = wrongList;
+  if (mistakesActiveCategory) items = items.filter(q => q.category === mistakesActiveCategory);
+  if (search) items = items.filter(q => (q.question || "").includes(search));
+  const list = document.getElementById("mistakes-list");
+  const empty = document.getElementById("mistakes-empty");
+  if (!items.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  list.innerHTML = items.map(q => `
+    <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+      <div class="flex items-center justify-between">
+        <span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">${escapeHtml(q.category || "")}</span>
+        <button type="button" class="w-7 h-7 rounded-full bg-secondary-fixed text-secondary flex items-center justify-center" onclick="removeWrong('${q.id}')" title="移除">
+          <span class="material-symbols-outlined text-[16px]">bookmark</span>
+        </button>
+      </div>
+      <p class="font-body-md text-body-md text-on-surface leading-snug">${escapeHtml(q.question)}</p>
+      <div class="flex items-center justify-between pt-space-xs">
+        <span class="font-label-sm text-label-sm text-on-surface-variant">正確答案：${escapeHtml(q.answer)}</span>
+        <button type="button" class="px-space-md py-1.5 rounded-lg bg-surface-container text-primary font-label-md text-label-md flex items-center gap-1" onclick="openAiDrawer('${q.id}')">
+          <span>查看 AI 詳解</span><span class="material-symbols-outlined text-[16px]">chevron_right</span>
+        </button>
+      </div>
     </div>
   `).join("");
 }
-
-document.getElementById("wrong-category-filter").addEventListener("change", loadWrongQuestions);
-
 async function removeWrong(qid) {
   await apiDelete(`/api/liff/quiz/wrong-questions/${qid}`);
-  loadWrongQuestions();
+  loadMistakes();
+}
+
+// ---------- AI explain drawer ----------
+function openAiDrawer(qid, context) {
+  aiDrawerContext = { id: qid, ...(context || {}) };
+  const backdrop = document.getElementById("aiDrawerBackdrop");
+  const card = document.getElementById("aiDrawerCard");
+  document.getElementById("ai-drawer-body").innerHTML = '<div class="font-body-sm text-on-surface-variant text-center py-10">產生中...</div>';
+  document.getElementById("ai-followup-input").value = "";
+  backdrop.classList.remove("hidden");
+  requestAnimationFrame(() => {
+    backdrop.classList.remove("opacity-0"); backdrop.classList.add("opacity-100");
+    card.classList.remove("translate-y-full"); card.classList.add("translate-y-0");
+  });
+  apiPost("/api/liff/quiz/explain", { question_id: qid }).then(renderAiDrawer).catch(() => {
+    document.getElementById("ai-drawer-body").innerHTML = '<div class="font-body-sm text-error text-center py-10">AI 回覆失敗，請再試一次</div>';
+  });
+}
+function closeAiDrawer() {
+  const backdrop = document.getElementById("aiDrawerBackdrop");
+  const card = document.getElementById("aiDrawerCard");
+  card.classList.remove("translate-y-0"); card.classList.add("translate-y-full");
+  backdrop.classList.remove("opacity-100"); backdrop.classList.add("opacity-0");
+  setTimeout(() => backdrop.classList.add("hidden"), 280);
+}
+
+function renderAiDrawer(data) {
+  if (data.error) {
+    document.getElementById("ai-drawer-body").innerHTML = `<div class="font-body-sm text-error text-center py-10">${escapeHtml(data.error)}</div>`;
+    return;
+  }
+  const ctx = aiDrawerContext || {};
+  const questionText = data.question || ctx.question || "";
+  const category = data.category || ctx.category || "";
+  let statusHtml = `<span class="font-label-sm text-label-sm text-primary-container font-semibold flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">check_circle</span>正確答案 (${escapeHtml(data.answer || "")}) ${escapeHtml(data.answer_text || "")}</span>`;
+  if (ctx.your_answer) {
+    statusHtml = ctx.is_correct
+      ? `<span class="font-label-sm text-label-sm text-primary font-medium flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">check_circle</span>你答對了 (${escapeHtml(ctx.your_answer)})</span>`
+      : `<span class="font-label-sm text-label-sm text-error font-medium flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">cancel</span>你選了 (${escapeHtml(ctx.your_answer)})，正解 (${escapeHtml(ctx.correct_answer || data.answer || "")})</span>`;
+  }
+
+  let html = `
+    <div class="sticky top-0 z-10 bg-surface-container-lowest rounded-xl p-space-sm shadow-sm flex flex-col gap-1.5 -mt-1">
+      <div class="flex items-center justify-between flex-wrap gap-1">
+        <span class="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm">${escapeHtml(category)}</span>
+        ${statusHtml}
+      </div>
+      <p class="font-label-lg text-label-lg text-on-surface leading-snug">${escapeHtml(questionText)}</p>
+    </div>
+  `;
+
+  if (data.core) {
+    html += `
+      <div class="bg-surface-container-low rounded-xl p-space-sm flex items-start gap-2.5 border border-[#c4e7d4]">
+        <div class="w-8 h-8 rounded-lg bg-[#d5f0e1] text-[#1b8754] flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="material-symbols-outlined text-[20px]">verified</span>
+        </div>
+        <div class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed"><span class="font-label-lg text-label-lg text-primary font-bold block mb-0.5">考點與答案核心</span>${escapeHtml(data.core)}</div>
+      </div>
+    `;
+  }
+
+  if (Array.isArray(data.breakdown) && data.breakdown.length) {
+    html += `
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-1.5 text-primary font-bold font-label-md text-label-md">
+          <span class="material-symbols-outlined text-[17px]">account_tree</span><span>${escapeHtml(data.breakdown_title || "重點解析")}</span>
+        </div>
+        <div class="grid grid-cols-1 gap-2">
+          ${data.breakdown.map(item => `
+            <div class="bg-surface rounded-xl p-space-sm border border-surface-variant shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
+              <div class="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                <div class="flex items-center gap-2 flex-nowrap">
+                  ${item.role ? `<span class="whitespace-nowrap px-2 py-0.5 rounded-full bg-[#dcf2e5] text-primary border border-primary/20 font-label-sm text-label-sm font-bold">${escapeHtml(item.role)}</span>` : ""}
+                  <span class="font-label-lg text-label-lg text-primary font-bold whitespace-nowrap">${escapeHtml(item.name || "")}</span>
+                </div>
+                ${item.tag ? `<span class="text-label-sm text-on-surface-variant whitespace-nowrap">${escapeHtml(item.tag)}</span>` : ""}
+              </div>
+              <p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed pl-1">${escapeHtml(item.note || "")}</p>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  if (data.trap_title) {
+    html += `
+      <div class="bg-surface rounded-xl p-space-sm border border-secondary-fixed flex flex-col gap-1">
+        <div class="flex items-center gap-1.5 text-secondary font-bold font-label-md text-label-md">
+          <span class="material-symbols-outlined text-[17px]">warning</span><span>${escapeHtml(data.trap_title)}</span>
+        </div>
+        <p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">${escapeHtml(data.trap_note || "")}</p>
+      </div>
+    `;
+  }
+
+  if (data.mnemonic) {
+    html += `
+      <div class="bg-secondary-fixed/50 rounded-lg p-space-sm flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary text-[16px] flex-shrink-0">tips_and_updates</span>
+        <p class="font-label-sm text-label-sm text-on-surface font-semibold">${escapeHtml(data.mnemonic)}</p>
+      </div>
+    `;
+  }
+
+  if (data.citation_source) {
+    html += `
+      <div class="flex flex-col gap-1 pl-3 bg-surface-container/50 py-2 pr-3 rounded-lg border-l-2 border-primary">
+        <div class="flex items-center gap-1 text-on-surface-variant"><span class="material-symbols-outlined text-[15px]">menu_book</span><span class="font-label-sm text-label-sm font-semibold">經典引證：${escapeHtml(data.citation_source)}</span></div>
+        <p class="font-body-sm text-body-sm text-on-surface-variant italic leading-relaxed">「${escapeHtml(data.citation_quote || "")}」</p>
+      </div>
+    `;
+  }
+
+  if (data.extension) {
+    html += `
+      <div class="bg-surface-container-low rounded-xl p-space-sm flex flex-col gap-1 border border-surface-variant">
+        <div class="flex items-center gap-1 text-primary-container font-semibold font-label-md text-label-md"><span class="material-symbols-outlined text-[16px]">published_with_changes</span><span>延伸考點</span></div>
+        <p class="font-body-sm text-body-sm text-on-surface-variant pl-4 leading-relaxed">${escapeHtml(data.extension)}</p>
+      </div>
+    `;
+  }
+
+  if (Array.isArray(data.follow_ups) && data.follow_ups.length) {
+    html += `
+      <div class="flex flex-col gap-2 pt-space-xs">
+        <div class="flex items-center gap-1 text-on-surface-variant px-1"><span class="material-symbols-outlined text-[15px] text-primary">auto_awesome</span><span class="font-label-sm text-label-sm font-medium">深入探討推薦問題</span></div>
+        <div class="flex flex-col gap-2">
+          ${data.follow_ups.map(q => `
+            <button type="button" class="follow-up-chip w-full text-left p-3 rounded-xl bg-surface-container-lowest hover:bg-surface-container text-on-surface flex items-center justify-between shadow-sm transition-all active:scale-[0.99]" onclick="fillFollowUp(this)">
+              <span class="font-label-md text-label-md truncate">${escapeHtml(q)}</span>
+              <span class="material-symbols-outlined text-outline text-[16px] flex-shrink-0 ml-2">north_east</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  html += `<div id="ai-followup-thread" class="flex flex-col gap-space-sm"></div>`;
+  document.getElementById("ai-drawer-body").innerHTML = html;
+}
+
+function fillFollowUp(btn) {
+  const text = btn.querySelector("span").textContent;
+  document.getElementById("ai-followup-input").value = text;
+  document.getElementById("ai-followup-input").focus();
+}
+
+async function sendFollowUp(e) {
+  e.preventDefault();
+  const input = document.getElementById("ai-followup-input");
+  const text = input.value.trim();
+  if (!text || !aiDrawerContext) return;
+  input.value = "";
+  const thread = document.getElementById("ai-followup-thread");
+  thread.insertAdjacentHTML("beforeend", `
+    <div class="self-end max-w-[85%] bg-primary text-on-primary rounded-2xl rounded-br-sm px-space-md py-2 font-body-sm text-body-sm">${escapeHtml(text)}</div>
+    <div class="max-w-[85%] bg-surface-container-low text-on-surface rounded-2xl rounded-tl-sm px-space-md py-2 font-body-sm text-body-sm" id="followup-pending">思考中...</div>
+  `);
+  document.getElementById("ai-drawer-body").scrollTop = document.getElementById("ai-drawer-body").scrollHeight;
+  const data = await apiPost("/api/liff/quiz/explain", { question_id: aiDrawerContext.id, follow_up: text });
+  const pending = document.getElementById("followup-pending");
+  if (pending) pending.textContent = data.reply || data.error || "AI 回覆失敗，請再試一次";
 }
 
 initApp();

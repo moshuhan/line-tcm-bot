@@ -161,23 +161,74 @@ def full_review(openai_client, text, topic_id=None):
         return None
 
 
-def save_practice(db, user_id, topic_id, text, kind="draft"):
+def save_practice(db, user_id, topic_id, text, kind="draft", review=None):
     """
-    儲存練習內容。kind: "draft"（儲存練習內容按鈕，存使用者自己打的原文）
-    或 "reviewed"（一鍵採用並儲存按鈕，存 AI 修正後版本）。
+    儲存練習內容。kind: "draft"（儲存練習內容按鈕，存使用者自己打的原文，給「草稿箱」列表用）
+    或 "reviewed"（一鍵採用並儲存按鈕，或送出批改後自動存檔，給「過往練習記錄」列表用）。
+    review：kind="reviewed" 時可附上 full_review() 的完整結果（scores/total/praise/...），
+    「過往練習記錄」可以不用重新呼叫 AI 就能顯示分數。
     回傳新增紀錄的 id（字串），db 無連線或參數不完整回傳 None。
     """
     if db is None or not user_id or not (text or "").strip():
         return None
     try:
-        result = db[COLL_WRITING_PRACTICE].insert_one({
+        doc = {
             "user_id": user_id,
             "topic_id": topic_id,
             "kind": kind,
             "text": text[:5000],
             "created_at": datetime.now(timezone.utc),
-        })
+        }
+        if review:
+            doc["review"] = review
+        result = db[COLL_WRITING_PRACTICE].insert_one(doc)
         return str(result.inserted_id)
     except Exception:
         traceback.print_exc()
         return None
+
+
+def list_practice(db, user_id, kind=None):
+    """
+    列出使用者的練習紀錄（草稿箱／過往練習記錄共用，靠 kind 篩選），最新在前。
+    回傳每筆 {id, topic_id, topic_title, kind, text, word_count, review, created_at(ISO字串)}。
+    db 無連線或沒有 user_id 回傳空陣列。
+    """
+    if db is None or not user_id:
+        return []
+    query = {"user_id": user_id}
+    if kind:
+        query["kind"] = kind
+    try:
+        docs = list(db[COLL_WRITING_PRACTICE].find(query).sort("created_at", -1).limit(50))
+    except Exception:
+        return []
+    out = []
+    for d in docs:
+        topic = get_topic(d.get("topic_id")) if d.get("topic_id") else None
+        text = d.get("text") or ""
+        created = d.get("created_at")
+        out.append({
+            "id": str(d.get("_id")),
+            "topic_id": d.get("topic_id"),
+            "topic_title": (topic or {}).get("title") or "自由寫作",
+            "kind": d.get("kind", "draft"),
+            "text": text,
+            "word_count": len(text.split()),
+            "review": d.get("review"),
+            "created_at": created.isoformat() if hasattr(created, "isoformat") else None,
+        })
+    return out
+
+
+def discard_practice(db, user_id, practice_id):
+    """刪除一筆練習紀錄（草稿箱「捨棄草稿」）。回傳是否有刪除到資料。"""
+    if db is None or not user_id or not practice_id:
+        return False
+    try:
+        from bson import ObjectId
+        res = db[COLL_WRITING_PRACTICE].delete_one({"_id": ObjectId(practice_id), "user_id": user_id})
+        return res.deleted_count > 0
+    except Exception:
+        traceback.print_exc()
+        return False

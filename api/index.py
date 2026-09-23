@@ -217,17 +217,19 @@ try:
     )
     from api.liff_auth import verify_liff_id_token
     from api.speaking_liff import (
-        list_scenarios as speaking_list_scenarios,
+        list_modes as speaking_list_modes,
         mint_ephemeral_session as speaking_mint_ephemeral_session,
-        annotate_errors as speaking_annotate_errors,
-        translate_to_zh as speaking_translate_to_zh,
+        process_turn as speaking_process_turn,
         build_session_summary as speaking_build_session_summary,
+        end_session as speaking_end_session,
     )
     from api.writing_liff import (
         load_topics as writing_load_topics,
         annotate_realtime as writing_annotate_realtime,
         full_review as writing_full_review,
         save_practice as writing_save_practice,
+        list_practice as writing_list_practice,
+        discard_practice as writing_discard_practice,
     )
 except ImportError:
     from exam_quiz import (
@@ -241,17 +243,19 @@ except ImportError:
     )
     from liff_auth import verify_liff_id_token
     from speaking_liff import (
-        list_scenarios as speaking_list_scenarios,
+        list_modes as speaking_list_modes,
         mint_ephemeral_session as speaking_mint_ephemeral_session,
-        annotate_errors as speaking_annotate_errors,
-        translate_to_zh as speaking_translate_to_zh,
+        process_turn as speaking_process_turn,
         build_session_summary as speaking_build_session_summary,
+        end_session as speaking_end_session,
     )
     from writing_liff import (
         load_topics as writing_load_topics,
         annotate_realtime as writing_annotate_realtime,
         full_review as writing_full_review,
         save_practice as writing_save_practice,
+        list_practice as writing_list_practice,
+        discard_practice as writing_discard_practice,
     )
 
 # 1. 初始化
@@ -1813,6 +1817,55 @@ def _exam_explain_answer(question_text, correct_answer_text, user_followup=None)
         return ""
 
 
+def _exam_explain_structured(question_text, options, correct_answer_text):
+    """
+    國考題「查看完整詳解」：回傳結構化 JSON（考點核心／君臣佐使或對應的細項比較／
+    高頻陷阱／口訣／經典引證／延伸考點／追問建議），給 LIFF 卡片式排版用。
+    breakdown 的角色標籤（君臣佐使等）只在題目是方劑組成時才有意義，其餘題型
+    （穴位、辨證等）由模型自訂最貼切的 breakdown_title，role 留空字串即可。
+    失敗回傳 None，由呼叫端決定如何提示使用者。
+    """
+    if not (question_text or "").strip():
+        return None
+    base_ctx = _semantic_search(question_text, top_k=3) or _build_full_tcm_context()[:4000]
+    options_text = "\n".join(f"{k}. {v}" for k, v in (options or {}).items())
+    user_prompt = (
+        f"[背景資料]\n{base_ctx}\n\n[題目]\n{question_text}\n\n[選項]\n{options_text}\n\n"
+        f"[正確答案]\n{correct_answer_text}\n\n"
+        "請以下列 JSON 結構詳解這一題，給準備中醫師國考的學生看。只能輸出 JSON，不要任何多餘文字：\n"
+        "{\n"
+        '  "core": "考點與答案核心：一段話說明為什麼答案是這個選項",\n'
+        '  "breakdown_title": "這組細項的標題，視題目性質自訂最貼切的名稱，'
+        '例如方劑題用「君臣佐使．配伍深析」、穴位題用「相關穴位解析」、辨證題用「鑑別診斷要點」",\n'
+        '  "breakdown": [{"role": "角色標籤，例如君藥／臣藥，不適用留空字串", '
+        '"name": "藥物／穴位／證型等名稱", "tag": "簡短屬性，例如性味歸經", "note": "一兩句說明"}],\n'
+        '  "trap_title": "若這題有常見的混淆點，給一個標題，例如「國考高頻陷阱：A vs B」；沒有就填 null",\n'
+        '  "trap_note": "混淆點的具體說明；沒有就填 null",\n'
+        '  "mnemonic": "好記的口訣；沒有就填 null",\n'
+        '  "citation_source": "引用出處，例如《傷寒論》第12條；沒有就填 null",\n'
+        '  "citation_quote": "原文引用；沒有就填 null",\n'
+        '  "extension": "延伸考點或常考變化題提示；沒有就填 null",\n'
+        '  "follow_ups": ["最多三個學生可能會想追問的延伸問題，每個不超過25字"]\n'
+        "}\n"
+        "breakdown 陣列依題目性質決定要不要放內容，完全不適用就給空陣列 []。"
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _TCM_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=900,
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
+        return json.loads(resp.choices[0].message.content or "{}")
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
 @app.route("/liff/quiz", methods=['GET'])
 def liff_quiz_page():
     """LIFF 考題頁入口：回傳靜態 HTML，登入與 API 呼叫都在前端 JS 處理。"""
@@ -1928,10 +1981,19 @@ def liff_quiz_explain():
         return jsonify({"error": "題目不存在"}), 404
     answer_letter = q.get("answer") or ""
     answer_text = f"{answer_letter} {(q.get('options') or {}).get(answer_letter, '')}".strip()
-    reply = _exam_explain_answer(q.get("question", ""), answer_text, follow_up)
-    if not reply:
+    if follow_up:
+        reply = _exam_explain_answer(q.get("question", ""), answer_text, follow_up)
+        if not reply:
+            return jsonify({"error": "AI 回覆失敗，請再試一次"}), 500
+        return jsonify({"reply": reply})
+    structured = _exam_explain_structured(q.get("question", ""), q.get("options"), answer_text)
+    if not structured:
         return jsonify({"error": "AI 回覆失敗，請再試一次"}), 500
-    return jsonify({"reply": reply})
+    structured["question"] = q.get("question", "")
+    structured["answer"] = answer_letter
+    structured["answer_text"] = (q.get("options") or {}).get(answer_letter, "")
+    structured["category"] = q.get("category", "")
+    return jsonify(structured)
 
 
 # ============================================================
@@ -1962,64 +2024,66 @@ def liff_speaking_scenarios():
     """主畫面兩個主題按鈕的資料（臨床衛教／患者、學術討論／教授）。"""
     if not _liff_auth_user_id():
         return jsonify({"error": "unauthorized"}), 401
-    return jsonify({"scenarios": speaking_list_scenarios()})
+    return jsonify({"scenarios": speaking_list_modes()})
 
 
 @app.route("/api/liff/speaking/session", methods=['POST'])
 def liff_speaking_session():
     """
-    開始一段對話：body = {"scenario": "clinical"|"academic"}。
+    開始一段對話：body = {"mode": "clinical"|"academic", "difficulty": str(optional)}。
+    後端會動態抽一個 Case（臨床衛教）或 Topic（學術討論），組出 Realtime session 的
+    角色 instructions，並建立一個 Session Manager 記錄（session_id）。
     回傳 ephemeral client_secret，前端用它直接對 OpenAI 建立 WebRTC 連線，不經過我們的伺服器。
     """
     if not _liff_auth_user_id():
         return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(force=True, silent=True) or {}
-    scenario = (data.get("scenario") or "").strip()
-    session_info = speaking_mint_ephemeral_session(client, scenario)
+    mode = (data.get("mode") or data.get("scenario") or "").strip()
+    difficulty = (data.get("difficulty") or "").strip() or None
+    session_info = speaking_mint_ephemeral_session(client, redis, mode, difficulty)
     if not session_info:
         return jsonify({"error": "無法建立語音對話 session，請再試一次"}), 500
     return jsonify(session_info)
 
 
-@app.route("/api/liff/speaking/translate", methods=['POST'])
-def liff_speaking_translate():
-    """角色台詞即時中譯（雙語字幕用）：body = {"text": str} → {"translated": str}。"""
+@app.route("/api/liff/speaking/turn", methods=['POST'])
+def liff_speaking_turn():
+    """
+    逐輪 structured response：body = {"session_id": str, "assistant_text": str, "user_text": str}。
+    assistant_text／user_text 是這一輪 Realtime API 語音對話產生的逐字稿（語音本身已經播放過，
+    這裡只做事後分析）。回傳規格書格式的物件：translation／language_feedback／terminology／
+    hint／session_state／avatar（avatar 欄位 Phase 1 先固定為 null，留給 Phase 2 用）。
+    """
     if not _liff_auth_user_id():
         return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(force=True, silent=True) or {}
-    text = (data.get("text") or "").strip()
-    if not text:
-        return jsonify({"translated": ""})
-    return jsonify({"translated": speaking_translate_to_zh(client, text)})
-
-
-@app.route("/api/liff/speaking/analyze-turn", methods=['POST'])
-def liff_speaking_analyze_turn():
-    """逐輪錯誤標註：body = {"text": str} → {"annotated": 含 «錯誤» 標記的原句}。"""
-    if not _liff_auth_user_id():
-        return jsonify({"error": "unauthorized"}), 401
-    data = request.get_json(force=True, silent=True) or {}
-    text = (data.get("text") or "").strip()
-    if not text:
-        return jsonify({"annotated": ""})
-    annotated = speaking_annotate_errors(client, text)
-    return jsonify({"annotated": annotated})
+    session_id = (data.get("session_id") or "").strip()
+    assistant_text = data.get("assistant_text") or ""
+    user_text = data.get("user_text") or ""
+    if not session_id:
+        return jsonify({"error": "缺少 session_id"}), 400
+    result = speaking_process_turn(client, redis, session_id, assistant_text, user_text)
+    return jsonify(result)
 
 
 @app.route("/api/liff/speaking/summary", methods=['POST'])
 def liff_speaking_summary():
     """
-    結算頁摘要：body = {"transcript": [{"role": "user"|"assistant", "text": str}, ...]}。
-    回傳這次對話中使用者講錯的句子（原句標錯＋修正版），給結算頁的原句/新句對照用。
+    結算頁摘要：body = {"session_id": str(optional), "transcript": [{"role": "user"|"assistant", "text": str}, ...]}。
+    回傳 {clinical_precision, lexicon_accuracy, cases}（見 speaking_evaluator.summarize_session）。
+    對應線框圖「正常交卷才存檔」——這裡同時清掉該 session 在 Redis 裡的 Session Manager 記錄。
     """
     if not _liff_auth_user_id():
         return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(force=True, silent=True) or {}
     transcript = data.get("transcript") or []
+    session_id = (data.get("session_id") or "").strip()
     if not isinstance(transcript, list):
         return jsonify({"error": "transcript 格式錯誤"}), 400
-    items = speaking_build_session_summary(client, transcript)
-    return jsonify({"items": items})
+    summary = speaking_build_session_summary(client, transcript)
+    if session_id:
+        speaking_end_session(redis, session_id)
+    return jsonify(summary)
 
 
 # ============================================================
@@ -2083,9 +2147,11 @@ def liff_writing_review():
 @app.route("/api/liff/writing/save", methods=['POST'])
 def liff_writing_save():
     """
-    儲存練習內容：body = {"text": str, "topic_id": str(optional), "kind": "draft"|"reviewed"}。
-    對應線框圖兩顆按鈕——「儲存練習內容」傳 kind=draft（存使用者自己打的原文），
-    「一鍵同意/確認儲存」傳 kind=reviewed（存 AI 修正後版本）。
+    儲存練習內容：body = {"text": str, "topic_id": str(optional), "kind": "draft"|"reviewed",
+    "review": dict(optional)}。
+    對應線框圖兩顆按鈕——「儲存練習內容」傳 kind=draft（存使用者自己打的原文，進草稿箱），
+    「一鍵同意/確認儲存」傳 kind=reviewed（存 AI 修正後版本，可一併附上 /review 回傳的
+    完整評分結果，進過往練習記錄，不用重新呼叫 AI 就能顯示分數）。
     """
     user_id = _liff_auth_user_id()
     if not user_id:
@@ -2094,12 +2160,33 @@ def liff_writing_save():
     text = (data.get("text") or "").strip()
     topic_id = (data.get("topic_id") or "").strip() or None
     kind = (data.get("kind") or "draft").strip()
+    review = data.get("review") if isinstance(data.get("review"), dict) else None
     if not text:
         return jsonify({"error": "內容不可為空"}), 400
-    saved_id = writing_save_practice(mongo_db, user_id, topic_id, text, kind)
+    saved_id = writing_save_practice(mongo_db, user_id, topic_id, text, kind, review)
     if not saved_id:
         return jsonify({"error": "儲存失敗（資料庫未連線或參數錯誤）"}), 500
     return jsonify({"saved_id": saved_id})
+
+
+@app.route("/api/liff/writing/practice", methods=['GET'])
+def liff_writing_practice_list():
+    """草稿箱／過往練習記錄共用清單：?kind=draft 或 ?kind=reviewed，不帶就回全部。"""
+    user_id = _liff_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+    kind = (request.args.get("kind") or "").strip() or None
+    return jsonify({"items": writing_list_practice(mongo_db, user_id, kind)})
+
+
+@app.route("/api/liff/writing/practice/<practice_id>", methods=['DELETE'])
+def liff_writing_practice_delete(practice_id):
+    """捨棄一筆練習紀錄（草稿箱「捨棄草稿」按鈕）。"""
+    user_id = _liff_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+    removed = writing_discard_practice(mongo_db, user_id, practice_id)
+    return jsonify({"removed": removed})
 
 
 def _run_voice_background(user_id, message_id, base_url, cron_secret):

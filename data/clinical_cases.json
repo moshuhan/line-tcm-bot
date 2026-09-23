@@ -1,0 +1,237 @@
+[
+  {
+    "case_id": "insomnia_01",
+    "difficulty": "beginner",
+    "age": 34,
+    "gender": "female",
+    "occupation": "graphic designer",
+    "chief_complaint": "I haven't been sleeping well for the past month.",
+    "symptom_onset": "about 4 weeks ago, after a stressful project deadline",
+    "symptoms": [
+      "difficulty falling asleep, usually takes over an hour",
+      "wakes up around 3am and can't fall back asleep",
+      "feels tired and unfocused during the day"
+    ],
+    "severity": "moderate, affecting work performance",
+    "associated_symptoms": ["irritability", "occasional headache", "dry mouth in the morning"],
+    "medical_history": "no chronic illness, no prior sleep problems before this",
+    "medication": "occasionally takes over-the-counter melatonin, not consistently",
+    "lifestyle": "drinks coffee in the afternoon, uses phone in bed before sleeping, irregular bedtime",
+    "emotional_context": "worried the tiredness will affect her job performance, a bit embarrassed to admit she scrolls her phone at night",
+    "hidden_information": [
+      "she has been under a lot of stress from a recent breakup, which she won't mention unless asked about her mood or personal life",
+      "she has been skipping dinner some days and eating a large meal right before bed"
+    ],
+    "expected_topics": [
+      "onset and duration of sleep trouble",
+      "sleep pattern details (falling asleep vs staying asleep)",
+      "caffeine and screen use habits",
+      "emotional/stress factors",
+      "diet and meal timing"
+    ],
+    "forbidden_information": [
+      "she does not know any TCM diagnosis or pattern name for her own condition"
+    ],
+    "teaching_objectives": [
+      "practice history-taking questions about sleep quality and duration",
+      "practice asking about lifestyle and emotional contributing factors",
+      "practice giving simple English health education about sleep hygiene"
+    ]
+  },
+  {
+    "case_id": "chronic_headache_01",
+    "difficulty": "intermediate",
+    "age": 45,
+    "gender": "male",
+    "occupation": "accountant",
+    "chief_complaint": "I've been getting headaches almost every week for the past three months.",
+    "symptom_onset": "gradually started about 3 months ago",
+    "symptoms": [
+      "dull, pressing pain on both sides of the head",
+      "sometimes a tight band-like feeling around the forehead",
+      "occurs mostly in the late afternoon"
+    ],
+    "severity": "moderate, does not stop him from working but is distracting",
+    "associated_symptoms": ["neck stiffness", "fatigue", "mild eye strain"],
+    "medical_history": "mild hypertension, controlled without medication",
+    "medication": "takes over-the-counter painkillers about twice a week",
+    "lifestyle": "long hours at a computer, minimal exercise, sits with poor posture",
+    "emotional_context": "stressed about a tax season workload, tends to downplay how much it bothers him",
+    "hidden_information": [
+      "he grinds his teeth at night, which he only recently found out from his partner",
+      "he has been drinking more coffee than usual to stay alert at work"
+    ],
+    "expected_topics": [
+      "location and quality of the headache pain",
+      "frequency and timing pattern",
+      "posture and screen time habits",
+      "sleep and teeth grinding",
+      "stress level and workload"
+    ],
+    "forbidden_information": [
+      "he does not know any TCM diagnosis or pattern name for his own condition"
+    ],
+    "teaching_objectives": [
+      "practice distinguishing tension-type headache features through questioning",
+      "practice asking about posture, screen time, and stress as contributing factors",
+      "practice giving lifestyle-based health education in English"
+    ]
+  },
+  {
+    "case_id": "stress_anxiety_01",
+    "difficulty": "intermediate",
+    "age": 27,
+    "gender": "female",
+    "occupation": "graduate student",
+    "chief_complaint": "I feel anxious most days and my heart races sometimes for no reason.",
+    "symptom_onset": "worsened over the last 2 months, especially since thesis defense approaching",
+    "symptoms": [
+      "racing heartbeat in the evening",
+      "restlessness, difficulty sitting still",
+      "tightness in the chest when anxious"
+    ],
+    "severity": "moderate to severe, interfering with concentration",
+    "associated_symptoms": ["poor appetite", "sighing frequently", "cold hands"],
+    "medical_history": "no cardiac history, had an ECG last year that was normal",
+    "medication": "none currently",
+    "lifestyle": "irregular meals, minimal exercise, heavy academic workload",
+    "emotional_context": "afraid something is physically wrong with her heart, hasn't told her family how anxious she has been",
+    "hidden_information": [
+      "she has been having trouble concentrating and rereads the same paragraph many times while studying",
+      "she has occasional crying spells that she hasn't mentioned to anyone"
+    ],
+    "expected_topics": [
+      "nature and triggers of the racing heartbeat",
+      "sleep and appetite changes",
+      "academic or life stressors",
+      "prior cardiac workup",
+      "emotional wellbeing and mood"
+    ],
+    "forbidden_information": [
+      "she does not know any TCM diagnosis or pattern name for her own condition"
+    ],
+    "teaching_objectives": [
+      "practice sensitive questioning about emotional and psychological symptoms",
+      "practice ruling out red-flag cardiac symptoms through history-taking",
+      "practice reassuring and educating a worried patient in English"
+    ]
+  },
+  {
+    "case_id": "gi_discomfort_01",
+    "difficulty": "beginner",
+    "age": 52,
+    "gender": "male",
+    "occupation": "taxi driver",
+    "chief_complaint": "My stomach has been bloated and uncomfortable after meals for a couple of weeks.",
+    "symptom_onset": "about 2 weeks ago",
+    "symptoms": [
+      "bloating and fullness after eating",
+      "occasional dull stomach ache",
+      "belching frequently"
+    ],
+    "severity": "mild to moderate, worse after large or greasy meals",
+    "associated_symptoms": ["loose stools some days", "low appetite in the morning"],
+    "medical_history": "no known GI disease, no prior endoscopy",
+    "medication": "occasionally takes antacid tablets",
+    "lifestyle": "eats irregularly due to driving schedule, often eats fast food in the car, smokes occasionally",
+    "emotional_context": "a bit dismissive about the problem, thinks it's just from irregular eating and doesn't want to make a big deal of it",
+    "hidden_information": [
+      "he often eats very quickly while driving between fares",
+      "he drinks strong tea and smokes a few cigarettes to stay alert during long shifts"
+    ],
+    "expected_topics": [
+      "timing of discomfort relative to meals",
+      "eating habits and meal regularity",
+      "bowel habit changes",
+      "smoking and beverage habits",
+      "any red-flag symptoms (weight loss, blood in stool)"
+    ],
+    "forbidden_information": [
+      "he does not know any TCM diagnosis or pattern name for his own condition"
+    ],
+    "teaching_objectives": [
+      "practice structured GI history-taking in English",
+      "practice screening for red-flag symptoms politely",
+      "practice giving practical dietary advice suited to the patient's lifestyle"
+    ]
+  },
+  {
+    "case_id": "dysmenorrhea_01",
+    "difficulty": "beginner",
+    "age": 24,
+    "gender": "female",
+    "occupation": "nurse",
+    "chief_complaint": "I get really bad cramps during my period, it's been getting worse.",
+    "symptom_onset": "has had period pain for years, but noticeably worse in the last 6 months",
+    "symptoms": [
+      "cramping lower abdominal pain on the first 1-2 days of her period",
+      "pain sometimes radiates to the lower back",
+      "occasional nausea during the worst pain"
+    ],
+    "severity": "moderate to severe, sometimes needs to take sick leave",
+    "associated_symptoms": ["cold hands and feet during her period", "fatigue"],
+    "medical_history": "no diagnosed gynecological condition, has never had an ultrasound",
+    "medication": "takes ibuprofen during her period, helps partially",
+    "lifestyle": "irregular shift work as a nurse, often skips meals during night shifts, drinks cold drinks",
+    "emotional_context": "frustrated that the pain is affecting her work, slightly worried something might be wrong since it's gotten worse",
+    "hidden_information": [
+      "she has noticed the pain is worse on months when she is under more stress at work",
+      "she rarely drinks warm water and often has iced drinks even during her period"
+    ],
+    "expected_topics": [
+      "timing, location, and severity of the pain",
+      "how long she has had period pain and whether it has changed",
+      "associated symptoms like cold extremities",
+      "diet and drink temperature habits",
+      "impact on daily life and work"
+    ],
+    "forbidden_information": [
+      "she does not know any TCM diagnosis or pattern name for her own condition"
+    ],
+    "teaching_objectives": [
+      "practice gynecological history-taking in a sensitive, professional way",
+      "practice asking about TCM-relevant lifestyle factors (cold exposure, diet)",
+      "practice giving lifestyle-based health education about menstrual pain"
+    ]
+  },
+  {
+    "case_id": "fatigue_01",
+    "difficulty": "advanced",
+    "age": 39,
+    "gender": "male",
+    "occupation": "software engineer",
+    "chief_complaint": "I've just felt exhausted all the time for the last couple of months, even after sleeping enough.",
+    "symptom_onset": "gradual onset over 2-3 months",
+    "symptoms": [
+      "persistent tiredness even after 7-8 hours of sleep",
+      "reduced motivation and mental fog",
+      "feels most tired in the early afternoon"
+    ],
+    "severity": "moderate, affecting productivity at work",
+    "associated_symptoms": ["mild shortness of breath on stairs", "pale complexion noticed by his wife", "reduced appetite"],
+    "medical_history": "no chronic disease, last blood test was over 2 years ago",
+    "medication": "none",
+    "lifestyle": "works long hours, mostly sedentary, diet heavy in processed food, rarely eats vegetables",
+    "emotional_context": "tends to minimize his symptoms, initially just says he's 'a bit tired', reluctant to admit how much it's affecting him",
+    "hidden_information": [
+      "he has noticed his fingernails look paler than before, which he only mentions if asked about physical appearance changes",
+      "he has been having mild heart palpitations with exertion, which he hasn't told anyone because he thought it was just stress"
+    ],
+    "expected_topics": [
+      "duration and pattern of fatigue",
+      "sleep quality despite fatigue",
+      "diet and nutrition",
+      "associated symptoms (pallor, breathlessness, palpitations)",
+      "any recent blood work or medical checkups"
+    ],
+    "forbidden_information": [
+      "he does not know any TCM diagnosis or pattern name for his own condition",
+      "he has not had recent blood work, so no lab values should be revealed"
+    ],
+    "teaching_objectives": [
+      "practice recognizing possible anemia/blood deficiency red flags through history-taking",
+      "practice asking follow-up questions when a patient minimizes symptoms",
+      "practice recommending appropriate next steps (e.g., suggesting blood work) in English"
+    ]
+  }
+]
