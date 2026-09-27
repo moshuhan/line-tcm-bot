@@ -7,9 +7,14 @@
 使用者的錯題本與作答紀錄則寫入 MongoDB（比照 research_logging.py 既有模式），
 因為這是每個使用者自己的、會持續變動的資料。
 
-現況：題庫只有 20 題（來自台灣中醫師執照考古題），且只有 category（章節）
-分類，尚未有「依年度」所需的年份/級別 metadata，所以目前只實作依章節篩選。
-之後題庫擴充、補上年度欄位後，再加開「依年度」的篩選邏輯。
+現況：題庫是 105～115 年台灣中醫師執照考古題（共 5254 題，見
+scripts/import_exam_pdfs.py／scripts/classify_exam_subjects.py 的匯入與分類流程）。
+category 欄位是逐題 AI 分類的細科目（例如「內經」「傷寒論」「中醫內科學」），
+chapter 是科目底下更細的子項，concepts 是這題的考點關鍵字，ambiguous 標記
+AI 自己覺得不太確定的分類，這幾個欄位都還沒有人工複核過，之後要調整
+分類、合併/拆分科目，直接改 data/exam_questions.json 這幾個欄位即可，
+不用改這支程式。exam_year／exam_session／exam_stage 已經有年份/梯次
+metadata，但「依年度」篩選的前端還沒做，目前仍只實作依章節（category）篩選。
 """
 import os
 import json
@@ -56,10 +61,14 @@ def get_questions_by_category(category=None):
     """
     回傳指定章節的題目，給前端作答用——不含正確答案與詳解，避免使用者直接看到答案。
     category 為 None 或空字串時回傳全部題目。
+    刻意排除 requires_image 的題目：這些題目的題幹依賴考卷上的附圖才能作答，
+    我們目前沒有附圖檔案，出給使用者會沒辦法作答，之後有圖檔了再拿掉這個篩選。
     """
     out = []
     for q in load_questions():
         if category and q.get("category") != category:
+            continue
+        if q.get("requires_image"):
             continue
         out.append({
             "id": q.get("id"),
@@ -85,6 +94,10 @@ def get_question_detail(qid):
     return {
         "id": q.get("id"),
         "category": q.get("category"),
+        "chapter": q.get("chapter"),
+        "concepts": q.get("concepts"),
+        "exam_year": q.get("exam_year"),
+        "exam_session": q.get("exam_session"),
         "question": q.get("question"),
         "options": q.get("options"),
         "answer": q.get("answer"),

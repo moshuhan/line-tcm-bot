@@ -1,0 +1,3305 @@
+{
+  "107-2101-021": {
+    "subject": "方劑學",
+    "chapter": "方劑學-理氣劑",
+    "concepts": [
+      "半夏厚朴湯",
+      "溫膽湯",
+      "梅核氣"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-022": {
+    "subject": "方劑學",
+    "chapter": "方劑學-理氣劑",
+    "concepts": [
+      "旋覆代赭湯",
+      "橘皮竹茹湯",
+      "香砂六君子湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-023": {
+    "subject": "方劑學",
+    "chapter": "方劑學-理血劑",
+    "concepts": [
+      "血府逐瘀湯",
+      "膈下逐瘀湯",
+      "少腹逐瘀湯",
+      "身痛逐瘀湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-024": {
+    "subject": "方劑學",
+    "chapter": "方劑學-安神劑",
+    "concepts": [
+      "酸棗仁湯",
+      "失眠",
+      "陰虛"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-025": {
+    "subject": "方劑學",
+    "chapter": "方劑學-開竅劑",
+    "concepts": [
+      "蘇合香丸",
+      "寒閉"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-026": {
+    "subject": "方劑學",
+    "chapter": "方劑學-安神劑",
+    "concepts": [
+      "甘麥大棗湯",
+      "臟躁"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-027": {
+    "subject": "方劑學",
+    "chapter": "方劑學-理氣劑",
+    "concepts": [
+      "蘇子降氣湯",
+      "上盛下虛",
+      "痰喘"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-028": {
+    "subject": "方劑學",
+    "chapter": "方劑學-治風劑",
+    "concepts": [
+      "雞子黃",
+      "大定風珠",
+      "三甲復脈湯",
+      "滋陰熄風"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-029": {
+    "subject": "方劑學",
+    "chapter": "方劑學-袪濕劑",
+    "concepts": [
+      "雞鳴散",
+      "濕腳氣",
+      "檳榔"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-030": {
+    "subject": "方劑學",
+    "chapter": "方劑學-袪濕劑",
+    "concepts": [
+      "五苓散",
+      "茵陳",
+      "濕熱黃疸"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-031": {
+    "subject": "方劑學",
+    "chapter": "方劑學-袪濕劑",
+    "concepts": [
+      "當歸拈痛湯",
+      "濕熱痹證"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-032": {
+    "subject": "方劑學",
+    "chapter": "方劑學-袪濕劑",
+    "concepts": [
+      "五皮飲",
+      "大腹皮",
+      "行氣利水"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-033": {
+    "subject": "方劑學",
+    "chapter": "方劑學-袪濕劑",
+    "concepts": [
+      "羌活勝濕湯",
+      "風濕在表"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-034": {
+    "subject": "方劑學",
+    "chapter": "方劑學-袪濕劑",
+    "concepts": [
+      "五皮散",
+      "防己黃耆湯",
+      "四妙丸",
+      "萆薢分清飲"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-035": {
+    "subject": "方劑學",
+    "chapter": "方劑學-消導劑",
+    "concepts": [
+      "枳實消痞丸",
+      "枳實導滯丸",
+      "保和丸",
+      "健脾丸"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-036": {
+    "subject": "方劑學",
+    "chapter": "方劑學-袪痰劑",
+    "concepts": [
+      "痰證病機",
+      "化痰治法"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-037": {
+    "subject": "方劑學",
+    "chapter": "方劑學-治風劑",
+    "concepts": [
+      "定癇丸",
+      "痰熱動風",
+      "癇證"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-038": {
+    "subject": "方劑學",
+    "chapter": "方劑學-消導劑",
+    "concepts": [
+      "木香檳榔丸",
+      "赤白痢疾",
+      "裏急後重"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-039": {
+    "subject": "方劑學",
+    "chapter": "方劑學-清熱劑",
+    "concepts": [
+      "王氏清暑益氣湯",
+      "西洋參",
+      "暑熱傷津"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-040": {
+    "subject": "方劑學",
+    "chapter": "方劑學-解表劑",
+    "concepts": [
+      "新加香薷飲",
+      "暑溫夾寒",
+      "香薷"
+    ],
+    "ambiguous": true
+  },
+  "107-2101-041": {
+    "subject": "中藥學",
+    "chapter": "中藥學-解表藥",
+    "concepts": [
+      "防風",
+      "勝濕止痛"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-042": {
+    "subject": "中藥學",
+    "chapter": "中藥學-溫裡藥",
+    "concepts": [
+      "乾薑",
+      "回陽救逆"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-043": {
+    "subject": "中藥學",
+    "chapter": "中藥學-化痰止咳平喘藥",
+    "concepts": [
+      "白芥子",
+      "溫肺化痰"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-044": {
+    "subject": "中藥學",
+    "chapter": "中藥學-解表藥",
+    "concepts": [
+      "麻黃",
+      "風寒表實證"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-045": {
+    "subject": "中藥學",
+    "chapter": "中藥學-解表藥",
+    "concepts": [
+      "白芷",
+      "陽明頭痛",
+      "燥濕止帶"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-046": {
+    "subject": "中藥學",
+    "chapter": "中藥學-溫裡藥",
+    "concepts": [
+      "丁香",
+      "溫中降逆",
+      "溫腎助陽"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-047": {
+    "subject": "中藥學",
+    "chapter": "中藥學-利水滲濕藥",
+    "concepts": [
+      "滑石",
+      "六一散",
+      "消暑除濕"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-048": {
+    "subject": "中藥學",
+    "chapter": "中藥學-利水滲濕藥",
+    "concepts": [
+      "金錢草",
+      "結石",
+      "泌尿道感染"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-049": {
+    "subject": "中藥學",
+    "chapter": "中藥學-化濕藥",
+    "concepts": [
+      "砂仁",
+      "醒脾防膩"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-050": {
+    "subject": "中藥學",
+    "chapter": "中藥學-化濕藥",
+    "concepts": [
+      "厚朴",
+      "健胃消積",
+      "祛痰平喘"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-051": {
+    "subject": "中藥學",
+    "chapter": "中藥學-化濕藥",
+    "concepts": [
+      "佩蘭",
+      "脾癉"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-052": {
+    "subject": "中藥學",
+    "chapter": "中藥學-理氣藥",
+    "concepts": [
+      "薤白",
+      "胸痹"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-053": {
+    "subject": "中藥學",
+    "chapter": "中藥學-清熱藥",
+    "concepts": [
+      "白蘚皮",
+      "清熱燥濕",
+      "祛風止癢"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-054": {
+    "subject": "中藥學",
+    "chapter": "中藥學-清熱藥",
+    "concepts": [
+      "青葙子",
+      "清肝火",
+      "青光眼"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-055": {
+    "subject": "中藥學",
+    "chapter": "中藥學-清熱藥",
+    "concepts": [
+      "清熱藥",
+      "清熱燥濕藥"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-056": {
+    "subject": "中藥學",
+    "chapter": "中藥學-清熱藥",
+    "concepts": [
+      "半邊蓮",
+      "疔瘡腫毒",
+      "乳癰"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-057": {
+    "subject": "中藥學",
+    "chapter": "中藥學-瀉下藥",
+    "concepts": [
+      "蘆薈",
+      "便秘",
+      "驅蛔蟲"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-058": {
+    "subject": "中藥學",
+    "chapter": "中藥學-清熱藥",
+    "concepts": [
+      "漏蘆",
+      "乳癰",
+      "通經下乳"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-059": {
+    "subject": "中藥學",
+    "chapter": "中藥學-清熱藥",
+    "concepts": [
+      "蒲公英",
+      "乳癰",
+      "濕熱黃疸"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-060": {
+    "subject": "中藥學",
+    "chapter": "中藥學-瀉下藥",
+    "concepts": [
+      "火麻仁",
+      "潤腸通便"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-061": {
+    "subject": "中藥學",
+    "chapter": "中藥學-止血藥",
+    "concepts": [
+      "側柏葉",
+      "涼血止血"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-062": {
+    "subject": "中藥學",
+    "chapter": "中藥學-止血藥",
+    "concepts": [
+      "藕",
+      "藕節",
+      "益胃補心"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-063": {
+    "subject": "中藥學",
+    "chapter": "中藥學-活血化瘀藥",
+    "concepts": [
+      "丹參",
+      "血瘀"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-064": {
+    "subject": "中藥學",
+    "chapter": "中藥學-止血藥",
+    "concepts": [
+      "止血藥",
+      "收斂止血"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-065": {
+    "subject": "中藥學",
+    "chapter": "中藥學-止血藥",
+    "concepts": [
+      "地榆",
+      "下焦出血",
+      "燒燙傷"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-066": {
+    "subject": "中藥學",
+    "chapter": "中藥學-補虛藥",
+    "concepts": [
+      "白朮",
+      "健脾燥濕"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-067": {
+    "subject": "中藥學",
+    "chapter": "中藥學-補虛藥",
+    "concepts": [
+      "何首烏",
+      "腸風下血"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-068": {
+    "subject": "中藥學",
+    "chapter": "中藥學-平肝息風藥",
+    "concepts": [
+      "刺蒺藜",
+      "平肝疏肝"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-069": {
+    "subject": "中藥學",
+    "chapter": "中藥學-補虛藥",
+    "concepts": [
+      "白朮",
+      "安胎"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-070": {
+    "subject": "中藥學",
+    "chapter": "中藥學-補虛藥",
+    "concepts": [
+      "人參",
+      "大補元氣"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-071": {
+    "subject": "中藥學",
+    "chapter": "中藥學-補虛藥",
+    "concepts": [
+      "人參",
+      "脾虛氣陷",
+      "子宮脫垂"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-072": {
+    "subject": "中藥學",
+    "chapter": "中藥學-化痰止咳平喘藥",
+    "concepts": [
+      "黃藥子",
+      "化痰散結消癭"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-073": {
+    "subject": "中藥學",
+    "chapter": "中藥學-平肝息風藥",
+    "concepts": [
+      "蜈蚣",
+      "全蠍",
+      "動風"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-074": {
+    "subject": "中藥學",
+    "chapter": "中藥學-開竅藥",
+    "concepts": [
+      "開竅藥",
+      "閉證"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-075": {
+    "subject": "中藥學",
+    "chapter": "中藥學-平肝息風藥",
+    "concepts": [
+      "龍骨",
+      "平肝潛陽",
+      "收斂"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-076": {
+    "subject": "中藥學",
+    "chapter": "中藥學-化痰止咳平喘藥",
+    "concepts": [
+      "旋覆花",
+      "消痰行水",
+      "降氣止嘔"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-077": {
+    "subject": "中藥學",
+    "chapter": "中藥學-活血化瘀藥",
+    "concepts": [
+      "血竭",
+      "止血生肌",
+      "活血散瘀"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-078": {
+    "subject": "中藥學",
+    "chapter": "中藥學-消食藥",
+    "concepts": [
+      "雞內金",
+      "健胃消食",
+      "尿路結石"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-079": {
+    "subject": "中藥學",
+    "chapter": "中藥學-收澀藥",
+    "concepts": [
+      "浮小麥",
+      "止汗",
+      "退虛熱"
+    ],
+    "ambiguous": false
+  },
+  "107-2101-080": {
+    "subject": "中藥學",
+    "chapter": "中藥學-補虛藥",
+    "concepts": [
+      "白朮",
+      "伏龍肝",
+      "炮製"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-001": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陽病",
+    "concepts": [
+      "十棗湯",
+      "懸飲"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-002": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陽病",
+    "concepts": [
+      "桂枝麻黃各半湯",
+      "太陽病"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-003": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陽病",
+    "concepts": [
+      "茯苓甘草湯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-004": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陽病",
+    "concepts": [
+      "五苓散",
+      "心下痞"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-005": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陽病",
+    "concepts": [
+      "抵當湯",
+      "蓄血證"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-006": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陽病",
+    "concepts": [
+      "乾薑附子湯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-007": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陽病",
+    "concepts": [
+      "麻黃杏仁甘草石膏湯",
+      "肺熱喘咳"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-008": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陽病",
+    "concepts": [
+      "真武湯",
+      "苓桂朮甘湯",
+      "頭眩"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-009": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-少陽病",
+    "concepts": [
+      "小柴胡湯",
+      "少陽病"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-010": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-陽明病",
+    "concepts": [
+      "豬苓湯",
+      "陽明病",
+      "水熱互結"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-011": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-少陽病",
+    "concepts": [
+      "三陽合病",
+      "治療先後"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-012": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-陽明病",
+    "concepts": [
+      "陽明病",
+      "成因"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-013": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-太陰病",
+    "concepts": [
+      "太陰病",
+      "胸下結硬"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-014": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-少陰病",
+    "concepts": [
+      "豬苓湯",
+      "少陰病",
+      "心煩不得眠"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-015": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-厥陰病",
+    "concepts": [
+      "吳茱萸湯",
+      "頭痛",
+      "乾嘔吐涎沫"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-016": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-少陰病",
+    "concepts": [
+      "四逆散",
+      "肝脾氣鬱"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-017": {
+    "subject": "溫病學",
+    "chapter": "溫病學-秋燥",
+    "concepts": [
+      "燥熱病邪",
+      "肺衛"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-018": {
+    "subject": "溫病學",
+    "chapter": "溫病學-暑溫",
+    "concepts": [
+      "新加香薷飲",
+      "透表清暑"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-019": {
+    "subject": "溫病學",
+    "chapter": "溫病學-風溫",
+    "concepts": [
+      "陽明溫病",
+      "溫病條辨"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-020": {
+    "subject": "溫病學",
+    "chapter": "溫病學-其他溫病",
+    "concepts": [
+      "溫病後遺證",
+      "癱瘓",
+      "震顫"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-021": {
+    "subject": "溫病學",
+    "chapter": "溫病學-其他溫病",
+    "concepts": [
+      "素問刺法論",
+      "小金丹方",
+      "疫病預防"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-022": {
+    "subject": "溫病學",
+    "chapter": "溫病學-風溫",
+    "concepts": [
+      "玉女煎",
+      "氣血兩燔",
+      "風溫"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-023": {
+    "subject": "溫病學",
+    "chapter": "溫病學-風溫",
+    "concepts": [
+      "銀翹散",
+      "葦根"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-024": {
+    "subject": "溫病學",
+    "chapter": "溫病學-春溫",
+    "concepts": [
+      "春溫",
+      "氣血兩燔",
+      "斑疹吐衄"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-025": {
+    "subject": "溫病學",
+    "chapter": "溫病學-暑溫",
+    "concepts": [
+      "暑溫",
+      "暑厥",
+      "酸泄酸斂"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-026": {
+    "subject": "溫病學",
+    "chapter": "溫病學-暑溫",
+    "concepts": [
+      "暑溫",
+      "定義要點"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-027": {
+    "subject": "溫病學",
+    "chapter": "溫病學-濕溫",
+    "concepts": [
+      "濕溫",
+      "初起證候"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-028": {
+    "subject": "溫病學",
+    "chapter": "溫病學-其他溫病",
+    "concepts": [
+      "升降散",
+      "殭蠶",
+      "蟬衣",
+      "大黃"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-029": {
+    "subject": "溫病學",
+    "chapter": "溫病學-濕溫",
+    "concepts": [
+      "濕溫",
+      "痰蒙心竅"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-030": {
+    "subject": "溫病學",
+    "chapter": "溫病學-其他溫病",
+    "concepts": [
+      "爛喉痧",
+      "咽喉腐爛"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-031": {
+    "subject": "溫病學",
+    "chapter": "溫病學-秋燥",
+    "concepts": [
+      "秋燥",
+      "溫燥",
+      "涼燥"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-032": {
+    "subject": "溫病學",
+    "chapter": "溫病學-伏暑",
+    "concepts": [
+      "蒿芩清膽湯",
+      "伏暑",
+      "少陽"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-033": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-其他",
+    "concepts": [
+      "百合病",
+      "陰陽法"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-034": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-肺痿肺癰咳嗽上氣病",
+    "concepts": [
+      "肺痿",
+      "重亡津液"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-035": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-血痹虛勞病",
+    "concepts": [
+      "大黃䗪蟲丸",
+      "乾血勞",
+      "肌膚甲錯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-036": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-痙濕暍病",
+    "concepts": [
+      "濕病",
+      "麻黃加朮湯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-037": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-痙濕暍病",
+    "concepts": [
+      "痙病",
+      "剛痙",
+      "柔痙"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-038": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-胸痺心痛病",
+    "concepts": [
+      "烏頭赤石脂丸",
+      "心痛徹背"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-039": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-嘔吐噦下利病",
+    "concepts": [
+      "通脈四逆湯",
+      "下利清穀"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-040": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-嘔吐噦下利病",
+    "concepts": [
+      "半夏乾薑散",
+      "生薑半夏湯",
+      "小半夏湯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-041": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-婦人妊娠產後雜病",
+    "concepts": [
+      "小青龍湯",
+      "婦人雜病",
+      "吐涎沫"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-042": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-嘔吐噦下利病",
+    "concepts": [
+      "嘔吐",
+      "懸飲"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-043": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-水氣病",
+    "concepts": [
+      "皮水",
+      "水氣病"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-044": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-黃疸病",
+    "concepts": [
+      "酒疸",
+      "黃疸病"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-045": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "臌脹",
+      "水濕困脾"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-046": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "眩暈",
+      "半夏白朮天麻湯",
+      "痰濕"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-047": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "陰黃",
+      "黃疸"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-048": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "臌脹",
+      "虛實"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-049": {
+    "subject": "傷寒論",
+    "chapter": "傷寒論-少陰病",
+    "concepts": [
+      "黃連阿膠湯",
+      "不寐",
+      "少陰病"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-050": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "心悸",
+      "安神定志丸",
+      "心膽虛怯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-051": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "便血",
+      "醫學文獻",
+      "腸風臟毒"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-052": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "癇證",
+      "肝火痰熱"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-053": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "吐血",
+      "繆希雍",
+      "三要訣"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-054": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "痢疾",
+      "休息痢",
+      "真人養臟湯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-055": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "便血",
+      "脾虛不攝",
+      "黃土湯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-056": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "咳嗽",
+      "張景岳",
+      "風寒"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-057": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "鼻淵",
+      "脾氣虛弱",
+      "補中益氣湯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-058": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-臟腑辨證",
+    "concepts": [
+      "膀胱濕熱",
+      "淋證"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-059": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-臟腑辨證",
+    "concepts": [
+      "尿濁",
+      "脾虛氣陷"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-060": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "汗證",
+      "戰汗",
+      "絕汗"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-061": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "瘀證",
+      "醫學衷中參西錄",
+      "溫病條辨"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-062": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "痙病",
+      "熱熾陽明",
+      "增液承氣湯"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-063": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "痿證",
+      "素問痿論",
+      "肺熱葉焦"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-064": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "厥證",
+      "陰陽氣不相接續"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-065": {
+    "subject": "中醫診斷學",
+    "chapter": "中醫診斷學-舌診",
+    "concepts": [
+      "舌診",
+      "辨舌指南"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-066": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "黃疸",
+      "濕熱互結",
+      "B型肝炎"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-067": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "濕疹",
+      "皮膚病"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-068": {
+    "subject": "中醫診斷學",
+    "chapter": "中醫診斷學-望診",
+    "concepts": [
+      "望齒齦",
+      "望診"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-069": {
+    "subject": "中醫診斷學",
+    "chapter": "中醫診斷學-舌診",
+    "concepts": [
+      "光滑舌",
+      "舌診"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-070": {
+    "subject": "中醫診斷學",
+    "chapter": "中醫診斷學-舌診",
+    "concepts": [
+      "舌苔",
+      "有根無根"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-071": {
+    "subject": "中醫診斷學",
+    "chapter": "中醫診斷學-聞診",
+    "concepts": [
+      "太息",
+      "氣虛",
+      "聞診"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-072": {
+    "subject": "中醫診斷學",
+    "chapter": "中醫診斷學-聞診",
+    "concepts": [
+      "失音",
+      "聞診",
+      "虛證"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-073": {
+    "subject": "中醫診斷學",
+    "chapter": "中醫診斷學-脈診",
+    "concepts": [
+      "脈象分類",
+      "浮脈類",
+      "弱脈"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-074": {
+    "subject": "中醫診斷學",
+    "chapter": "中醫診斷學-脈診",
+    "concepts": [
+      "寸關尺",
+      "脈診分配"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-075": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-氣血津液辨證",
+    "concepts": [
+      "血熱",
+      "氣血津液辨證"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-076": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-三焦辨證",
+    "concepts": [
+      "內燥",
+      "三焦辨證"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-077": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-六經辨證",
+    "concepts": [
+      "陽明病腑證",
+      "案例",
+      "六經辨證"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-078": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-六經辨證",
+    "concepts": [
+      "太陽中風證",
+      "案例",
+      "六經辨證"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-079": {
+    "subject": "中醫證治學",
+    "chapter": "中醫證治學-跨科證治",
+    "concepts": [
+      "心痹",
+      "胸痹",
+      "病因"
+    ],
+    "ambiguous": false
+  },
+  "107-1102-080": {
+    "subject": "金匱要略",
+    "chapter": "金匱要略-胸痺心痛病",
+    "concepts": [
+      "胸痹",
+      "栝蔞薤白白酒湯",
+      "陰寒內結"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-001": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肺系病證",
+    "concepts": [
+      "肺癰",
+      "麻杏石甘湯",
+      "高熱"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-002": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肺系病證",
+    "concepts": [
+      "肺氣虛",
+      "人參",
+      "黃耆"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-003": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肺系病證",
+    "concepts": [
+      "感冒",
+      "風寒證"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-004": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肺系病證",
+    "concepts": [
+      "感冒",
+      "荊防敗毒散"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-005": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肺系病證",
+    "concepts": [
+      "哮病",
+      "小青龍湯",
+      "寒飲"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-006": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-心系病證",
+    "concepts": [
+      "癲癇",
+      "病因病機"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-007": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肺系病證",
+    "concepts": [
+      "肝火犯肺",
+      "喘證"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-008": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肺系病證",
+    "concepts": [
+      "肺癆",
+      "痰熱鬱肺",
+      "咯血"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-009": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-心系病證",
+    "concepts": [
+      "心悸",
+      "心氣不足"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-010": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-心系病證",
+    "concepts": [
+      "心悸",
+      "四君子湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-011": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肝膽系病證",
+    "concepts": [
+      "中風",
+      "痰濕阻絡"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-012": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肝膽系病證",
+    "concepts": [
+      "中風",
+      "滌痰湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-013": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-脾胃系病證",
+    "concepts": [
+      "胃痛",
+      "化肝煎",
+      "肝胃鬱熱"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-014": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-脾胃系病證",
+    "concepts": [
+      "胃痛",
+      "濕熱中阻"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-015": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-脾胃系病證",
+    "concepts": [
+      "胃痛",
+      "柴胡疏肝散",
+      "失笑散"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-016": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-脾胃系病證",
+    "concepts": [
+      "噎膈",
+      "啟膈散"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-017": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-脾胃系病證",
+    "concepts": [
+      "泄瀉",
+      "參苓白朮散",
+      "脾虛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-018": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-脾胃系病證",
+    "concepts": [
+      "食積",
+      "保和丸"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-019": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肝膽系病證",
+    "concepts": [
+      "黃疸",
+      "茵陳五苓散",
+      "濕重於熱"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-020": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肝膽系病證",
+    "concepts": [
+      "臌脹",
+      "氣血水互結"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-021": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肝膽系病證",
+    "concepts": [
+      "黃疸",
+      "陽黃",
+      "陰黃"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-022": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "水腫",
+      "肺水",
+      "五臟水"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-023": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "水腫",
+      "疏鑿飲子",
+      "陽水"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-024": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "水腫",
+      "越婢湯",
+      "風水"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-025": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "血淋",
+      "小薊飲子"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-026": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "癃閉",
+      "清瀉肺熱",
+      "肺熱壅盛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-027": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肺系病證",
+    "concepts": [
+      "哮病",
+      "實熱證"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-028": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-經絡肢體病證",
+    "concepts": [
+      "痹證",
+      "桂枝芍藥知母湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-029": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-經絡肢體病證",
+    "concepts": [
+      "紅斑性狼瘡",
+      "治療原則"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-030": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-經絡肢體病證",
+    "concepts": [
+      "痹證",
+      "熱痹"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-031": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "硬皮症",
+      "腎虛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-032": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "腎虛",
+      "金匱腎氣丸"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-033": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-心系病證",
+    "concepts": [
+      "癭病",
+      "心悸",
+      "歸脾湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-034": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-氣血津液病證",
+    "concepts": [
+      "消渴",
+      "陰虛燥熱"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-035": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-氣血津液病證",
+    "concepts": [
+      "消渴",
+      "竹葉石膏湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-036": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-氣血津液病證",
+    "concepts": [
+      "消渴",
+      "下消",
+      "大補元煎"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-037": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-經絡肢體病證",
+    "concepts": [
+      "痛風",
+      "熱痹"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-038": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-經絡肢體病證",
+    "concepts": [
+      "面癱",
+      "小續命湯",
+      "風寒"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-039": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-氣血津液病證",
+    "concepts": [
+      "貧血",
+      "香砂六君子湯",
+      "脾虛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-040": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肝膽系病證",
+    "concepts": [
+      "頭痛",
+      "瘀血頭痛",
+      "通竅活血湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-041": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肝膽系病證",
+    "concepts": [
+      "真頭痛",
+      "頭痛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-042": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-心系病證",
+    "concepts": [
+      "臟躁",
+      "心神失養"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-043": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "水腫",
+      "飲食宜忌",
+      "慎鹽"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-044": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-氣血津液病證",
+    "concepts": [
+      "放療後遺症",
+      "滋陰潤燥"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-045": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-肝膽系病證",
+    "concepts": [
+      "大秦艽湯",
+      "中風中經絡"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-046": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-腎系病證",
+    "concepts": [
+      "尿血",
+      "鑑別診斷",
+      "泌尿道腫瘤"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-047": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-氣血津液病證",
+    "concepts": [
+      "標靶藥副作用",
+      "濕熱瘀毒"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-048": {
+    "subject": "中醫內科學",
+    "chapter": "中醫內科學-氣血津液病證",
+    "concepts": [
+      "清營湯",
+      "濕熱瘀毒"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-049": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-婦科學術源流",
+    "concepts": [
+      "傅青主女科",
+      "經原",
+      "腎"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-050": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-月經病",
+    "concepts": [
+      "固陰煎",
+      "景岳全書",
+      "月經先後不定期"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-051": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-月經病",
+    "concepts": [
+      "過期飲",
+      "月經後期",
+      "氣滯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-052": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-月經病",
+    "concepts": [
+      "痛經",
+      "原發性痛經"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-053": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-月經病",
+    "concepts": [
+      "倒經",
+      "經行吐衄"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-054": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-月經病",
+    "concepts": [
+      "經行發熱",
+      "陰虛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-055": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-婦科雜病",
+    "concepts": [
+      "絕經前後諸證",
+      "二仙湯",
+      "腎陰陽兩虛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-056": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-不孕症",
+    "concepts": [
+      "不孕症",
+      "少腹逐瘀湯",
+      "血瘀"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-057": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-產後病",
+    "concepts": [
+      "產後病",
+      "中氣下陷",
+      "補中益氣湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-058": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-妊娠病",
+    "concepts": [
+      "胎動不安",
+      "益氣養血",
+      "安胎"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-059": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-妊娠病",
+    "concepts": [
+      "妊娠惡阻",
+      "脾胃虛弱"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-060": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-妊娠病",
+    "concepts": [
+      "子暈",
+      "羚角鉤藤湯",
+      "肝風內動"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-061": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-產後病",
+    "concepts": [
+      "產後腹痛",
+      "血虛",
+      "產後便秘"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-062": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-月經病",
+    "concepts": [
+      "崩漏",
+      "暴崩",
+      "補氣回陽"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-063": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-產後病",
+    "concepts": [
+      "產後小便不通",
+      "濟生腎氣丸",
+      "腎陽虛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-064": {
+    "subject": "中醫婦科學",
+    "chapter": "中醫婦科學-不孕症",
+    "concepts": [
+      "毓麟珠",
+      "景岳全書",
+      "組成"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-065": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-其他",
+    "concepts": [
+      "錢乙",
+      "五臟證治",
+      "醫家"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-066": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-肺系病證",
+    "concepts": [
+      "咳嗽",
+      "二陳湯",
+      "痰濕"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-067": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-肺系病證",
+    "concepts": [
+      "肺炎喘嗽",
+      "陰虛肺熱"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-068": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-脾胃系病證",
+    "concepts": [
+      "厭食",
+      "胃陰不足"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-069": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-脾胃系病證",
+    "concepts": [
+      "泄瀉",
+      "中寒瀉",
+      "理中湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-070": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-時行疾病",
+    "concepts": [
+      "夏季熱",
+      "長期發熱"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-071": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-腎系病證",
+    "concepts": [
+      "實脾散",
+      "陰水",
+      "水腫"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-072": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-其他",
+    "concepts": [
+      "小兒麻痺症",
+      "痿證",
+      "補陽還五湯"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-073": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-時行疾病",
+    "concepts": [
+      "風痧",
+      "奶麻",
+      "衛分"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-074": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-時行疾病",
+    "concepts": [
+      "疫喉",
+      "楊梅舌"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-075": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-時行疾病",
+    "concepts": [
+      "痘疹",
+      "升葛湯",
+      "毒熱內盛"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-076": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-肺系病證",
+    "concepts": [
+      "哮喘",
+      "小青龍湯",
+      "寒證"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-077": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-新生兒病證",
+    "concepts": [
+      "硬腫症",
+      "參附湯",
+      "新生兒"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-078": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-脾胃系病證",
+    "concepts": [
+      "頭痛",
+      "陽明胃熱",
+      "加味茶調散"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-079": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-時行疾病",
+    "concepts": [
+      "猩紅熱",
+      "病原"
+    ],
+    "ambiguous": false
+  },
+  "107-2102-080": {
+    "subject": "中醫兒科學",
+    "chapter": "中醫兒科學-時行疾病",
+    "concepts": [
+      "急性會厭炎",
+      "呼吸困難"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-001": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "皮膚癢",
+      "濕勝",
+      "浸淫"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-002": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-瘡瘍",
+    "concepts": [
+      "辨證",
+      "虛實陰陽",
+      "疽疔"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-003": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-瘡瘍",
+    "concepts": [
+      "辨腫",
+      "虛腫"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-004": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-咽喉口齒病證",
+    "concepts": [
+      "咽喉腫痛",
+      "清咽利膈散"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-005": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "唇風",
+      "陽明經風火"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-006": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-瘡瘍",
+    "concepts": [
+      "紅絲疔",
+      "好發部位"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-007": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-瘡瘍",
+    "concepts": [
+      "肝癰",
+      "內癰"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-008": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-瘡瘍",
+    "concepts": [
+      "癰",
+      "化膿性疾患"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-009": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-瘡瘍",
+    "concepts": [
+      "有頭疽",
+      "經絡部位",
+      "督脈"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-010": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-瘡瘍",
+    "concepts": [
+      "調疽",
+      "發病部位"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-011": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "風寒濕痺",
+      "方藥"
+    ],
+    "ambiguous": true
+  },
+  "107-3102-012": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "白駁風",
+      "白癜風"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-013": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "癮疹",
+      "蕁麻疹"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-014": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-泌尿男性生殖系病",
+    "concepts": [
+      "翻花下疳",
+      "陰莖癌"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-015": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-泌尿男性生殖系病",
+    "concepts": [
+      "五淋散",
+      "淋證"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-016": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "燒傷深度",
+      "燙傷"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-017": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "凍瘡"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-018": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "粉刺",
+      "肺風粉刺"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-019": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "癮疹"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-020": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-皮膚病",
+    "concepts": [
+      "浸淫瘡"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-021": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-骨折",
+    "concepts": [
+      "指骨",
+      "正骨心法要旨"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-022": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-骨折",
+    "concepts": [
+      "尾骶骨",
+      "尻骨"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-023": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "肱骨內上髁炎"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-024": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "扁平足",
+      "病因"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-025": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "膝關節",
+      "側副韌帶"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-026": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "腰椎間盤突出症"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-027": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-手法與固定",
+    "concepts": [
+      "膝關節",
+      "固定體位"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-028": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "引經藥",
+      "傷科大成"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-029": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "退化性關節炎",
+      "膝關節"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-030": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "股骨頭骨骺炎",
+      "扁平髖"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-031": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "十字韌帶",
+      "半月板"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-032": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "膝關節屈曲肌群"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-033": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "貝克氏囊腫"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-034": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "踝關節韌帶損傷"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-035": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "小腿肌群",
+      "脛骨後肌"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-036": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "腱鞘炎",
+      "板機指"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-037": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "梨狀肌症候群",
+      "理學檢查"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-038": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-筋傷",
+    "concepts": [
+      "肱二頭肌肌腱斷裂"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-039": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-骨折",
+    "concepts": [
+      "肱骨幹骨折",
+      "橈神經損傷"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-040": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-手法與固定",
+    "concepts": [
+      "五加皮湯",
+      "正骨心法要旨"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-041": {
+    "subject": "中醫外科學",
+    "chapter": "中醫外科學-瘡瘍",
+    "concepts": [
+      "如意金黃散",
+      "外科正宗"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-042": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "傷損出血",
+      "獨參湯",
+      "元氣內脫"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-043": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "內傷病機",
+      "靈樞癰疽"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-044": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-骨折",
+    "concepts": [
+      "跟骨骨折"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-045": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "正骨心法要旨",
+      "傷損證治"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-046": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "頭目眩暈",
+      "六君子湯"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-047": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "肝經血傷",
+      "加味逍遙散"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-048": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "瘀血泛注",
+      "十全大補湯"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-049": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "損傷後喘咳"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-050": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-手法與固定",
+    "concepts": [
+      "練功療法"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-051": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "陰盛發熱",
+      "四君子湯"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-052": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-內傷",
+    "concepts": [
+      "生殖器損傷",
+      "小柴胡湯",
+      "肝鬱火"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-053": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-骨折",
+    "concepts": [
+      "孟氏骨折",
+      "復位手法"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-054": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-骨折",
+    "concepts": [
+      "脊柱骨折",
+      "穩定性"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-055": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-脫位",
+    "concepts": [
+      "陳舊性關節脫位"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-056": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-脫位",
+    "concepts": [
+      "髕骨脫位"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-057": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-手法與固定",
+    "concepts": [
+      "肩臂功",
+      "練功"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-058": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-骨折",
+    "concepts": [
+      "肱骨內上髁骨折",
+      "撕脫骨折"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-059": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-手法與固定",
+    "concepts": [
+      "折頂手法",
+      "整復手法"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-060": {
+    "subject": "中醫傷科學",
+    "chapter": "中醫傷科學-手法與固定",
+    "concepts": [
+      "橈骨下端骨折",
+      "整復手法"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-061": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-眼科病證",
+    "concepts": [
+      "足少陰腎經",
+      "目疾",
+      "經絡辨證"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-062": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-眼科病證",
+    "concepts": [
+      "氣虛氣陷",
+      "眼病病機"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-063": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-眼科病證",
+    "concepts": [
+      "流淚症",
+      "冷淚"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-064": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-眼科病證",
+    "concepts": [
+      "暴風客熱"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-065": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-眼科病證",
+    "concepts": [
+      "天行赤眼"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-066": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-眼科病證",
+    "concepts": [
+      "胞腫如桃",
+      "脾肺氣虛"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-067": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-眼科病證",
+    "concepts": [
+      "花翳白陷",
+      "角膜潰瘍"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-068": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-眼科病證",
+    "concepts": [
+      "視瞻昏渺"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-069": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-咽喉口齒病證",
+    "concepts": [
+      "瘤症",
+      "加味二陳湯"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-070": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-耳科病證",
+    "concepts": [
+      "Rinne test",
+      "聽力檢查"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-071": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-耳科病證",
+    "concepts": [
+      "耳瘡",
+      "耳癤"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-072": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-耳科病證",
+    "concepts": [
+      "膿耳",
+      "蔓荊子散"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-073": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-鼻科病證",
+    "concepts": [
+      "鼻病生理",
+      "肺系"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-074": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-鼻科病證",
+    "concepts": [
+      "鼻槁",
+      "六味地黃湯",
+      "腎陰虛"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-075": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-鼻科病證",
+    "concepts": [
+      "鼻瘜肉",
+      "外科正宗"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-076": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-鼻科病證",
+    "concepts": [
+      "鼻衄",
+      "膠艾四物湯",
+      "肝腎陰虛"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-077": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-咽喉口齒病證",
+    "concepts": [
+      "急喉瘖",
+      "風寒外襲",
+      "六味湯"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-078": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-咽喉口齒病證",
+    "concepts": [
+      "慢喉瘖",
+      "百合固金湯",
+      "肺腎陰虛"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-079": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-咽喉口齒病證",
+    "concepts": [
+      "口瘡",
+      "導赤散"
+    ],
+    "ambiguous": false
+  },
+  "107-3102-080": {
+    "subject": "中醫五官科學",
+    "chapter": "中醫五官科學-咽喉口齒病證",
+    "concepts": [
+      "舌與心",
+      "靈樞",
+      "五閱五使篇"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-001": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-其他",
+    "concepts": [
+      "中醫藥研究機構",
+      "針灸史"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-002": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-其他",
+    "concepts": [
+      "刺法啟玄歌",
+      "針灸聚英",
+      "醫籍"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-003": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-其他",
+    "concepts": [
+      "王惟一",
+      "銅人腧穴針灸圖經",
+      "針灸史"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-004": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-其他",
+    "concepts": [
+      "鍼師",
+      "針灸專科",
+      "唐朝"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-005": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-其他",
+    "concepts": [
+      "草澤鈴醫",
+      "針灸史"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-006": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-經絡總論",
+    "concepts": [
+      "五十營",
+      "經脈運行"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-007": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-經絡總論",
+    "concepts": [
+      "胃經循行",
+      "靈樞經脈"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-008": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-經絡總論",
+    "concepts": [
+      "經氣",
+      "十二經"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-009": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-經絡總論",
+    "concepts": [
+      "十二經筋"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-010": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-經絡總論",
+    "concepts": [
+      "奇經八脈",
+      "陰蹻",
+      "陽維"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-011": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-經絡總論",
+    "concepts": [
+      "氣血多寡",
+      "血氣形志篇"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-012": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-經絡總論",
+    "concepts": [
+      "經絡學說",
+      "營氣",
+      "衛氣"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-013": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "腧穴診斷",
+      "壓痛點",
+      "刺激點"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-014": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "主客原絡法",
+      "飛揚",
+      "太谿"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-015": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "募穴",
+      "俞穴",
+      "配穴法"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-016": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "膀胱經",
+      "郄穴",
+      "金門"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-017": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "腎經",
+      "俞穴",
+      "太谿"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-018": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "督脈",
+      "神庭",
+      "啞門"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-019": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "膽經",
+      "井滎俞原經合",
+      "足臨泣"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-020": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "太淵穴",
+      "肺經"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-021": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "小腸經",
+      "養老",
+      "肩貞"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-022": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "顱息穴",
+      "手少陽三焦經"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-023": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "勞宮穴",
+      "主治"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-024": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "手陽明經",
+      "溫溜穴",
+      "取穴法"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-025": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "手厥陰心包經",
+      "是動所生病"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-026": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "心經",
+      "俞穴",
+      "原穴",
+      "神門"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-027": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "腹部腧穴",
+      "旁開取穴"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-028": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "胃經",
+      "條口",
+      "豐隆",
+      "下合穴"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-029": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "膀胱經",
+      "背俞穴",
+      "脊椎旁開"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-030": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "湧泉穴",
+      "主治"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-031": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "懸鍾穴",
+      "八會穴",
+      "骨會"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-032": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "地倉穴",
+      "交會穴"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-033": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "承滿",
+      "梁門",
+      "滑肉門",
+      "定位"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-034": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "馬丹陽天星十二穴",
+      "回陽九針"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-035": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "公孫穴",
+      "八脈交會穴",
+      "沖脈"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-036": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "膝關穴",
+      "定位"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-037": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-奇穴",
+    "concepts": [
+      "子宮穴",
+      "經外奇穴",
+      "針灸大成"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-038": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-奇穴",
+    "concepts": [
+      "夾脊穴",
+      "霍亂轉筋"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-039": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "脾經",
+      "滎穴",
+      "大都"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-040": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-奇穴",
+    "concepts": [
+      "騎竹馬穴",
+      "癰疔"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-041": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-十四經腧穴",
+    "concepts": [
+      "督脈穴位",
+      "腰陽關",
+      "筋縮"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-042": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-刺灸法總論",
+    "concepts": [
+      "齊刺",
+      "傍針刺",
+      "揚刺",
+      "一穴多針法"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-043": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-刺灸法總論",
+    "concepts": [
+      "行針手法",
+      "搓法",
+      "提法"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-044": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-各科病證針灸治療",
+    "concepts": [
+      "腦性麻痺",
+      "頭針",
+      "梅花針"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-045": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-刺灸法總論",
+    "concepts": [
+      "刺要論",
+      "深淺"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-046": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-耳針頭皮針等微針療法",
+    "concepts": [
+      "頭皮針",
+      "進針角度"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-047": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-耳針頭皮針等微針療法",
+    "concepts": [
+      "耳甲艇",
+      "耳針"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-048": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-刺灸法總論",
+    "concepts": [
+      "天灸",
+      "白芥子灸"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-049": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-刺灸法總論",
+    "concepts": [
+      "藥灸法",
+      "太乙神針",
+      "艾條灸"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-050": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-刺灸法總論",
+    "concepts": [
+      "隔蒜灸",
+      "瘰癧",
+      "千金方"
+    ],
+    "ambiguous": false
+  },
+  "107-4102-051": {
+    "subject": "針灸科學",
+    "chapter": "針灸科學-各科病證針灸治療",
+    "concepts": [
+      "氣喘",
+      "身柱穴",
+      "天灸敷貼"
+    ],
+    "ambiguous": false
+  }
+}
