@@ -30,7 +30,6 @@
   <header class="fixed top-0 w-full z-50 pt-safe bg-white/90 backdrop-blur-xl border-b border-slate-200">
     <div class="h-14 px-4 max-w-[480px] mx-auto flex items-center justify-between">
       <span class="text-[15px] font-bold text-slate-800">LinguaPulse TCM 中醫英文教練</span>
-      <button onclick="closeLiff()" class="w-8 h-8 flex items-center justify-center text-slate-400"><span class="material-symbols-outlined text-[20px]">close</span></button>
     </div>
   </header>
   <main class="flex flex-col w-full max-w-[480px] mx-auto px-4 pt-16 pb-10 gap-4">
@@ -54,17 +53,20 @@
     </div>
   </header>
   <div class="max-w-[480px] mx-auto w-full px-3 pt-2 shrink-0">
-    <div class="bg-white border border-slate-200 rounded-xl p-2.5 flex items-center gap-2.5 shadow-sm">
-      <div class="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 char-avatar" id="char-avatar">
-        <span class="material-symbols-outlined text-emerald-700 text-[22px]" id="char-avatar-icon">person</span>
+    <div class="relative bg-gradient-to-br from-emerald-800 via-slate-800 to-slate-900 rounded-xl overflow-hidden shadow-sm transition-[height] duration-300 char-avatar" id="video-frame" style="aspect-ratio: 16/9;">
+      <div class="absolute inset-0 flex items-center justify-center" id="video-illustration">
+        <span class="material-symbols-outlined text-white/25 text-[96px]" id="char-avatar-icon">person</span>
+        <img id="char-photo" class="absolute inset-0 w-full h-full object-cover hidden" alt="" />
       </div>
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-1.5">
-          <span class="text-[14px] font-bold text-slate-800" id="char-name">患者</span>
-          <span class="text-[11px] text-slate-400" id="char-meta"></span>
-        </div>
-        <p class="text-[12px] text-slate-500 truncate" id="char-complaint"></p>
+      <div class="absolute top-2 left-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm max-w-[75%]">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse"></span>
+        <span class="text-[12px] text-white font-bold truncate" id="char-name">患者</span>
+        <span class="text-[10px] text-white/60 shrink-0" id="char-meta"></span>
       </div>
+      <button onclick="toggleVideoSize()" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white" title="縮放視訊視窗">
+        <span class="material-symbols-outlined text-[16px]" id="video-size-icon">collapse_content</span>
+      </button>
+      <p class="absolute bottom-2 left-2 right-2 text-[11px] text-white/85 bg-black/30 backdrop-blur-sm rounded-lg px-2.5 py-1.5 truncate" id="char-complaint"></p>
     </div>
     <div class="mt-2 bg-slate-50 border border-slate-200 rounded-xl" id="hint-box">
       <button class="w-full flex items-center justify-between px-3 py-2" onclick="toggleHint()">
@@ -109,6 +111,9 @@ const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
 
 const ICON_PATIENT = "personal_injury";
 const ICON_PROFESSOR = "school";
+const ICON_STUDENT = "diversity_2";
+const MODE_ICONS = { clinical: ICON_PATIENT, academic: ICON_PROFESSOR, student: ICON_STUDENT };
+function iconForMode(key) { return MODE_ICONS[key] || ICON_PATIENT; }
 
 let idToken = null;
 let scenarios = {};
@@ -118,6 +123,7 @@ let pc = null;
 let dc = null;
 let localStream = null;
 let micLive = false;
+let videoExpanded = true;
 let transcript = [];
 let charDeltaBuffer = "";
 let charBubbleEl = null;
@@ -171,23 +177,25 @@ async function initApp() {
   showPage("home");
 }
 
+const MODE_META = { clinical: null, academic: "學術討論．難度較高", student: "自由練習．想聊什麼都可以" };
+const MODE_DESC = { student: "沒有固定病例或題目，用簡單的英文輕鬆聊中醫，降低開口說的心理負擔。" };
+
 function renderHome() {
-  const icons = { clinical: ICON_PATIENT, academic: ICON_PROFESSOR };
   const list = document.getElementById("scenario-list");
   list.innerHTML = Object.values(scenarios).map(s => {
     const p = s.preview || {};
-    const quote = s.key === "clinical" ? p.chief_complaint : p.title;
-    const meta = s.key === "clinical" ? `${p.age ?? "—"}y · ${escapeHtml(p.gender || "")}` : "學術討論";
+    const quote = s.key === "clinical" ? p.chief_complaint : (s.key === "academic" ? p.title : MODE_DESC.student);
+    const meta = s.key === "clinical" ? `${p.age ?? "—"}y · ${escapeHtml(p.gender || "")}` : (MODE_META[s.key] || "");
     const topics = (p.expected_topics || []).slice(0, 4);
     return `
       <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-2.5">
         <div class="flex items-center gap-2.5">
           <div class="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-            <span class="material-symbols-outlined text-emerald-700 text-[22px]">${icons[s.key] || ICON_PATIENT}</span>
+            <span class="material-symbols-outlined text-emerald-700 text-[22px]">${iconForMode(s.key)}</span>
           </div>
           <div class="min-w-0">
             <div class="text-[15px] font-bold text-slate-800">${escapeHtml(s.label_zh)}</div>
-            <div class="text-[12px] text-slate-500">對話角色：${escapeHtml(s.character_zh)} · ${meta}</div>
+            <div class="text-[12px] text-slate-500">對話角色：${escapeHtml(s.character_zh)}${meta ? " · " + meta : ""}</div>
           </div>
         </div>
         ${quote ? `<div class="bg-slate-50 rounded-lg p-2.5 text-[13px] text-slate-700 italic">"${escapeHtml(quote)}"</div>` : ""}
@@ -210,6 +218,41 @@ function toggleHint() {
   icon.textContent = collapsed ? "expand_less" : "expand_more";
 }
 
+function applyCharVisual(scenarioKey, name, age, gender, occupation, photoUrl) {
+  const photo = document.getElementById("char-photo");
+  const icon = document.getElementById("char-avatar-icon");
+  if (photoUrl) {
+    photo.src = photoUrl;
+    photo.classList.remove("hidden");
+    icon.classList.add("hidden");
+  } else {
+    photo.classList.add("hidden");
+    icon.classList.remove("hidden");
+  }
+  if (scenarioKey === "clinical") {
+    document.getElementById("char-name").textContent = name || "患者";
+    document.getElementById("char-meta").textContent = `${age ?? "—"}y · ${gender || ""}${occupation ? " · " + occupation : ""}`;
+  }
+}
+
+function toggleVideoSize() {
+  videoExpanded = !videoExpanded;
+  const frame = document.getElementById("video-frame");
+  const illustration = document.getElementById("video-illustration");
+  const icon = document.getElementById("video-size-icon");
+  if (videoExpanded) {
+    frame.style.height = "";
+    frame.style.aspectRatio = "16/9";
+    illustration.style.display = "flex";
+    icon.textContent = "collapse_content";
+  } else {
+    frame.style.aspectRatio = "auto";
+    frame.style.height = "44px";
+    illustration.style.display = "none";
+    icon.textContent = "expand_content";
+  }
+}
+
 async function startConversation(scenarioKey) {
   currentScenarioKey = scenarioKey;
   transcript = [];
@@ -221,15 +264,18 @@ async function startConversation(scenarioKey) {
   const s = scenarios[scenarioKey] || {};
   const p = s.preview || {};
   document.getElementById("char-name").textContent = s.character_zh || "";
-  document.getElementById("char-avatar-icon").textContent = scenarioKey === "academic" ? ICON_PROFESSOR : ICON_PATIENT;
-  document.getElementById("char-meta").textContent = scenarioKey === "clinical" ? `${p.age ?? "—"}y · ${p.gender || ""}` : "";
-  document.getElementById("char-complaint").textContent = scenarioKey === "clinical" ? (p.chief_complaint || "") : (p.title || "");
+  document.getElementById("char-avatar-icon").textContent = iconForMode(scenarioKey);
+  document.getElementById("char-meta").textContent = scenarioKey === "clinical" ? `${p.age ?? "—"}y · ${p.gender || ""}` : (MODE_META[scenarioKey] || "");
+  document.getElementById("char-complaint").textContent = scenarioKey === "clinical" ? (p.chief_complaint || "") : (scenarioKey === "academic" ? (p.title || "") : (MODE_DESC.student || ""));
+  applyCharVisual(scenarioKey, p.name, p.age, p.gender, null, p.photo_url);
   document.getElementById("hint-topics").innerHTML = (p.expected_topics || []).map(t => `<span class="px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600 text-[11px]">${escapeHtml(t)}</span>`).join("");
   document.getElementById("transcript-log").innerHTML = "";
   document.getElementById("mic-status").textContent = "連線中...";
   document.getElementById("mic-btn").classList.remove("live");
   document.getElementById("mic-btn").className = "relative w-16 h-16 rounded-full bg-slate-300 text-white flex items-center justify-center transition-colors active:scale-95";
   micLive = false;
+  videoExpanded = false;
+  toggleVideoSize();
   dialogueStartedAt = Date.now();
   startDialogueTimer();
 
@@ -241,6 +287,9 @@ async function startConversation(scenarioKey) {
     return;
   }
   currentSessionId = sessionRes.session_id;
+  if (scenarioKey === "clinical") {
+    applyCharVisual(scenarioKey, sessionRes.content_name, sessionRes.content_age, sessionRes.content_gender, sessionRes.content_occupation, sessionRes.photo_url);
+  }
 
   try {
     await connectRealtime(sessionRes.client_secret, sessionRes.model);
@@ -316,10 +365,10 @@ function handleRealtimeEvent(e) {
     return;
   }
   if (evt.type === "response.created" || evt.type === "response.output_item.added") {
-    document.getElementById("char-avatar").classList.add("speaking");
+    document.getElementById("video-frame").classList.add("speaking");
   }
   if (evt.type === "response.done") {
-    document.getElementById("char-avatar").classList.remove("speaking");
+    document.getElementById("video-frame").classList.remove("speaking");
   }
   if (evt.type === "error") { console.error("[realtime error]", evt); }
 }

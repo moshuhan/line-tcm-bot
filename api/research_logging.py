@@ -1,43 +1,32 @@
 # -*- coding: utf-8 -*-
 """
-研究用資料記錄：User / Interaction / QuizResult / Feedback、意圖與複雜度分類、行為分析。
+研究用資料記錄：User / Interaction、意圖與複雜度分類、行為分析。
 所有寫入均 guard mongo_db，失敗不影響主流程。
+
+原本這裡還有 QuizResult、StudentFeedback（課務查詢用）、Speaking/Writing 模式的
+專屬記錄函式、以及依測驗紀錄產生複習筆記的功能，都隨小測驗／口說練習／寫作修改／
+課務查詢這些聊天室舊功能一起移除了。interactions collection 本身繼續保留給
+中醫問答模組使用。
 """
 
 import json
-import re
-import time
-import uuid
 from datetime import datetime, timezone
 
 # 集合名稱
 COLL_USERS = "users"
 # interactions 有效欄位：user_id, mode, question, answer, timestamp, feedback_requested,
-# intent_tag (str, LLM 分類), complexity_score, complexity_level, session_duration_sec, follow_up_count,
-# quiz_data (object, 測驗結果：user_answer, is_correct, attempted), quiz_answered_at, response_time_sec
+# intent_tag (str, LLM 分類), complexity_score, session_duration_sec, follow_up_count
 COLL_INTERACTIONS = "interactions"
-COLL_QUIZ_RESULTS = "quiz_results"
 COLL_FEEDBACK = "feedback"
-COLL_STUDENT_FEEDBACK = "StudentFeedback"
 
-# 模式 / 測驗類型
+# 模式
 MODES = ("QA", "Speaking", "Writing")
-QUIZ_TYPES = ("Immediate", "Review")
 
-# 學習標籤：研究用 intent_tag（中醫領域）與 complexity_level
-LEARNING_INTENT_TAGS = ("Basic Theory", "Clinical", "Diagnostics", "Treatment", "Pharmacology", "Other")
-COMPLEXITY_LEVELS = ("Low", "Medium", "High")
-# 向下相容
+# 學習標籤：研究用 intent_tag
 INTENT_TAGS = ("Memory", "Understanding", "Application")
 
-# 口說模式：用於計算 TCM 專業術語出現次數的詞表（可擴充）
-TCM_TERMS_FOR_SPEECH = [
-    "中醫", "經絡", "穴位", "氣血", "陰陽", "五行", "臟腑", "肝", "心", "脾", "肺", "腎",
-    "望聞問切", "脈診", "舌診", "辨證", "證型", "虛實", "寒熱", "表裡",
-    "氣滯", "血瘀", "痰濕", "濕熱", "風寒", "風熱", "氣虛", "血虛",
-    "針灸", "艾灸", "拔罐", "推拿", "方劑", "中藥", "四氣五味",
-    "十二經脈", "奇經八脈", "任脈", "督脈", "手太陰", "足陽明",
-]
+# 當 LLM 分類失敗或非預期值時，intent_tag 的預設值（確保 MongoDB 欄位不為空）
+DEFAULT_INTENT_TAG = "General"
 
 
 def _decode(val):
@@ -89,10 +78,6 @@ def increment_user_interaction_count(db, user_id):
         print(f"[research_logging] increment_user_interaction_count error: {e}")
 
 
-# 當 LLM 分類失敗或非預期值時，intent_tag 的預設值（確保 MongoDB 欄位不為空）
-DEFAULT_INTENT_TAG = "General"
-
-
 def classify_qa_intent_and_complexity(openai_client, question, timeout_sec=5):
     """
     使用 LLM 將使用者問題分類為 intent_tag (Memory/Understanding/Application) 與 complexity_score (1-5)。
@@ -136,48 +121,6 @@ def classify_qa_intent_and_complexity(openai_client, question, timeout_sec=5):
     except Exception as e:
         print(f"[research_logging] classify_qa_intent_and_complexity error: {e}")
         return DEFAULT_INTENT_TAG, None
-
-
-def classify_qa_learning_tags(openai_client, question, timeout_sec=5):
-    """
-    使用 LLM 將使用者問題分類為研究用學習標籤：
-    intent_tag（Basic Theory / Clinical / Diagnostics / Treatment / Pharmacology / Other）、
-    complexity_level（Low / Medium / High）。
-    回傳 (intent_tag, complexity_level)，失敗回傳 (None, None)。
-    """
-    if not openai_client or not (question or "").strip():
-        return None, None
-    try:
-        resp = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": (
-                    "你是一位中醫教育研究助理。請僅根據「使用者問題」回傳一個 JSON，不要其他文字。"
-                    "欄位：intent_tag（必為以下其一：Basic Theory, Clinical, Diagnostics, Treatment, Pharmacology, Other）、"
-                    "complexity_level（必為 Low, Medium, High 其一）。"
-                    "Basic Theory=基礎理論；Clinical=臨床應用；Diagnostics=診斷；Treatment=治法/方藥；Pharmacology=中藥藥性。"
-                )},
-                {"role": "user", "content": f"使用者問題：{(question or '').strip()[:500]}"},
-            ],
-            max_tokens=80,
-            temperature=0.1,
-            timeout=timeout_sec,
-        )
-        raw = (resp.choices[0].message.content or "").strip()
-        if not raw or "{" not in raw or "}" not in raw:
-            return None, None
-        raw = raw[raw.find("{"): raw.rfind("}") + 1]
-        obj = json.loads(raw)
-        intent = (obj.get("intent_tag") or "").strip()
-        if intent not in LEARNING_INTENT_TAGS:
-            intent = None
-        level = (obj.get("complexity_level") or "").strip()
-        if level not in COMPLEXITY_LEVELS:
-            level = None
-        return intent or None, level or None
-    except Exception as e:
-        print(f"[research_logging] classify_qa_learning_tags error: {e}")
-        return None, None
 
 
 def log_interaction(
@@ -227,76 +170,6 @@ def log_interaction(
     except Exception as e:
         print(f"[research_logging] log_interaction error: {e}")
         return None
-
-
-def log_student_feedback(db, user_id, user_name, score):
-    """
-    寫入一筆 StudentFeedback。
-    欄位：timestamp, userName, userId, score
-    """
-    if db is None or not user_id:
-        return
-    try:
-        s = int(score)
-        if s < 1 or s > 5:
-            return
-    except (TypeError, ValueError):
-        return
-    try:
-        r = db[COLL_STUDENT_FEEDBACK].insert_one({
-            "timestamp": datetime.now(timezone.utc),
-            "userName": (user_name or "").strip()[:200] or None,
-            "userId": _decode(user_id),
-            "score": s,
-        })
-        print(f">>> DEBUG: StudentFeedback inserted_id={getattr(r, 'inserted_id', None)}")
-    except Exception as e:
-        print(f"[research_logging] log_student_feedback error: {e}")
-
-
-def update_interaction_quiz_result(
-    db,
-    interaction_id,
-    user_answer,
-    is_correct,
-    attempted,
-    response_time_sec=None,
-):
-    """
-    更新對應的 interaction 文件，寫入 Learning Outcome（測驗結果）。
-    結構分離：Conversation（question, answer, timestamp, intent_tag）與 quiz_data（Learning Outcome）。
-    interaction_id 可為 ObjectId、字串或 bytes（Redis 未 decode 時）。
-    """
-    if db is None or interaction_id is None:
-        return
-    try:
-        from bson import ObjectId
-        if isinstance(interaction_id, bytes):
-            interaction_id = interaction_id.decode("utf-8", errors="replace").strip()
-        # Redis 存的是字串；MongoDB _id 為 ObjectId，update_one 必須用 ObjectId 才能匹配
-        if isinstance(interaction_id, ObjectId):
-            oid = interaction_id
-        else:
-            oid_str = str(interaction_id).strip()
-            oid = ObjectId(oid_str)
-        print(f">>> DEBUG: Updating Quiz for ID={oid}")
-        now = datetime.now(timezone.utc)
-        update = {
-            "quiz_data": {
-                "user_answer": user_answer,
-                "is_correct": bool(is_correct),
-                "attempted": bool(attempted),
-            },
-            "quiz_answered_at": now,
-        }
-        if response_time_sec is not None:
-            update["response_time_sec"] = response_time_sec
-        db[COLL_INTERACTIONS].update_one(
-            {"_id": oid},
-            {"$set": update},
-        )
-    except Exception as e:
-        print(f"[research_logging] update_interaction_quiz_result error: {e}")
 
 
 def get_interaction_count(db, user_id):
@@ -358,115 +231,6 @@ def get_follow_up_count_within_sec(db, user_id, within_sec=1800):
         return 0
 
 
-def log_quiz_result(db, user_id, quiz_type, question_id, user_answer, is_correct, response_time_sec=None):
-    """寫入 QuizResult。quiz_type 為 Immediate 或 Review。"""
-    if db is None or not user_id:
-        return
-    try:
-        db[COLL_QUIZ_RESULTS].insert_one({
-            "user_id": _decode(user_id),
-            "type": quiz_type if quiz_type in QUIZ_TYPES else "Immediate",
-            "question_id": (question_id or "")[:200],
-            "user_answer": (user_answer or "")[:20],
-            "is_correct": bool(is_correct),
-            "response_time_sec": response_time_sec,
-            "timestamp": datetime.now(timezone.utc),
-        })
-    except Exception as e:
-        print(f"[research_logging] log_quiz_result error: {e}")
-
-
-def count_tcm_terms_in_text(text):
-    """計算 text 中出現的 TCM 專業術語次數（重複出現多次計多次）。"""
-    if not (text or "").strip():
-        return 0
-    text = (text or "").strip()
-    count = 0
-    for term in TCM_TERMS_FOR_SPEECH:
-        if term in text:
-            count += text.count(term)
-    return count
-
-
-def log_speaking(db, user_id, transcript_length, tcm_term_count, transcript=None):
-    """寫入一筆 Speaking 模式的 Interaction（僅記錄口說相關欄位）。"""
-    if db is None or not user_id:
-        return
-    try:
-        now = datetime.now(timezone.utc)
-        doc = {
-            "user_id": _decode(user_id),
-            "mode": "Speaking",
-            "intent_tag": None,
-            "complexity_score": None,
-            "session_duration_sec": None,
-            "follow_up_count": None,
-            "question": (transcript or "")[:2000],
-            "answer": None,
-            "timestamp": now,
-            "feedback_requested": False,
-            "speaking_transcript_length": transcript_length,
-            "speaking_tcm_term_count": tcm_term_count,
-        }
-        db[COLL_INTERACTIONS].insert_one(doc)
-    except Exception as e:
-        print(f"[research_logging] log_speaking error: {e}")
-
-
-def update_speaking_answer(db, user_id, answer):
-    """更新最近一筆 Speaking 互動的 answer 欄位，補入 AI 回覆內容。"""
-    if db is None or not user_id:
-        return
-    try:
-        db[COLL_INTERACTIONS].find_one_and_update(
-            {"user_id": _decode(user_id), "mode": "Speaking"},
-            {"$set": {"answer": (answer or "")[:4000], "updated_at": datetime.now(timezone.utc)}},
-            sort=[("timestamp", -1)],
-        )
-    except Exception as e:
-        print(f"[research_logging] update_speaking_answer error: {e}")
-
-
-def compute_improvement_index(original, revised):
-    """
-    計算寫作改進指數：簡單以「修訂後長度/原長度」比例為基礎，若原為 0 則回傳 1.0。
-    可依需求改為更複雜的指標（例如編輯距離、文法正確數等）。
-    """
-    if not (original or "").strip():
-        return 1.0
-    orig_len = len((original or "").strip())
-    rev_len = len((revised or "").strip())
-    if orig_len == 0:
-        return 1.0
-    return round(rev_len / orig_len, 4)
-
-
-def log_writing(db, user_id, original_text, revised_text, improvement_index=None):
-    """寫入一筆 Writing 模式的 Interaction，含 improvement_index。"""
-    if db is None or not user_id:
-        return
-    try:
-        if improvement_index is None:
-            improvement_index = compute_improvement_index(original_text, revised_text)
-        now = datetime.now(timezone.utc)
-        doc = {
-            "user_id": _decode(user_id),
-            "mode": "Writing",
-            "intent_tag": None,
-            "complexity_score": None,
-            "session_duration_sec": None,
-            "follow_up_count": None,
-            "question": (original_text or "")[:2000],
-            "answer": (revised_text or "")[:4000],
-            "timestamp": now,
-            "feedback_requested": False,
-            "writing_improvement_index": improvement_index,
-        }
-        db[COLL_INTERACTIONS].insert_one(doc)
-    except Exception as e:
-        print(f"[research_logging] log_writing error: {e}")
-
-
 def classify_user_behavior(db, user_id):
     """
     根據最近互動歷史推斷行為模式：active_explorer（廣泛探索）或 task_oriented（任務導向）。
@@ -478,11 +242,8 @@ def classify_user_behavior(db, user_id):
         recent = get_last_n_interactions(db, user_id, 20)
         if not recent:
             return None
-        # 簡單啟發：若互動數多、模式多元（QA/Speaking/Writing 混用）則視為 active_explorer；否則 task_oriented
+        # 簡單啟發：若互動數多、模式多元則視為 active_explorer；否則 task_oriented
         modes = [r.get("mode") for r in recent if r.get("mode")]
-        qa_count = sum(1 for m in modes if m == "QA")
-        speaking_count = sum(1 for m in modes if m == "Speaking")
-        writing_count = sum(1 for m in modes if m == "Writing")
         unique_modes = len(set(modes))
         if unique_modes >= 2 or len(recent) >= 10:
             pattern = "active_explorer"
@@ -507,278 +268,3 @@ def run_analytics_middleware(db, user_id):
         classify_user_behavior(db, user_id)
     except Exception as e:
         print(f"[research_logging] run_analytics_middleware error: {e}")
-
-
-def generate_review_quiz_from_interactions(db, user_id, openai_client, last_n=10):
-    """
-    依該使用者最近 last_n 筆 Interaction 內容產生一題個人化複習選擇題。
-    回傳與 generate_mcq_quiz 相同結構：{question, options, answer, explanation} 或 None。
-    """
-    if db is None or not user_id or not openai_client:
-        return None
-    interactions = get_last_n_interactions(db, user_id, last_n)
-    if not interactions:
-        return None
-    context_parts = []
-    for i, doc in enumerate(interactions[:10], 1):
-        q = (doc.get("question") or "").strip()
-        a = (doc.get("answer") or "").strip()
-        if q or a:
-            context_parts.append(f"[{i}] Q: {q[:200]}\nA: {a[:300]}")
-    context = "\n\n".join(context_parts)[:2500]
-    if not context.strip():
-        return None
-    try:
-        prompt = f"""
-你是一位中醫課程助教。以下是某位學生「最近的問答記錄」。
-請根據這些內容出一題「複習用」的三選一選擇題，幫助他鞏固所學。
-
-[學生最近問答]
-{context}
-
-[要求]
-1. 題目需直接來自上述問答中的概念或重點。
-2. 選項共三個，標示為 (A)、(B)、(C)，只有一個正確答案。
-3. 回傳格式嚴格為 JSON，不要其他文字：
-{{
-  "question": "……？",
-  "options": ["(A) ……", "(B) ……", "(C) ……"],
-  "answer": "A",
-  "explanation": "……"
-}}
-""".strip()
-        resp = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "你是中醫助教，依學生問答出複習題，僅回傳 JSON。"},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=250,
-            temperature=0.2,
-        )
-        raw = (resp.choices[0].message.content or "").strip()
-        if not raw or "{" not in raw or "}" not in raw:
-            return None
-        raw = raw[raw.find("{"): raw.rfind("}") + 1]
-        obj = json.loads(raw)
-        question = (obj.get("question") or "").strip()
-        options = obj.get("options") or []
-        options = [str(x) for x in options][:3] if isinstance(options, list) else []
-        answer = str(obj.get("answer") or "").strip().upper()
-        if answer not in ("A", "B", "C"):
-            answer = "A"
-        explanation = (obj.get("explanation") or "").strip()
-        if not question or len(options) != 3:
-            return None
-        return {
-            "question": question[:500],
-            "options": [o[:200] for o in options],
-            "answer": answer,
-            "explanation": explanation[:1000],
-        }
-    except Exception as e:
-        print(f"[research_logging] generate_review_quiz_from_interactions error: {e}")
-        return None
-
-
-def generate_personalized_review_note(db, user_id, category, openai_client, last_n=20):
-    """
-    個人化複習筆記：
-    1. 查詢該使用者最近 last_n 筆互動中測驗答錯的紀錄（quiz_data.is_correct=False）
-    2. 查詢 intent_tag 含類別關鍵字的相關問答
-    3. 將以上資料餵給 GPT，產生針對該學生弱點的複習筆記（5–8 點）
-    MongoDB 不可用或無資料時回傳 None，讓呼叫端 fallback 通用版本。
-    """
-    if db is None or not user_id or not openai_client:
-        return None
-
-    uid = _decode(user_id)
-
-    # 1. 答錯的互動紀錄
-    try:
-        wrong_docs = list(
-            db[COLL_INTERACTIONS]
-            .find({"user_id": uid, "quiz_data.is_correct": False})
-            .sort("timestamp", -1)
-            .limit(last_n)
-        )
-    except Exception as e:
-        print(f"[research_logging] personalized_review wrong query error: {e}")
-        wrong_docs = []
-
-    # 2. 與類別相關的問答（intent_tag 模糊比對）
-    try:
-        related_docs = list(
-            db[COLL_INTERACTIONS]
-            .find({"user_id": uid, "intent_tag": {"$regex": category[:10], "$options": "i"}})
-            .sort("timestamp", -1)
-            .limit(10)
-        )
-    except Exception as e:
-        print(f"[research_logging] personalized_review related query error: {e}")
-        related_docs = []
-
-    # 合併去重（以 _id 為準），答錯的放前面
-    seen = set()
-    all_docs = []
-    for doc in wrong_docs + related_docs:
-        doc_id = str(doc.get("_id", ""))
-        if doc_id not in seen:
-            seen.add(doc_id)
-            all_docs.append(doc)
-
-    if not all_docs:
-        return None
-
-    # 組成 context
-    wrong_parts = []
-    qa_parts = []
-    for doc in all_docs[:15]:
-        q = (doc.get("question") or "").strip()[:200]
-        a = (doc.get("answer") or "").strip()[:300]
-        qd = doc.get("quiz_data") or {}
-        is_wrong = qd.get("is_correct") is False
-        if is_wrong:
-            wrong_parts.append(
-                f"- 學生問：{q}\n"
-                f"  AI 回答摘要：{a}\n"
-                f"  測驗答錯（答案：{qd.get('user_answer','?')}，正確：{qd.get('quiz_answer','?')}）"
-            )
-        elif q or a:
-            qa_parts.append(f"- 學生問：{q}\n  AI 回答摘要：{a}")
-
-    context_blocks = []
-    if wrong_parts:
-        context_blocks.append("[答錯的測驗紀錄]\n" + "\n".join(wrong_parts[:8]))
-    if qa_parts:
-        context_blocks.append("[相關問答紀錄]\n" + "\n".join(qa_parts[:5]))
-
-    context = "\n\n".join(context_blocks)[:3000]
-    if not context.strip():
-        return None
-
-    try:
-        prompt = (
-            f"以下是某位學生在「{category}」這個主題的學習紀錄，包含答錯的測驗與相關問答。\n\n"
-            f"{context}\n\n"
-            f"請根據以上紀錄，針對這位學生「實際弱點」產生一份個人化複習筆記（5–8 點條列）。\n"
-            f"重點說明他答錯或問過的核心概念，避免泛泛列出該領域所有知識點。\n"
-            f"只輸出筆記條列內容，不需標題與多餘說明。"
-        )
-        resp = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "你是中醫課程助教，根據學生實際學習紀錄產生個人化複習筆記。"},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=600,
-            temperature=0.3,
-        )
-        note = (resp.choices[0].message.content or "").strip()[:2000]
-        return note if note else None
-    except Exception as e:
-        print(f"[research_logging] generate_personalized_review_note GPT error: {e}")
-        return None
-
-
-def generate_full_personalized_review_note(db, user_id, openai_client, last_n=50):
-    """
-    全域個人化複習筆記（不限類別）：
-    1. 查詢該使用者所有答錯的測驗紀錄（quiz_data.is_correct=False）
-    2. 查詢最近 last_n 筆問過的問題
-    3. 餵給 GPT，產出涵蓋所有弱點主題的個人化複習筆記
-    無資料時回傳 None。
-    """
-    if db is None or not user_id or not openai_client:
-        return None
-
-    uid = _decode(user_id)
-
-    # 1. 所有答錯的互動（不限類別）
-    try:
-        wrong_docs = list(
-            db[COLL_INTERACTIONS]
-            .find({"user_id": uid, "quiz_data.is_correct": False})
-            .sort("timestamp", -1)
-            .limit(30)
-        )
-    except Exception as e:
-        print(f"[research_logging] full_review wrong query error: {e}")
-        wrong_docs = []
-
-    # 2. 最近的問答紀錄（QA mode）
-    try:
-        qa_docs = list(
-            db[COLL_INTERACTIONS]
-            .find({"user_id": uid, "mode": "QA"})
-            .sort("timestamp", -1)
-            .limit(last_n)
-        )
-    except Exception as e:
-        print(f"[research_logging] full_review qa query error: {e}")
-        qa_docs = []
-
-    # 合併去重，答錯優先
-    seen = set()
-    all_docs = []
-    for doc in wrong_docs + qa_docs:
-        doc_id = str(doc.get("_id", ""))
-        if doc_id not in seen:
-            seen.add(doc_id)
-            all_docs.append(doc)
-
-    if not all_docs:
-        return None
-
-    # 組 context：答錯的獨立標記，問答另列
-    wrong_parts = []
-    qa_parts = []
-    for doc in all_docs[:20]:
-        q = (doc.get("question") or "").strip()[:200]
-        a = (doc.get("answer") or "").strip()[:200]
-        qd = doc.get("quiz_data") or {}
-        tag = (doc.get("intent_tag") or "").strip()
-        is_wrong = qd.get("is_correct") is False
-        if is_wrong:
-            wrong_parts.append(
-                f"- 【答錯】題目：{q}｜學生答：{qd.get('user_answer','?')}｜正解：{qd.get('quiz_answer','?')}"
-                + (f"｜主題：{tag}" if tag else "")
-            )
-        elif q:
-            qa_parts.append(f"- 【問過】{q}" + (f"｜主題：{tag}" if tag else ""))
-
-    context_blocks = []
-    if wrong_parts:
-        context_blocks.append("【答錯的測驗紀錄】\n" + "\n".join(wrong_parts[:15]))
-    if qa_parts:
-        context_blocks.append("【學生問過的問題】\n" + "\n".join(qa_parts[:10]))
-
-    context = "\n\n".join(context_blocks)[:3000]
-    if not context.strip():
-        return None
-
-    try:
-        prompt = (
-            "以下是某位學生在中醫課程中的學習紀錄，包含測驗答錯與曾詢問的問題：\n\n"
-            f"{context}\n\n"
-            "請根據以上紀錄，針對這位學生「實際的弱點與疑問」產生一份個人化複習筆記。\n"
-            "格式要求：\n"
-            "1. 依主題分組（每組 2–4 點條列）\n"
-            "2. 聚焦在他答錯或問過的核心概念，不要泛泛列出整個領域\n"
-            "3. 每點說明重點概念及常見混淆之處\n"
-            "4. 只輸出筆記內容，不需前言、結語或多餘說明"
-        )
-        resp = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "你是中醫課程助教，根據學生實際學習紀錄產生個人化複習筆記。"},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=800,
-            temperature=0.3,
-        )
-        note = (resp.choices[0].message.content or "").strip()[:2500]
-        return note if note else None
-    except Exception as e:
-        print(f"[research_logging] generate_full_personalized_review_note GPT error: {e}")
-        return None

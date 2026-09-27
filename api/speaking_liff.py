@@ -24,45 +24,66 @@ NPC 對話式口說教練：協調者（orchestrator）。
 刻意不把逐字稿寫入 MongoDB：對話內容只在這次 session 存在（Redis + TTL），
 離開結算頁就清空。
 """
+import os
 import traceback
 
 try:
     from api.speaking_content import get_random_case, get_random_topic
-    from api.speaking_agents import build_patient_instructions, build_professor_instructions
+    from api.speaking_agents import build_patient_instructions, build_professor_instructions, build_free_practice_instructions
     from api.speaking_evaluator import analyze_turn, summarize_session
     from api.speaking_session import create_session, get_session, record_turn, compute_session_state, delete_session
 except ImportError:
     from speaking_content import get_random_case, get_random_topic
-    from speaking_agents import build_patient_instructions, build_professor_instructions
+    from speaking_agents import build_patient_instructions, build_professor_instructions, build_free_practice_instructions
     from speaking_evaluator import analyze_turn, summarize_session
     from speaking_session import create_session, get_session, record_turn, compute_session_state, delete_session
 
 MODES = {
-    "clinical": {"label_zh": "臨床衛教", "character_zh": "患者", "voice": "shimmer"},
-    "academic": {"label_zh": "學術討論", "character_zh": "教授", "voice": "cedar"},
+    "clinical": {"label_zh": "OSCE 訓練", "character_zh": "患者", "voice": "shimmer"},
+    "academic": {"label_zh": "學術研究者", "character_zh": "教授", "voice": "cedar"},
+    "student": {"label_zh": "中醫學生", "character_zh": "夥伴", "voice": "shimmer"},
 }
 DEFAULT_MODE = "clinical"
 REALTIME_MODEL = "gpt-realtime"
 
+_PATIENTS_DIR = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "assets", "patients")
+
+
+def _photo_url(case_id):
+    """依 case_id 找對應的靜態病人照片（assets/patients/<case_id>.<ext>）；找不到回傳 None，
+    前端就繼續用原本的圖示佔位。"""
+    if not case_id:
+        return None
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        if os.path.isfile(os.path.join(_PATIENTS_DIR, case_id + ext)):
+            return f"/assets/patients/{case_id}{ext}"
+    return None
+
 
 def list_modes():
     """
-    給主畫面情境卡片用。附一個隨機抽到的病例/題目當「預覽」（年齡、主訴、預期涵蓋主題），
-    純粹展示用——實際開始對話時 mint_ephemeral_session 會重新抽一個，不保證跟預覽是同一個。
+    給主畫面身分卡片用（OSCE 訓練／學術研究者／中醫學生）。附一個隨機抽到的病例/題目
+    當「預覽」（年齡、主訴、預期涵蓋主題），純粹展示用——實際開始對話時
+    mint_ephemeral_session 會重新抽一個，不保證跟預覽是同一個。「中醫學生」是不綁
+    病例/題目的自由練習模式，沒有預覽內容。
     """
     out = []
     for key, m in MODES.items():
-        content = get_random_case(None) if key == "clinical" else get_random_topic(None)
         preview = None
-        if content:
-            if key == "clinical":
+        if key == "clinical":
+            content = get_random_case(None)
+            if content:
                 preview = {
+                    "name": content.get("name"),
                     "age": content.get("age"),
                     "gender": content.get("gender"),
                     "chief_complaint": content.get("chief_complaint"),
                     "expected_topics": content.get("expected_topics") or [],
+                    "photo_url": _photo_url(content.get("case_id")),
                 }
-            else:
+        elif key == "academic":
+            content = get_random_topic(None)
+            if content:
                 preview = {
                     "title": content.get("title") or content.get("topic_id"),
                     "expected_topics": content.get("discussion_questions") or [],
@@ -76,6 +97,8 @@ def _pick_content_and_instructions(mode_key, difficulty=None):
     if mode_key == "academic":
         topic = get_random_topic(difficulty)
         return (topic.get("topic_id") if topic else None, topic, build_professor_instructions(topic))
+    if mode_key == "student":
+        return (None, None, build_free_practice_instructions(difficulty))
     case = get_random_case(difficulty)
     return (case.get("case_id") if case else None, case, build_patient_instructions(case))
 
@@ -126,6 +149,12 @@ def mint_ephemeral_session(openai_client, redis_client, mode_key, difficulty=Non
         # 開場提示：case 沒抽到內容時（內容庫是空的）給通用提示，否則給第一個
         # expected_topic/discussion_question 當開場方向
         "opening_hint": (topics or [None])[0] or "Start the conversation naturally in English.",
+        # 只有 clinical 模式有對應的靜態病人照片；找不到檔案就是 None，前端維持原本的圖示佔位
+        "photo_url": _photo_url(content_id) if mode_key == "clinical" else None,
+        "content_name": (content or {}).get("name") if mode_key == "clinical" else None,
+        "content_age": (content or {}).get("age") if mode_key == "clinical" else None,
+        "content_gender": (content or {}).get("gender") if mode_key == "clinical" else None,
+        "content_occupation": (content or {}).get("occupation") if mode_key == "clinical" else None,
     }
 
 

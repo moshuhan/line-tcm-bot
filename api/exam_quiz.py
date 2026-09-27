@@ -57,6 +57,55 @@ def list_categories():
     return seen
 
 
+def list_exam_periods():
+    """
+    回傳「依年度」可選的梯次清單：每個年度＋階段一組（同一年度的 exam_session 是
+    固定值，105-111 年為「第一次」，112 年後為「第二次」，見 PDF 表頭），依年度
+    新到舊排序，第一階段排在第二階段前面。每組附上題數，排除 requires_image 題目
+    （理由同 get_questions_by_category）。
+    """
+    counts = {}
+    for q in load_questions():
+        if q.get("requires_image"):
+            continue
+        key = (q.get("exam_year"), q.get("exam_session"), q.get("exam_stage"))
+        if not all(key):
+            continue
+        counts[key] = counts.get(key, 0) + 1
+    periods = [
+        {
+            "exam_year": year, "exam_session": session, "exam_stage": stage,
+            "label": f"{year}年 {session}．{stage}",
+            "count": count,
+        }
+        for (year, session, stage), count in counts.items()
+    ]
+    periods.sort(key=lambda p: (-int(p["exam_year"]), p["exam_stage"]))
+    return periods
+
+
+def get_questions_by_period(exam_year, exam_session, exam_stage):
+    """
+    回傳指定梯次（年度＋考次＋階段）的題目，給前端作答用——不含正確答案。
+    對應線框圖「依年度」篩選：使用者選的是一個實際考卷梯次，不是章節。
+    """
+    out = []
+    for q in load_questions():
+        if q.get("requires_image"):
+            continue
+        if q.get("exam_year") != exam_year or q.get("exam_stage") != exam_stage:
+            continue
+        if exam_session and q.get("exam_session") != exam_session:
+            continue
+        out.append({
+            "id": q.get("id"),
+            "category": q.get("category"),
+            "question": q.get("question"),
+            "options": q.get("options"),
+        })
+    return out
+
+
 def get_questions_by_category(category=None):
     """
     回傳指定章節的題目，給前端作答用——不含正確答案與詳解，避免使用者直接看到答案。
@@ -105,20 +154,25 @@ def get_question_detail(qid):
     }
 
 
-def submit_exam(db, user_id, category, answers):
+def submit_exam(db, user_id, category, question_ids, answers):
     """
-    交卷評分。answers: {question_id: chosen_letter}。
+    交卷評分。question_ids：這次出給使用者的完整題目清單（不管有沒有作答都要算進分母，
+    這是這次考卷的真實題數）。answers: {question_id: chosen_letter}，沒有作答的題目
+    視為答錯，不是「不計分」——分數才會真的反映「這整份考卷答對幾題」，而不是
+    「使用者隨便點幾題就能拿高分」。
     回傳 {"score": int(0-100), "correct_count", "total", "results": [...]}。
     只有正常交卷才會呼叫這個函式（中途關閉不呼叫＝不留紀錄，交由前端控制）。
-    寫入 exam_sessions 留存這次考試紀錄；答錯的題目自動加入錯題本（exam_wrong_questions）。
+    寫入 exam_sessions 留存這次考試紀錄；答錯（含未作答）的題目自動加入錯題本
+    （exam_wrong_questions）。
     """
     results = []
     correct_count = 0
-    for qid, chosen in (answers or {}).items():
+    answers = answers or {}
+    for qid in (question_ids or []):
         q = _question_by_id(qid)
         if not q:
             continue
-        chosen_norm = (chosen or "").strip().upper()
+        chosen_norm = (answers.get(qid) or "").strip().upper()
         correct_answer = (q.get("answer") or "").strip().upper()
         is_correct = bool(chosen_norm) and chosen_norm == correct_answer
         if is_correct:
@@ -144,7 +198,7 @@ def submit_exam(db, user_id, category, answers):
                 "score": score,
                 "correct_count": correct_count,
                 "total": total,
-                "question_ids": list((answers or {}).keys()),
+                "question_ids": list(question_ids or []),
                 "created_at": datetime.now(timezone.utc),
             })
         except Exception:

@@ -72,13 +72,6 @@ tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'on-primary-
         <span class="font-label-lg text-label-lg font-bold text-on-surface">選擇出題範圍</span>
       </div>
       <div class="flex flex-col gap-1.5">
-        <label class="font-label-sm text-label-sm font-medium text-on-surface-variant">依章節分類</label>
-        <div class="relative">
-          <select id="select-category" class="w-full appearance-none bg-surface-container-low text-on-surface font-label-lg text-label-lg font-semibold rounded-xl py-3 pl-3.5 pr-10 outline-none focus:bg-surface-container transition-all cursor-pointer"></select>
-          <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[20px]">unfold_more</span>
-        </div>
-      </div>
-      <div class="flex flex-col gap-1.5">
         <span class="font-label-sm text-label-sm font-medium text-on-surface-variant">刷題組織方式</span>
         <div class="grid grid-cols-2 gap-space-xs p-1 bg-surface-container-low rounded-xl" id="modeSelector">
           <button type="button" id="mode-chapter" class="py-2.5 px-3 rounded-lg font-label-md text-label-md font-bold bg-surface-container-lowest text-primary shadow-sm flex items-center justify-center gap-1.5 transition-all" onclick="setScope('chapter')">
@@ -87,6 +80,20 @@ tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'on-primary-
           <button type="button" id="mode-year" class="py-2.5 px-3 rounded-lg font-label-md text-label-md font-medium text-on-surface-variant flex items-center justify-center gap-1.5 transition-all" onclick="setScope('year')">
             <span class="material-symbols-outlined text-[18px]">history_edu</span><span>依年度</span>
           </button>
+        </div>
+      </div>
+      <div class="flex flex-col gap-1.5" id="category-select-wrap">
+        <label class="font-label-sm text-label-sm font-medium text-on-surface-variant">依章節分類</label>
+        <div class="relative">
+          <select id="select-category" class="w-full appearance-none bg-surface-container-low text-on-surface font-label-lg text-label-lg font-semibold rounded-xl py-3 pl-3.5 pr-10 outline-none focus:bg-surface-container transition-all cursor-pointer"></select>
+          <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[20px]">unfold_more</span>
+        </div>
+      </div>
+      <div class="flex flex-col gap-1.5" id="period-select-wrap" style="display:none;">
+        <label class="font-label-sm text-label-sm font-medium text-on-surface-variant">選擇梯次</label>
+        <div class="relative">
+          <select id="select-period" class="w-full appearance-none bg-surface-container-low text-on-surface font-label-lg text-label-lg font-semibold rounded-xl py-3 pl-3.5 pr-10 outline-none focus:bg-surface-container transition-all cursor-pointer"></select>
+          <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[20px]">unfold_more</span>
         </div>
       </div>
       <label class="flex items-center gap-2.5 cursor-pointer select-none py-1">
@@ -333,7 +340,9 @@ const DEMO_MODE = new URLSearchParams(location.search).get("demo") === "1";
 let idToken = null;
 let displayName = "同學";
 let categories = [];
+let periods = [];
 let currentCategory = "";
+let currentPeriod = null;
 let currentScope = "chapter";
 let currentQuestions = [];
 let selectedAnswers = {};
@@ -416,6 +425,7 @@ async function apiDelete(path) {
 async function demoRoute(method, path, body) {
   await new Promise(r => setTimeout(r, 250));
   if (path.startsWith("/api/liff/quiz/categories")) return { categories: [DEMO_CATEGORY, "黃帝內經靈素", "中醫方劑學", "針灸經絡腧穴"] };
+  if (path.startsWith("/api/liff/quiz/periods")) return { periods: [{ exam_year: "115", exam_session: "第二次", exam_stage: "第一階段", label: "115年 第二次．第一階段", count: DEMO_QUESTIONS.length }] };
   if (path.startsWith("/api/liff/quiz/questions/")) {
     const id = path.split("/").pop();
     const q = DEMO_QUESTIONS.find(x => x.id === id);
@@ -483,6 +493,19 @@ async function afterAuth() {
   const lastScope = localStorage.getItem("examLastScope");
   if (lastCategory && categories.includes(lastCategory)) sel.value = lastCategory;
   currentCategory = sel.value || categories[0] || "";
+
+  const periodData = await apiGet("/api/liff/quiz/periods");
+  periods = periodData.periods || [];
+  const periodSel = document.getElementById("select-period");
+  periodSel.innerHTML = periods.map((p, i) => `<option value="${i}">${escapeHtml(p.label)}（${p.count} 題）</option>`).join("");
+  const lastPeriodKey = localStorage.getItem("examLastPeriodKey");
+  if (lastPeriodKey) {
+    const idx = periods.findIndex(p => `${p.exam_year}-${p.exam_session}-${p.exam_stage}` === lastPeriodKey);
+    if (idx >= 0) periodSel.value = String(idx);
+  }
+  currentPeriod = periods[Number(periodSel.value) || 0] || null;
+  periodSel.addEventListener("change", () => { currentPeriod = periods[Number(periodSel.value)] || null; });
+
   setScope(lastScope === "year" ? "year" : "chapter");
   renderQuickNav();
   showPage("home");
@@ -504,6 +527,7 @@ function renderQuickNav() {
   `).join("");
 }
 function quickNavStart(category) {
+  setScope("chapter");
   document.getElementById("select-category").value = category;
   startQuiz();
 }
@@ -516,6 +540,8 @@ function setScope(scope) {
   const inactiveCls = "py-2.5 px-3 rounded-lg font-label-md text-label-md font-medium text-on-surface-variant flex items-center justify-center gap-1.5 transition-all";
   chapterBtn.className = scope === "chapter" ? activeCls : inactiveCls;
   yearBtn.className = scope === "year" ? activeCls : inactiveCls;
+  document.getElementById("category-select-wrap").style.display = scope === "chapter" ? "flex" : "none";
+  document.getElementById("period-select-wrap").style.display = scope === "year" ? "flex" : "none";
 }
 
 // ---------- page switching ----------
@@ -540,13 +566,27 @@ function goPractice() {
 
 // ---------- quiz ----------
 async function startQuiz() {
-  currentCategory = document.getElementById("select-category").value;
-  if (document.getElementById("rememberSelection").checked) {
-    localStorage.setItem("examLastCategory", currentCategory);
-    localStorage.setItem("examLastScope", currentScope);
+  let params;
+  if (currentScope === "year") {
+    const periodSel = document.getElementById("select-period");
+    currentPeriod = periods[Number(periodSel.value)] || null;
+    if (!currentPeriod) { alert("目前沒有可選的年度梯次"); return; }
+    if (document.getElementById("rememberSelection").checked) {
+      localStorage.setItem("examLastPeriodKey", `${currentPeriod.exam_year}-${currentPeriod.exam_session}-${currentPeriod.exam_stage}`);
+      localStorage.setItem("examLastScope", currentScope);
+    }
+    currentCategory = currentPeriod.label;
+    document.getElementById("quiz-category-chip").textContent = currentPeriod.label;
+    params = new URLSearchParams({ scope: "year", exam_year: currentPeriod.exam_year, exam_session: currentPeriod.exam_session, exam_stage: currentPeriod.exam_stage });
+  } else {
+    currentCategory = document.getElementById("select-category").value;
+    if (document.getElementById("rememberSelection").checked) {
+      localStorage.setItem("examLastCategory", currentCategory);
+      localStorage.setItem("examLastScope", currentScope);
+    }
+    document.getElementById("quiz-category-chip").textContent = currentCategory || "全部";
+    params = new URLSearchParams({ category: currentCategory, scope: "chapter" });
   }
-  document.getElementById("quiz-category-chip").textContent = currentCategory || "全部";
-  const params = new URLSearchParams({ category: currentCategory, scope: currentScope });
   const data = await apiGet("/api/liff/quiz/questions?" + params.toString());
   currentQuestions = data.questions || [];
   selectedAnswers = {};
@@ -666,7 +706,8 @@ function stopQuizTimer() {
 async function submitExam() {
   if (!Object.keys(selectedAnswers).length) { alert("請至少作答一題再交卷"); return; }
   const elapsedMs = quizStartedAt ? Date.now() - quizStartedAt : 0;
-  const result = await apiPost("/api/liff/quiz/submit", { category: currentCategory, answers: selectedAnswers });
+  const questionIds = currentQuestions.map(q => q.id);
+  const result = await apiPost("/api/liff/quiz/submit", { category: currentCategory, question_ids: questionIds, answers: selectedAnswers });
   lastResult = { ...result, elapsedMs, category: currentCategory };
   quizStartedAt = null;
   currentQuestions = [];

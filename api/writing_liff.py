@@ -30,13 +30,25 @@ _REVIEW_SYSTEM_PROMPT = """
 3. 文法與表達清晰度
 4. 段落結構與銜接
 
+【完整度是評分的前提，不是額外加分項】
+使用者訊息裡如果有附上「題目要求」（字數/句數範圍、任務說明），批改前務必先比對使用者
+寫的內容有沒有達到那個份量與任務要求。這是嚴重扣分甚至接近零分的情況，不能因為「這一兩句
+文法正確」就給中等分數：
+- 只寫了一句話、半句話，或明顯只是題目要求的一小部分（例如要求 80-120 字的摘要卻只寫了
+  10 幾個字），視為「未完成」：content 與 structure 兩項最多給 0-5 分（不是 10 幾分），
+  因為內容不完整、結構根本還沒成形；grammar 可以照那一兩句話本身的正確性給分，但 total
+  必須整體反映「這份作業還沒寫完」，不能因為 grammar 拿滿分就把 total 拉高到及格帶。
+- 字數/句數大致達到要求但明顯離題、漏掉關鍵論點，content 也要對應扣分，不能只看文法。
+- 沒有附題目要求（例如自由寫作）時，才用一般寫作品質判斷，不用套用上述完整度規則。
+在 explanation 裡明確指出「字數/句數不足」或「未完成」這件事，不要略過不提。
+
 【輸出格式，嚴格回傳 JSON，不要其他文字】
 {
   "scores": {"content": 0-25, "register": 0-25, "grammar": 0-25, "structure": 0-25},
   "total": 0-100,
-  "praise": "1-2 句具體稱讚做得好的地方",
-  "corrected": "完整修正後的版本",
-  "explanation": "單一字串（不是陣列），內容用 \n 換行條列 2-4 點，說明主要修改了什麼、為什麼"
+  "praise": "1-2 句具體稱讚做得好的地方；若內容明顯未完成，這裡可以誠實說「篇幅太短還看不出完整表現」，不用勉強找優點",
+  "corrected": "完整修正後的版本；若原文明顯不完整，就在補完的部分後面用 [示範補寫] 標註，讓使用者看得出來哪些是他自己寫的、哪些是你補的",
+  "explanation": "單一字串（不是陣列），內容用 \n 換行條列 2-4 點，說明主要修改了什麼、為什麼；內容不完整時第一點就要點出字數/句數落差"
 }
 """.strip()
 
@@ -110,9 +122,16 @@ def full_review(openai_client, text, topic_id=None):
     if not text:
         return None
     topic = get_topic(topic_id) if topic_id else None
+    word_count = len(text.split())
     user_content = text[:3000]
-    if topic and topic.get("source_zh"):
-        user_content = f"[題目來源中文段落]\n{topic['source_zh']}\n\n[使用者英文寫作]\n{user_content}"
+    if topic and (topic.get("source_zh") or topic.get("instruction_zh")):
+        parts = []
+        if topic.get("source_zh"):
+            parts.append(f"[題目來源中文段落]\n{topic['source_zh']}")
+        if topic.get("instruction_zh"):
+            parts.append(f"[題目要求]\n{topic['instruction_zh']}")
+        parts.append(f"[使用者英文寫作（約 {word_count} 個英文單字）]\n{user_content}")
+        user_content = "\n\n".join(parts)
     try:
         resp = openai_client.chat.completions.create(
             model="gpt-4o-mini",

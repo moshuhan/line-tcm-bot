@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import io
 import glob
 import os
 import random
@@ -26,61 +25,25 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, PostbackEvent, AudioMessage, ImageMessage,
-    QuickReply, QuickReplyButton, MessageAction, PostbackAction, FlexSendMessage, URIAction,
+    QuickReply, QuickReplyButton, MessageAction, FlexSendMessage, URIAction,
 )
-from linebot.models.send_messages import AudioSendMessage
 from redis import Redis as RedisClient
 from pymongo import MongoClient
 from openai import OpenAI
 import httpx
 from httpx_retries import RetryTransport, Retry
-import cloudinary
-import cloudinary.uploader
 
 try:
     from api.syllabus import (
         is_off_topic,
-        get_rag_instructions,
-        get_writing_mode_instructions,
-        get_speaking_mode_instructions,
-        is_course_inquiry_intent,
-        build_course_inquiry_flex,
-        get_now_taipei,
         OFF_TOPIC_REPLY,
     )
     from api.learning import (
         log_question,
         set_last_question,
-        get_last_question,
         set_last_assistant_message,
-        get_last_assistant_message,
         append_conv_history,
         get_conv_history,
-        set_quiz_pending,
-        get_quiz_pending,
-        clear_quiz_pending,
-        set_user_state,
-        get_user_state,
-        set_quiz_data,
-        get_quiz_data,
-        clear_quiz_data,
-        STATE_NORMAL,
-        STATE_QUIZ_WAITING,
-        record_weak_category,
-        get_weak_categories,
-        clear_weak_category,
-        get_last_review_ask,
-        set_last_review_ask,
-        set_pending_review_category,
-        get_pending_review_category,
-        clear_pending_review_category,
-        generate_dynamic_quiz,
-        generate_mcq_quiz,
-        reveal_quiz_answer,
-        judge_quiz_answer,
-        generate_review_note,
-        set_mcq_quiz_data,
-        REVIEW_ASK_COOLDOWN_DAYS,
     )
     from api.research_logging import (
         ensure_user,
@@ -88,80 +51,21 @@ try:
         get_last_interaction_timestamp,
         get_follow_up_count_within_sec,
         classify_qa_intent_and_complexity,
-        classify_qa_learning_tags,
         log_interaction,
-        update_interaction_quiz_result,
-        log_quiz_result,
-        log_speaking,
-        update_speaking_answer,
-        log_writing,
-        count_tcm_terms_in_text,
         run_analytics_middleware,
-        generate_review_quiz_from_interactions,
-        log_student_feedback,
-        generate_personalized_review_note,
-        generate_full_personalized_review_note,
     )
 except ImportError:
     from syllabus import (
         is_off_topic,
-        get_rag_instructions,
-        get_writing_mode_instructions,
-        get_speaking_mode_instructions,
-        is_course_inquiry_intent,
-        build_course_inquiry_flex,
-        get_now_taipei,
         OFF_TOPIC_REPLY,
     )
     from learning import (
         log_question,
         set_last_question,
-        get_last_question,
         set_last_assistant_message,
-        get_last_assistant_message,
         append_conv_history,
         get_conv_history,
-        set_quiz_pending,
-        get_quiz_pending,
-        clear_quiz_pending,
-        set_user_state,
-        get_user_state,
-        set_quiz_data,
-        get_quiz_data,
-        clear_quiz_data,
-        STATE_NORMAL,
-        STATE_QUIZ_WAITING,
-        record_weak_category,
-        get_weak_categories,
-        clear_weak_category,
-        get_last_review_ask,
-        set_last_review_ask,
-        set_pending_review_category,
-        get_pending_review_category,
-        clear_pending_review_category,
-        generate_dynamic_quiz,
-        generate_mcq_quiz,
-        reveal_quiz_answer,
-        judge_quiz_answer,
-        generate_review_note,
-        set_mcq_quiz_data,
-        REVIEW_ASK_COOLDOWN_DAYS,
     )
-    from research_logging import (
-        ensure_user,
-        get_interaction_count,
-        get_last_interaction_timestamp,
-        get_follow_up_count_within_sec,
-        classify_qa_intent_and_complexity,
-        log_interaction,
-        log_quiz_result,
-        log_speaking,
-        update_speaking_answer,
-        log_writing,
-        count_tcm_terms_in_text,
-        run_analytics_middleware,
-    )
-except ImportError:
     try:
         from research_logging import (
             ensure_user,
@@ -169,19 +73,8 @@ except ImportError:
             get_last_interaction_timestamp,
             get_follow_up_count_within_sec,
             classify_qa_intent_and_complexity,
-            classify_qa_learning_tags,
             log_interaction,
-            update_interaction_quiz_result,
-            log_quiz_result,
-            log_speaking,
-            update_speaking_answer,
-            log_writing,
-            count_tcm_terms_in_text,
             run_analytics_middleware,
-            generate_review_quiz_from_interactions,
-            log_student_feedback,
-            generate_personalized_review_note,
-            generate_full_personalized_review_note,
         )
     except ImportError:
         def _noop_user(*a, **k):
@@ -194,14 +87,7 @@ except ImportError:
         get_last_interaction_timestamp = _noop_ts
         classify_qa_intent_and_complexity = _noop_classify
         log_interaction = lambda *a, **k: None
-        update_interaction_quiz_result = log_quiz_result = log_speaking = update_speaking_answer = log_writing = lambda *a, **k: None
-        count_tcm_terms_in_text = lambda t: 0
         run_analytics_middleware = lambda *a, **k: None
-        generate_review_quiz_from_interactions = lambda *a, **k: None
-        generate_personalized_review_note = lambda *a, **k: None
-        generate_full_personalized_review_note = lambda *a, **k: None
-        log_student_feedback = lambda *a, **k: None
-        classify_qa_learning_tags = lambda *a, **k: (None, None)
         append_conv_history = lambda *a, **k: None
         get_conv_history = lambda *a, **k: []
 
@@ -209,6 +95,8 @@ try:
     from api.exam_quiz import (
         list_categories as exam_list_categories,
         get_questions_by_category as exam_get_questions_by_category,
+        list_exam_periods as exam_list_exam_periods,
+        get_questions_by_period as exam_get_questions_by_period,
         get_question_detail as exam_get_question_detail,
         submit_exam as exam_submit_exam,
         toggle_bookmark as exam_toggle_bookmark,
@@ -235,6 +123,8 @@ except ImportError:
     from exam_quiz import (
         list_categories as exam_list_categories,
         get_questions_by_category as exam_get_questions_by_category,
+        list_exam_periods as exam_list_exam_periods,
+        get_questions_by_period as exam_get_questions_by_period,
         get_question_detail as exam_get_question_detail,
         submit_exam as exam_submit_exam,
         toggle_bookmark as exam_toggle_bookmark,
@@ -313,637 +203,22 @@ else:
         mongo_client = None
         mongo_db = None
 
-# 模式快取：Redis 瞬斷時使用，key=user_id -> (mode, timestamp)
-_mode_cache = {}
-_MODE_CACHE_TTL = 180
-_MODE_CACHE_MAX = 1000
-# 序列化 Redis 存取，避免多 thread 同時呼叫 Upstash 造成 "Device or resource busy"
-_redis_mode_lock = threading.Lock()
-
-# Cloudinary 設定（TTS 語音檔雲端儲存）
-_cloudinary_configured = bool(
-    os.getenv("CLOUDINARY_CLOUD_NAME")
-    and os.getenv("CLOUDINARY_API_KEY")
-    and os.getenv("CLOUDINARY_API_SECRET")
-)
-if _cloudinary_configured:
-    cloudinary.config(
-        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-        api_key=os.getenv("CLOUDINARY_API_KEY"),
-        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-    )
-
 # 安全聲明：涉及中醫診斷之回覆必須附加（詳細回答 + 參考出處後加此句）
 SAFETY_DISCLAIMER = "\n\n以上資料僅供參考，若有身體不適請務必尋求專業醫師診斷與建議。"
 SAFETY_DISCLAIMER_EN = "\n\nThe above information is for reference only. Please seek professional medical advice if you have any health concerns."
 
 USER_LANGUAGE_KEY = "user_language:{user_id}"
 
-VOICE_COACH_TTS_VOICE = "shimmer"
-TTS_SPEED = 0.8  # shadowing 語音 0.8 倍速，較慢易於跟讀
-VOICE_ERROR_MSG = "抱歉，語音生成出了一點問題，請再試一次。"
 TIMEOUT_SECONDS = 28  # Assistant + RAG 常需 15–30 秒；保留 buffer 避開 Vercel 預設 30s
 TIMEOUT_MESSAGE = "正在努力翻閱典籍/資料中，請稍候再問我一次。"
 FORCE_PUSH_MODE = os.getenv("LINE_FORCE_PUSH", "true").strip().lower() in ("1", "true", "yes", "on")
-ENABLE_QUIZ_GENERATION = os.getenv("ENABLE_QUIZ_GENERATION", "true").strip().lower() in ("1", "true", "yes", "on")
 # 英文版部署時設 FORCE_LANG=en，強制所有回覆使用英文，不依賴動態語言偵測
 FORCE_LANG = os.getenv("FORCE_LANG", "").strip().lower()  # "en" | "" (空=動態偵測)
 
-# --- 口說練習：Azure Pronunciation Assessment ---
-_AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "").strip()
-_AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "").strip()
-_PRACTICE_SENTENCE_KEY = "practice_sentence:{user_id}"
-print(f"ENV CHECK: AZURE_SPEECH_KEY exists: {bool(_AZURE_SPEECH_KEY)}, REGION: {_AZURE_SPEECH_REGION or 'not set'}")
-
-
-def _set_practice_sentence(user_id, sentence):
-    """儲存當前練習句到 Redis（TTL 30 分鐘），供發音評估用。"""
-    if not redis or not sentence:
-        return
-    try:
-        redis.set(_PRACTICE_SENTENCE_KEY.format(user_id=user_id), sentence.strip(), ex=1800)
-    except Exception:
-        pass
-
-
-def _get_practice_sentence(user_id):
-    """從 Redis 取得當前練習句，供 Azure Pronunciation Assessment 使用。"""
-    if not redis:
-        return ""
-    try:
-        val = redis.get(_PRACTICE_SENTENCE_KEY.format(user_id=user_id))
-        if val is None:
-            return ""
-        return val.decode("utf-8") if isinstance(val, bytes) else str(val)
-    except Exception:
-        return ""
-
-
-def _find_ffmpeg() -> str:
-    """找出 ffmpeg 執行檔路徑（shutil.which + Nix store 常見位置）。"""
-    import shutil
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-    candidates = [
-        "/usr/bin/ffmpeg",
-        "/usr/local/bin/ffmpeg",
-        "/nix/var/nix/profiles/default/bin/ffmpeg",
-        "/run/current-system/sw/bin/ffmpeg",
-    ]
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    return ""
-
-
-def _m4a_to_wav_bytes(m4a_bytes: bytes) -> bytes:
-    """
-    M4A → WAV (PCM 16kHz mono) via ffmpeg subprocess，全程記憶體操作。
-    Azure Pronunciation Assessment 需要 WAV；STT 雖可接受 MP4，但 PA 評分不會回傳。
-    ffmpeg 不存在或轉換失敗時回傳空 bytes，由呼叫端 fallback。
-    """
-    try:
-        import subprocess
-        ffmpeg = _find_ffmpeg()
-        if not ffmpeg:
-            print("[Azure] ffmpeg not found in PATH or known locations")
-            return b""
-        result = subprocess.run(
-            [ffmpeg, "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1", "-loglevel", "error"],
-            input=m4a_bytes,
-            capture_output=True,
-            timeout=10,
-        )
-        if result.returncode == 0 and result.stdout:
-            return result.stdout
-        print(f"[Azure] ffmpeg returncode={result.returncode} stderr={result.stderr[:200]}")
-        return b""
-    except Exception as e:
-        print(f"[Azure] M4A→WAV conversion failed: {e}")
-        return b""
-
-
-def _assess_pronunciation(audio_bytes: bytes, reference_text: str = "", language: str = "en-US") -> dict:
-    """
-    呼叫 Azure Speech REST API 進行 Pronunciation Assessment。
-    LINE 音訊為 M4A；Azure PA 評分需要 WAV，先以 ffmpeg 轉換後再送出。
-    ffmpeg 不可用時 fallback 送原始 MP4（只有 STT，無 PA 評分）。
-    回傳 Azure 原始 JSON dict；失敗時回傳 {}。
-    """
-    if not _AZURE_SPEECH_KEY or not _AZURE_SPEECH_REGION:
-        return {}
-    pa_config = {
-        "GradingSystem": "HundredMark",
-        "Granularity": "Phoneme",
-        "EnableMiscue": True,
-    }
-    if reference_text.strip():
-        pa_config["ReferenceText"] = reference_text.strip()
-    pa_header = base64.b64encode(json.dumps(pa_config).encode("utf-8")).decode("utf-8")
-    url = (
-        f"https://{_AZURE_SPEECH_REGION}.stt.speech.microsoft.com"
-        f"/speech/recognition/conversation/cognitiveservices/v1"
-        f"?language={language}&format=detailed"
-    )
-
-    wav_bytes = _m4a_to_wav_bytes(audio_bytes)
-    if wav_bytes:
-        send_bytes = wav_bytes
-        content_type = "audio/wav; codecs=audio/pcm; samplerate=16000"
-    else:
-        send_bytes = audio_bytes
-        content_type = "audio/mp4"
-
-    headers = {
-        "Ocp-Apim-Subscription-Key": _AZURE_SPEECH_KEY,
-        "Content-Type": content_type,
-        "Pronunciation-Assessment": pa_header,
-    }
-    try:
-        resp = requests.post(url, headers=headers, data=send_bytes, timeout=30)
-        resp.raise_for_status()
-        result = resp.json()
-        print(f"[Azure] RecognitionStatus={result.get('RecognitionStatus')} NBest_count={len(result.get('NBest') or [])} wav={bool(wav_bytes)}")
-        return result
-    except Exception as e:
-        print(f"[Azure] pronunciation assessment error: {e}")
-        return {}
-
-
-def _format_pronunciation_feedback(result: dict, is_english: bool) -> tuple:
-    """
-    解析 Azure 回應，回傳 (transcript: str, feedback: str, is_good: bool)。
-    is_good = PronScore >= 80。
-    """
-    nbest = (result.get("NBest") or [{}])[0]
-    transcript = (nbest.get("Display") or result.get("DisplayText") or "").strip()
-    pa = nbest.get("PronunciationAssessment") or {}
-    accuracy = pa.get("AccuracyScore") or 0
-    fluency = pa.get("FluencyScore") or 0
-    completeness = pa.get("CompletenessScore") or 0
-    pron_score = pa.get("PronScore") or accuracy
-    prosody = pa.get("ProsodyScore")
-
-    words = nbest.get("Words") or []
-    error_words = [
-        w.get("Word", "")
-        for w in words
-        if isinstance(w, dict)
-        and (w.get("PronunciationAssessment") or {}).get("ErrorType", "None") not in ("None", "")
-    ]
-
-    if is_english:
-        lines = ["🎙 Pronunciation Assessment:\n"]
-        lines.append(f"Overall: {pron_score:.0f}/100")
-        lines.append(f"• Accuracy:     {accuracy:.0f}/100")
-        lines.append(f"• Fluency:      {fluency:.0f}/100")
-        lines.append(f"• Completeness: {completeness:.0f}/100")
-        if prosody is not None:
-            lines.append(f"• Prosody:      {prosody:.0f}/100")
-        if error_words:
-            lines.append(f"\n⚠️ Words to improve: {', '.join(error_words)}")
-        if pron_score >= 80:
-            lines.append("\n✅ Great job! Your pronunciation is solid.")
-        elif pron_score >= 60:
-            lines.append("\n💪 Good effort! Focus on the highlighted words.")
-        else:
-            lines.append("\n📚 Keep practicing! Listen to the model pronunciation carefully.")
-    else:
-        lines = ["🎙 發音評估結果：\n"]
-        lines.append(f"整體分數：{pron_score:.0f}/100")
-        lines.append(f"• 準確度：{accuracy:.0f}/100")
-        lines.append(f"• 流暢度：{fluency:.0f}/100")
-        lines.append(f"• 完整度：{completeness:.0f}/100")
-        if prosody is not None:
-            lines.append(f"• 語調：  {prosody:.0f}/100")
-        if error_words:
-            lines.append(f"\n⚠️ 需加強的字：{', '.join(error_words)}")
-        if pron_score >= 80:
-            lines.append("\n✅ 非常棒！發音相當標準。")
-        elif pron_score >= 60:
-            lines.append("\n💪 不錯喔！繼續練習標示的字。")
-        else:
-            lines.append("\n📚 繼續加油！多聽示範語音，模仿語調。")
-
-    return transcript, "\n".join(lines), pron_score >= 80
-
-
-# --- 口說練習：GPT 糾錯（Azure 不可用時的 fallback）---
-def _evaluate_speech(transcript):
-    """
-    糾錯與分析：檢查語法、拼寫、用詞、語義完整性。
-    回傳 (status: "Correct"|"NeedsImprovement", feedback_text: str, corrected_text: str 用於 TTS)。
-    """
-    if not (transcript or "").strip():
-        return "Correct", "", ""
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an English language and TCM content coach. Analyze the student's speech transcript and check:\n"
-                        "1. Grammar errors, misspellings, unnatural word choice\n"
-                        "2. Semantic completeness\n"
-                        "3. TCM content accuracy — if the sentence contains TCM concepts (herbs, formulas, organs, pathology, etc.), check if the content is factually correct\n"
-                        "Return JSON:\n"
-                        '{"status": "Correct" or "NeedsImprovement", "feedback": "brief feedback covering both language and any TCM content errors with short correct explanation", "corrected": "corrected sentence if status is NeedsImprovement, else empty string"}\n'
-                        "Status: Correct = language and content both correct; NeedsImprovement = any language OR content error."
-                    ),
-                },
-                {"role": "user", "content": f"Student's speech: {transcript[:500]}"},
-            ],
-            max_tokens=250,
-        )
-        raw_text = (resp.choices[0].message.content or "").strip()
-        # 嘗試從 code block 或純文字中提取 JSON
-        candidates = []
-        if "```" in raw_text:
-            for seg in raw_text.split("```"):
-                seg = seg.strip().lstrip("json").strip()
-                if seg.startswith("{"):
-                    candidates.append(seg)
-        candidates.append(raw_text)
-        for candidate in candidates:
-            try:
-                obj = json.loads(candidate)
-                status = (obj.get("status") or "Correct").strip()
-                if status not in ("Correct", "NeedsImprovement"):
-                    status = "Correct" if obj.get("correct", True) else "NeedsImprovement"
-                feedback = (obj.get("feedback") or "").strip()[:400]
-                corrected = (obj.get("corrected") or "").strip()[:500]
-                return status, feedback, corrected
-            except Exception:
-                pass
-    except Exception:
-        traceback.print_exc()
-    return "Correct", "", ""
-
-
-def _generate_next_practice_sentence(prev_transcript=""):
-    """
-    依據使用者上一句的主題，動態生成一句難度略高的中醫英文練習句。
-    失敗時回傳 None，由呼叫端決定是否略過。
-    """
-    try:
-        context_hint = f'The student just practiced: "{prev_transcript.strip()[:200]}".\n' if (prev_transcript or "").strip() else ""
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a TCM (Traditional Chinese Medicine) English speaking coach. "
-                        "Generate ONE English sentence for the student to practice next. "
-                        "Requirements: related to TCM concepts, slightly more challenging than the previous sentence, "
-                        "natural spoken English, 10-20 words. "
-                        "Return ONLY the sentence itself, no quotation marks, no explanation."
-                    ),
-                },
-                {"role": "user", "content": f"{context_hint}Generate the next practice sentence."},
-            ],
-            max_tokens=60,
-            temperature=0.8,
-        )
-        sentence = (resp.choices[0].message.content or "").strip().strip('"').strip("'")
-        return sentence if sentence else None
-    except Exception:
-        return None
-
-
-def _upload_tts_to_cloudinary(audio_bytes, sentence=""):
-    """上傳 TTS 語音至 Cloudinary（BytesIO 串流、video 資源型別優化音訊），回傳 (secure_url, duration_ms)。"""
-    if not _cloudinary_configured or not audio_bytes:
-        return (None, 0)
-    try:
-        result = cloudinary.uploader.upload(
-            io.BytesIO(audio_bytes),
-            resource_type="video",  # 音訊用 video 型別，支援轉碼與 CDN 優化
-            folder="tts",
-            use_filename=True,
-            unique_filename=True,
-        )
-        url = result.get("secure_url")
-        if url:
-            base_dur = max(1000, int(len(sentence.split()) / 2.2 * 1000))
-            duration_ms = int(base_dur / TTS_SPEED)
-            return (url, duration_ms)
-    except Exception:
-        traceback.print_exc()
-    return (None, 0)
-
-
-def _generate_tts_and_store(sentence, voice=None):
-    """OpenAI TTS (model: tts-1) 產生語音，直接 BytesIO 串流上傳 Cloudinary，無硬碟寫入。"""
-    voice = voice or "shimmer"
-    if not (sentence or "").strip():
-        return (None, 0)
-    token = secrets.token_urlsafe(12)
-    vercel_url = (os.getenv("VERCEL_URL") or "").strip().rstrip("/")
-    if vercel_url:
-        base_url = f"https://{vercel_url}" if not vercel_url.startswith("http") else vercel_url
-    else:
-        base_url = (request.host_url.rstrip("/") if request else "") or "https://placeholder.vercel.app"
-    try:
-        resp = client.audio.speech.create(
-            model="tts-1",
-            voice=voice,
-            input=sentence[:4096],
-            speed=TTS_SPEED,
-        )
-        audio_bytes = resp.content
-        base_dur = max(1000, int(len(sentence.split()) / 2.2 * 1000))
-        duration_ms = int(base_dur / TTS_SPEED)
-
-        # 優先上傳 Cloudinary，取得 HTTPS Secure URL
-        if _cloudinary_configured:
-            cloud_url, cloud_dur = _upload_tts_to_cloudinary(audio_bytes, sentence)
-            if cloud_url:
-                return (cloud_url, cloud_dur or duration_ms)
-
-        # 後備：存 Redis，使用 /audio/<token> 路由
-        b64 = base64.b64encode(audio_bytes).decode("ascii")
-        try:
-            if redis:
-                redis.set(f"tts_audio:{token}", b64, ex=600)
-        except Exception:
-            pass
-        return (f"{base_url}/audio/{token}", duration_ms)
-    except Exception:
-        traceback.print_exc()
-        return (None, 0)
-
-# --- 課務查詢 Flex Message（與本週重點整合）---
-def send_course_inquiry_flex(user_id, reply_token=None):
-    """發送課務查詢 Flex Message（含當週/下週切換、AI 重點、評量、重要日期）。reply_token 有值則 reply，否則 push。"""
-    bubble = build_course_inquiry_flex(client)
-    flex_msg = FlexSendMessage(alt_text="📋 課務查詢與本週重點", contents=bubble, quick_reply=quick_reply_items())
-    # 與星等回饋併送時，避免「同一個 reply 內多則訊息都帶 quick_reply」造成 LINE API 失敗
-    flex_msg_no_qr = FlexSendMessage(alt_text="📋 課務查詢與本週重點", contents=bubble)
-    # 課務助教：回覆後自動詢問滿意度（測試期間不做 24h 節流）
-    feedback_msg = _build_course_feedback_message()
-    if reply_token:
-        # 以同一個 reply_token 一次送出兩則訊息；quick reply 只放在最後一則（feedback）
-        try:
-            line_bot_api.reply_message(reply_token, [flex_msg_no_qr, feedback_msg])
-        except Exception as e:
-            print(f">>> DEBUG: send_course_inquiry_flex reply_message failed err={e}")
-            # fallback：至少回覆課務查詢，回饋改用 push
-            try:
-                line_bot_api.reply_message(reply_token, flex_msg)
-            except Exception as e2:
-                print(f">>> DEBUG: send_course_inquiry_flex fallback reply flex failed err={e2}")
-            try:
-                line_bot_api.push_message(user_id, feedback_msg)
-            except Exception:
-                pass
-    else:
-        try:
-            line_bot_api.push_message(user_id, flex_msg)
-        except Exception as e:
-            print(f">>> DEBUG: send_course_inquiry_flex push flex failed err={e}")
-        try:
-            line_bot_api.push_message(user_id, feedback_msg)
-        except Exception as e:
-            print(f">>> DEBUG: send_course_inquiry_flex push feedback failed err={e}")
-
 # --- QuickReply ---
-def quick_reply_items():
-    if FORCE_LANG == "en":
-        return QuickReply(
-            items=[
-                QuickReplyButton(action=MessageAction(label="Speaking Practice", text="Speaking Practice")),
-                QuickReplyButton(action=MessageAction(label="Writing Revision", text="Writing Revision")),
-            ]
-        )
-    return QuickReply(
-        items=[
-            QuickReplyButton(action=MessageAction(label="口說練習", text="口說練習")),
-            QuickReplyButton(action=MessageAction(label="寫作修改", text="寫作修改")),
-            QuickReplyButton(action=MessageAction(label="課務查詢", text="課務查詢")),
-        ]
-    )
-
+# 聊天室現在只有中醫問答一種功能，不需要模式切換按鈕，統一不附加 quick reply。
 def text_with_quick_reply(content):
-    return TextSendMessage(text=content, quick_reply=quick_reply_items())
-
-
-_FEEDBACK_ASK_KEY = "last_feedback_ask:{user_id}"
-_FEEDBACK_ASK_COOLDOWN_SEC = 24 * 3600
-
-
-def quick_reply_feedback_stars():
-    return QuickReply(
-        items=[
-            QuickReplyButton(action=PostbackAction(label="⭐1", data="action=feedback&score=1")),
-            QuickReplyButton(action=PostbackAction(label="⭐2", data="action=feedback&score=2")),
-            QuickReplyButton(action=PostbackAction(label="⭐3", data="action=feedback&score=3")),
-            QuickReplyButton(action=PostbackAction(label="⭐4", data="action=feedback&score=4")),
-            QuickReplyButton(action=PostbackAction(label="⭐5", data="action=feedback&score=5")),
-        ]
-    )
-
-
-def _should_ask_feedback(user_id):
-    # 測試期間：暫時關閉 24 小時節流，方便反覆測試
-    return True
-
-
-def _mark_feedback_asked(user_id):
-    # 測試期間：暫時不寫入 last_feedback_ask
-    return
-
-
-def _build_course_feedback_message():
-    """
-    課務助教回覆後的回饋訊息（測試用：每次都送）。
-    星等用 Quick Reply（postback），表單連結直接放在文字內。
-    """
-    return TextSendMessage(
-        text="感謝您的使用！歡迎填寫表單讓我們知道你的意見！https://forms.gle/xUpm5yZSvzEZ6zMh6",
-        quick_reply=quick_reply_feedback_stars(),
-    )
-
-def quick_reply_speak_practice():
-    """口說練習：要再練習下一句嗎？[練習下一句] [結束練習]。"""
-    if FORCE_LANG == "en":
-        return QuickReply(
-            items=[
-                QuickReplyButton(action=MessageAction(label="Next Sentence", text="Next Sentence")),
-                QuickReplyButton(action=MessageAction(label="End Practice", text="End Practice")),
-            ]
-        )
-    return QuickReply(
-        items=[
-            QuickReplyButton(action=MessageAction(label="練習下一句", text="練習下一句")),
-            QuickReplyButton(action=MessageAction(label="結束練習", text="結束練習")),
-        ]
-    )
-
-def text_with_quick_reply_speak_practice(content):
-    return TextSendMessage(text=content, quick_reply=quick_reply_speak_practice())
-
-def quick_reply_quiz_ask():
-    """每個回答後詢問：要來試試一題小測驗嗎？[是, 否]。"""
-    return QuickReply(
-        items=[
-            QuickReplyButton(action=MessageAction(label="是", text="是")),
-            QuickReplyButton(action=MessageAction(label="否", text="否")),
-        ]
-    )
-
-def text_with_quick_reply_quiz(content):
-    return TextSendMessage(text=content, quick_reply=quick_reply_quiz_ask())
-
-
-def quick_reply_quiz_choices():
-    """測驗題 A/B/C 選項：以 Postback 送出 quiz_choice=A/B/C，供後端更新 MongoDB quiz_data。"""
-    return QuickReply(
-        items=[
-            QuickReplyButton(action=PostbackAction(label="(A)", data="quiz_choice=A")),
-            QuickReplyButton(action=PostbackAction(label="(B)", data="quiz_choice=B")),
-            QuickReplyButton(action=PostbackAction(label="(C)", data="quiz_choice=C")),
-        ]
-    )
-
-
-def build_quiz_flex_message(question):
-    """建立測驗題目 Flex Message（學生的回答將視為新問題）。"""
-    bubble = {
-        "type": "bubble",
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": [
-                {"type": "text", "text": "📝 一題小測驗", "weight": "bold", "size": "lg"},
-                {"type": "text", "text": question, "wrap": True, "size": "sm"},
-            ],
-        },
-    }
-    alt = f"小測驗：{(question or '')[:80]}"
-    if len(question or "") > 80:
-        alt += "..."
-    return FlexSendMessage(alt_text=alt, contents=bubble)
-
-def quick_reply_review_ask():
-    """主動複習：需要幫你整理複習筆記嗎？[要, 不要]。"""
-    return QuickReply(
-        items=[
-            QuickReplyButton(action=MessageAction(label="要", text="要複習筆記")),
-            QuickReplyButton(action=MessageAction(label="不要", text="不要複習筆記")),
-        ]
-    )
-
-def text_with_quick_reply_review_ask(content):
-    return TextSendMessage(text=content, quick_reply=quick_reply_review_ask())
-
-# --- 寫作修訂模式：獨立處理，不經過 Assistant API / RAG ---
-REVISION_MODE = "writing"
-REVISION_MODE_PROMPT = "你已在【✍️ 寫作修訂】模式～請貼上要修改的段落。"
-REDIS_KEY_USER_MODE = "user_mode"  # 與 Postback/切換按鈕寫入的 Key 完全一致：user_mode:{user_id}
-
-# 寫作模式 prompt：回饋需含下列內容，但不要輸出標題給使用者
-_REVISION_PROMPT = (
-    "你是專業溫暖的語言老師，同時具備中醫學術背景。回覆時請自然融入以下內容，不要輸出【】標題：\n"
-    "（1）鼓勵／正面肯定\n"
-    "（2）【語言層面】若有語法、用詞、拼寫錯誤：說明原因＋修正後的版本（用 **粗體** 標示修改處）；若無語言錯誤則稱讚原文道地\n"
-    "（3）【內容層面】若句子涉及中醫知識且有觀念錯誤（如藥方主治、病機、臟腑功能等），請明確指出錯誤並附上簡短的正確說明；若中醫內容正確則無需提及\n"
-    "（4）鼓勵繼續發問、貼上其他句子練習\n"
-    "語氣溫暖，段落分明易讀。"
-)
-
-_REVISION_PROMPT_EN = (
-    "You are a warm and professional language teacher with a background in Traditional Chinese Medicine (TCM). "
-    "Naturally incorporate the following into your response — do not output section headers:\n"
-    "(1) Encouragement and positive affirmation\n"
-    "(2) [Language] If there are grammar, vocabulary, or spelling errors: explain the issue and provide a corrected version "
-    "(use **bold** to highlight changes); if there are no errors, praise the writing as natural and well-expressed\n"
-    "(3) [TCM Content] If the text involves TCM concepts and contains factual errors (e.g., formula indications, pathomechanisms, organ functions), "
-    "clearly point out the error with a brief correct explanation; if the TCM content is accurate, no need to mention it\n"
-    "(4) Encourage the user to continue practicing and send more sentences\n"
-    "Keep a warm tone with clear, readable paragraphs. Respond entirely in English."
-)
-
-def _revision_handler(user_id, text):
-    """
-    寫作修訂：gpt-4o-mini + Chat Completion，非串流以加速。結果以 push_message 送出。
-    """
-    if not user_id or not str(user_id).strip():
-        print(f"[REVISION] ERROR: user_id invalid or empty user_id={repr(user_id)}")
-        return
-    if not (text or "").strip():
-        try:
-            prompt_msg = "Please paste the paragraph you'd like to revise." if FORCE_LANG == "en" else "請貼上要修改的段落。"
-            line_bot_api.push_message(user_id, text_with_quick_reply_writing(prompt_msg))
-        except Exception as e:
-            print(f"[REVISION] push_message failed (empty text branch) err={e}")
-            traceback.print_exc()
-        return
-    try:
-        print(f"[REVISION] start user_id={user_id} text_len={len(text)}")
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            print("[REVISION] ERROR: OPENAI_API_KEY not set")
-            line_bot_api.push_message(user_id, text_with_quick_reply_writing("系統設定錯誤，請稍後再試。"))
-            return
-        if FORCE_LANG == "en":
-            revision_system = _REVISION_PROMPT_EN
-            revision_user = f"Analyze the following sentence or paragraph:\n{text[:1000]}"
-        else:
-            revision_system = _REVISION_PROMPT
-            revision_user = f"分析以下句子或段落：\n{text[:1000]}"
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": revision_system},
-                {"role": "user", "content": revision_user},
-            ],
-            max_tokens=600,
-        )
-        reply = (resp.choices[0].message.content or "").strip()
-        if not reply:
-            reply = "已收到你的練習！歡迎繼續貼上其他句子～"
-        print(f"[REVISION] done user_id={user_id} reply_len={len(reply)}")
-        # 研究用：Writing 原始/修訂與 improvement index
-        try:
-            if mongo_db is not None:
-                ensure_user(mongo_db, user_id)
-                log_writing(mongo_db, user_id, text, reply)
-                run_analytics_middleware(mongo_db, user_id)
-        except Exception as e:
-            print(f">>> RESEARCH log_writing error: {e}")
-        line_bot_api.push_message(user_id, text_with_quick_reply_writing(reply))
-    except Exception as e:
-        print(f"[REVISION] CRITICAL err={e}")
-        traceback.print_exc()
-        try:
-            line_bot_api.push_message(user_id, text_with_quick_reply_writing("An error occurred, please try again." if FORCE_LANG == "en" else "處理時發生錯誤，請再試一次。"))
-        except Exception as push_err:
-            print(f"[REVISION] push_message (error fallback) failed err={push_err}")
-
-def quick_reply_writing():
-    """寫作修訂模式：回到中醫問答按鈕。"""
-    if FORCE_LANG == "en":
-        return QuickReply(
-            items=[
-                QuickReplyButton(action=MessageAction(label="Back to TCM Q&A", text="TCM Q&A")),
-            ]
-        )
-    return QuickReply(
-        items=[
-            QuickReplyButton(action=MessageAction(label="回到中醫問答", text="回到中醫問答")),
-        ]
-    )
-
-def text_with_quick_reply_writing(content):
-    return TextSendMessage(text=content, quick_reply=quick_reply_writing())
-
-def _redis_user_mode_key(user_id):
-    """統一的 Redis Key，與 Postback/切換按鈕寫入處完全一致。"""
-    return f"{REDIS_KEY_USER_MODE}:{user_id}"
+    return TextSendMessage(text=content)
 
 # --- 中醫問答：tcm_master_knowledge.json + OpenAI gpt-4o-mini（純 OpenAI）---
 try:
@@ -1112,14 +387,24 @@ _TCM_SYSTEM_PROMPT = """
 
 你是中醫學術助教，回答中醫專業問題時請遵循以下原則：
 
+【蘇格拉底式引導原則——這是核心教學策略，判斷順序在內容/格式規則之前】
+1. 先判斷使用者「最新這一則」訊息跟前面對話歷史的關聯度：如果話題明顯換了（新主題、新病證、新方劑、新經典段落等，跟前面問的關聯度低），一律視為全新問題，不要勉強把它套進舊主題的脈絡，直接針對這個新問題重新開始引導。
+2. 面對一個「還沒引導過」的新問題，不要一次就把完整答案倒給學生。先用 1-2 句話，針對這題最關鍵的切入點，提出一個引導性的反問或提示（例如點出該考慮哪個辨證要素、該回想哪一段經典原文、該比較哪兩個容易混淆的概念），幫助學生自己想到方向。
+3. 引導必須「收斂」——牢牢扣著使用者問的這個問題本身，不要為了引導而扯出不相關的延伸主題、反問或知識點，把話題越帶越開。
+4. 引導最多只進行一輪。只要符合下列任一情況，這一輪「必須」完整公布答案，並依照下面的【格式規則】簡潔說明——不可以再提出下一個引導反問、不可以再問「那你覺得該用哪個方劑」這類延伸問題：
+   (a) 對話歷史裡，你上一則回覆已經對「同一個問題」給過引導（不管學生這次回得對不對、完不完整）；或
+   (b) 學生明確表示不知道、答不出來、或直接要求「告訴我答案」「不要引導了」。
+   換句話說：同一個問題最多只能引導一次，第二輪一定要收斂給出完整答案，不能一直用新的反問把答案往後拖。
+5. 純社交短句、課程行政問題不套用引導，維持最上面【最優先規則】的處理方式。
+
 【內容原則】
 1. 優先從「課程教材」、「中醫經典文獻（如：黃帝內經、傷寒雜病論、神農本草經）」以及「PubMed 上的現代醫學論文」中提取資訊。
 2. 嚴禁自行推斷或編造未經證實的療效。若資料庫中無相關記載，請誠實告知。
 3. 避免產生幻覺，不確定的資訊不要提供。
 4. 若使用者提出與中醫無直接關聯的一般性問題（如飲食、生活習慣），可簡短從中醫養生角度給一句建議，再邀請繼續提問。
 
-【格式規則——嚴格遵守，不可用篇幅表達親切】
-- 回答控制在 3-5 個重點以內，每點不超過 2 句話。
+【格式規則——適用於「公布答案」的回合；引導反問的回合請維持 1-2 句話、不要用條列格式】
+- 公布答案時控制在 3-5 個重點以內，每點不超過 2 句話。
 - 禁止開場白（如「很高興為您解答」「這是一個很好的問題」），直接進入內容。
 - 不要為了顯得親切而重複解釋、加註安慰語句，或延伸沒被問到的內容。
 
@@ -1141,14 +426,24 @@ _TCM_SYSTEM_PROMPT_EN = """
 
 You are a TCM (Traditional Chinese Medicine) academic assistant. When answering TCM questions, follow these principles:
 
+[Socratic guidance principle — this is the core teaching strategy, applied before the content/format rules below]
+1. First judge how related the user's LATEST message is to the recent conversation history: if the topic has clearly changed (a new subject, pattern, formula, classical passage, etc. with low relevance to what came before), treat it as a brand-new question — don't force it into the old topic's context; restart guidance on the new question directly.
+2. For a new question you haven't guided on yet, do NOT dump the full answer immediately. First give a short (1-2 sentence) guiding question or hint focused on the single most important entry point (e.g. which pattern-differentiation factor to consider, which classical passage to recall, which two easily-confused concepts to compare) — help the student think their own way toward it.
+3. Guidance must stay converged on the actual question asked — don't wander into unrelated tangents, side-questions, or extra concepts just to "guide more."
+4. Guidance runs for at most ONE round. As soon as either condition below is met, you MUST reveal the full answer this turn, formatted per the [Format rules] below — do NOT ask yet another guiding question or probe deeper (e.g. "so which formula would you use for that?"):
+   (a) your previous reply already gave a guiding hint on this same question (regardless of whether the student's attempt was right, wrong, or partial), or
+   (b) the student explicitly says they don't know, can't answer, or asks directly for the answer / to stop guiding.
+   In other words: a given question gets guided at most once — the second round must converge on the complete answer, not stall with another guiding question.
+5. Social phrases and course-administration questions skip this guidance entirely — handle them per the TOP PRIORITY rule above.
+
 [Content principles]
 1. Prioritize information from course materials, TCM classical texts (e.g., Huangdi Neijing, Shang Han Lun, Shen Nong Ben Cao Jing), and modern medical papers on PubMed.
 2. Never fabricate or infer unverified therapeutic effects. If the information is not in the knowledge base, say so honestly.
 3. Avoid hallucinations — do not provide information you are uncertain about.
 4. If the user asks a general question not directly related to TCM (e.g., food, lifestyle), give one brief suggestion from a TCM wellness perspective, then invite further questions.
 
-[Format rules — follow strictly; do not express warmth through length]
-- Keep the answer to 3-5 key points at most, no more than 2 sentences per point.
+[Format rules — apply to the "reveal the answer" turn; a guiding-question turn should stay 1-2 plain sentences, no bullet list]
+- When revealing the answer, keep it to 3-5 key points at most, no more than 2 sentences per point.
 - No opening filler (e.g. "Great question!", "I'm happy to help") — go straight into the content.
 - Do not repeat yourself, add reassuring filler, or expand into anything not actually asked, just to seem warm.
 
@@ -1210,31 +505,6 @@ def _get_user_language(user_id):
     except Exception:
         return "zh"
 
-
-def _maybe_send_review_prompt(user_id, reply_token=None):
-    weak = get_weak_categories(redis, user_id, min_count=1)
-    if not weak:
-        return False
-    if (time.time() - get_last_review_ask(redis, user_id)) <= REVIEW_ASK_COOLDOWN_DAYS * 24 * 3600:
-        return False
-    category = next(iter(weak.keys()), None)
-    if not category:
-        return False
-    set_last_review_ask(redis, user_id)
-    set_pending_review_category(redis, user_id, category)
-    user_lang = "en" if FORCE_LANG == "en" else _get_user_language(user_id)
-    if user_lang == "en":
-        review_msg = text_with_quick_reply_review_ask(f"I noticed you are less confident with '{category}'. Would you like a review note?")
-    else:
-        review_msg = text_with_quick_reply_review_ask(f"發現你對「{category}」這部分較不熟，需要幫你整理複習筆記嗎？")
-    try:
-        if FORCE_PUSH_MODE or not reply_token:
-            line_bot_api.push_message(user_id, review_msg)
-        else:
-            line_bot_api.reply_message(reply_token, review_msg)
-    except Exception as e:
-        print(f">>> DEBUG: review prompt failed err={e}")
-    return True
 
 # 模組載入時預熱 TCM 快取，減少首次問答延遲
 try:
@@ -1306,7 +576,7 @@ def _log_interaction_to_mongodb_async(user_id, text, ai_reply, is_eng):
             session_duration_sec = (now_utc - last_ts).total_seconds() if last_ts else 0
             follow_up = get_follow_up_count_within_sec(mongo_db, user_id, within_sec=1800)
             intent_tag, complexity_score = classify_qa_intent_and_complexity(client, text)
-            interaction_id = log_interaction(
+            log_interaction(
                 mongo_db,
                 user_id,
                 "QA",
@@ -1318,12 +588,6 @@ def _log_interaction_to_mongodb_async(user_id, text, ai_reply, is_eng):
                 follow_up_count=follow_up,
                 feedback_requested=((count_before + 1) % 20 == 0),
             )
-            # Redis：寫入 quiz_interaction_id，供測驗作答時更新
-            if interaction_id and redis:
-                try:
-                    redis.set(f"quiz_interaction_id:{user_id}", str(interaction_id), ex=3600)
-                except Exception:
-                    pass
             run_analytics_middleware(mongo_db, user_id)
         except Exception as e:
             print(f">>> RESEARCH LOGGING ERROR: {e}")
@@ -1364,7 +628,8 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
                 f"[Context]\n{ctx}\n\n[Question]\n{txt}\n\n"
                 f"IMPORTANT: If the question above is a social phrase (e.g. 'thank you', 'ok', 'great', 'bye', 'got it'), "
                 f"reply in ONE short sentence only — no TCM content, no sources, no key points.\n"
-                f"Otherwise, please answer based on the context with a clear structure and source references."
+                f"Otherwise, follow the Socratic guidance principle in the system prompt to decide whether to "
+                f"guide first or reveal the answer now — do not skip the guidance step and jump straight to the answer."
             )
         else:
             system_prompt = _TCM_SYSTEM_PROMPT
@@ -1372,22 +637,34 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             user_question = (
                 f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n"
                 f"重要：若上方問題是社交短句（如「謝謝」「好的」「了解」「再見」等），只需一句話親切回應，不附任何中醫內容或資料來源。\n"
-                f"否則請根據背景資料精準回答，跳過冗長開場白，回答末尾請簡要註明參考資料或出處。"
+                f"否則請依照 system prompt 的蘇格拉底式引導原則，判斷這一題該先引導還是直接公布答案，"
+                f"不要跳過引導步驟直接給答案。"
             )
 
-        # 帶入最近 3 輪對話歷史，讓 GPT 能理解上下文追問
+        # 帶入最近 3 輪對話歷史，讓 GPT 自己判斷這一題是新問題還是同一題的延續
+        # （是否換題交給 system prompt 的蘇格拉底式引導原則判斷，這裡不用「有沒有歷史」
+        # 這種粗略條件強制套格式）。但「上一輪是引導還是已經公布答案」這件事不能只靠
+        # 模型自己記憶多輪歷史來判斷——gpt-4o-mini 實測會一直順著引導問下去、忘記已經
+        # 引導過一次了，所以這裡改成用程式判斷：上一輪回覆有沒有「資料來源／Sources」
+        # 這個公布答案時一定會有的標記，來明確告訴模型現在是不是已經引導過一次。
         history = get_conv_history(redis, user_id)
         messages = [{"role": "system", "content": system_prompt}]
         for turn in history:
             messages.append({"role": "user", "content": turn.get("u", "")})
             messages.append({"role": "assistant", "content": turn.get("a", "")})
 
-        # 有對話歷史（追問）時，要求先給重點再分項說明
         if history:
-            if is_eng:
-                user_question += "\n\nFormat: start with a **Key Point** summary (1-2 sentences), then provide detailed breakdown in numbered points."
-            else:
-                user_question += "\n\n格式要求：先用 1-2 句話給出【重點摘要】，再分項條列詳細說明。"
+            last_reply = history[-1].get("a", "")
+            already_revealed = ("資料來源" in last_reply) or ("Sources" in last_reply)
+            if not already_revealed:
+                note = (
+                    "\n\n[System note: your previous reply was a guiding hint, not the full answer. "
+                    "If this message continues the same question, you must reveal the complete answer now per rule 4 — do not guide again.]"
+                    if is_eng else
+                    "\n\n【系統提示：你上一輪回覆是引導反問，還沒有公布答案。如果這一則訊息是延續同一題，"
+                    "這次依規則4必須公布完整答案，不要再繼續引導。】"
+                )
+                user_question += note
 
         messages.append({"role": "user", "content": user_question})
 
@@ -1413,11 +690,7 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             daemon=True,
         ).start()
 
-        # QA → Quiz：社交短句不出題
-        if ENABLE_QUIZ_GENERATION and not _is_social_reply:
-            threading.Thread(target=_process_quiz_sync, args=(user_id, base_reply, "en" if is_eng else "zh"), daemon=True).start()
-
-        # 回覆：只回覆答案（無測驗訊息），根據 FORCE_PUSH_MODE 決定是否 push。
+        # 回覆：只回覆答案，根據 FORCE_PUSH_MODE 決定是否 push。
         ai_msg = text_with_quick_reply(ai_reply)
         try:
             if FORCE_PUSH_MODE:
@@ -1443,283 +716,6 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
     except Exception:
         traceback.print_exc()
         return False
-
-def _get_cached_mode(user_id):
-    """Redis 失敗時從本地快取讀取最近一次成功的模式。"""
-    now = time.time()
-    if user_id in _mode_cache:
-        mode, ts = _mode_cache[user_id]
-        if now - ts < _MODE_CACHE_TTL:
-            return mode
-        try:
-            del _mode_cache[user_id]
-        except KeyError:
-            pass
-    return None
-
-def _set_cached_mode(user_id, mode):
-    """寫入模式快取，供 Redis 瞬斷時 fallback。"""
-    now = time.time()
-    while len(_mode_cache) >= _MODE_CACHE_MAX:
-        try:
-            oldest = min(_mode_cache.items(), key=lambda x: x[1][1])
-            del _mode_cache[oldest[0]]
-        except (ValueError, KeyError):
-            break
-    _mode_cache[user_id] = (mode, now)
-
-def _safe_get_mode(user_id):
-    """
-    安全取得使用者模式。Key 與 Postback 寫入處一致。
-    回傳 Redis 內的值（含 'tcm'/'speaking'/'writing'/'quiz'），僅在 key 真正缺失或為空時才 fallback 至 tcm。
-    快取優先；Redis 存取以 lock 序列化。
-    """
-    try:
-        cached = _get_cached_mode(user_id)
-        if cached:
-            print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
-            return cached
-        if not redis:
-            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=redis_none")
-            print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
-            return "tcm"
-        key = _redis_user_mode_key(user_id)
-        mode_val = None
-        for attempt in range(3):
-            try:
-                with _redis_mode_lock:
-                    mode_val = redis.get(key)
-                break
-            except Exception as e:
-                last_err = e
-                if attempt < 2:
-                    time.sleep(0.3 * (attempt + 1))
-                    continue
-                # Redis 重試後仍失敗：嘗試快取
-                cached = _get_cached_mode(user_id)
-                if cached:
-                    err_detail = f"errno={getattr(e, 'errno', 'N/A')} type={type(e).__name__}"
-                    print(f"[MODE] _safe_get_mode user_id={user_id} redis_fail using_cache={cached} {err_detail}")
-                    print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
-                    return cached
-                err_detail = f"errno={getattr(e, 'errno', 'N/A')} type={type(e).__name__}"
-                print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception_after_retry {err_detail} err={e}")
-                traceback.print_exc()
-                print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
-                return "tcm"
-        if mode_val is None:
-            cached = _get_cached_mode(user_id)
-            if cached:
-                print(f"[MODE] _safe_get_mode user_id={user_id} key_missing using_cache={cached}")
-                print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
-                return cached
-            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=key_missing_or_null")
-            print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
-            return "tcm"
-        if isinstance(mode_val, bytes):
-            mode_str = mode_val.decode("utf-8", errors="replace").strip()
-        else:
-            mode_str = str(mode_val).strip()
-        if not mode_str:
-            cached = _get_cached_mode(user_id)
-            if cached:
-                print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
-                return cached
-            print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=empty_value raw={repr(mode_val)}")
-            print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
-            return "tcm"
-        result = mode_str.lower()
-        _set_cached_mode(user_id, result)
-        print(f"DEBUG: Fetching mode for {user_id}. Result: {result}")
-        return result
-    except Exception as e:
-        cached = _get_cached_mode(user_id)
-        if cached:
-            print(f"[MODE] _safe_get_mode user_id={user_id} outer_exception using_cache={cached} err={e}")
-            print(f"DEBUG: Fetching mode for {user_id}. Result: {cached}")
-            return cached
-        print(f"[MODE] _safe_get_mode user_id={user_id} fallback=tcm reason=exception err={e}")
-        print(f"DEBUG: Fetching mode for {user_id}. Result: tcm")
-        return "tcm"
-
-# --- AI 核心函數（模式路由器）---
-# _process_assistant_sync / _revision_handler 均在背景 thread 執行，可安全存取模組全域
-#（line_bot_api, redis, client）及 os.environ，無須額外傳遞。
-def _process_assistant_sync(user_id, text):
-    """
-    Responses API 版 AI 邏輯（OpenAI Assistants API 已於 2026-08-26 停用，改用 Responses API + Conversations）。
-    以 Redis 保存的 conversation_id（依 mode 區隔）取代原本的 thread_id，
-    對話歷史交由 OpenAI 端的 Conversation 物件維護，完成後 push_message。
-    供 process-text-async 背景呼叫。
-    """
-    try:
-        mode = _safe_get_mode(user_id)
-        if mode == REVISION_MODE:
-            _revision_handler(user_id, text)
-            return
-        tag = "🩺 中醫問答"
-        if mode == "speaking":
-            tag = "🗣️ 口說練習"
-        elif mode == "writing":
-            tag = "✍️ 寫作修訂"
-
-        if mode == "writing":
-            mode_instructions = get_writing_mode_instructions()
-        elif mode == "speaking":
-            mode_instructions = get_speaking_mode_instructions()
-        else:
-            mode_instructions = get_rag_instructions()
-
-        # Redis key 依 mode 區隔（原本的 user_thread key 是全模式共用，會混到歷史，這裡一併修正）
-        conv_redis_key = f"user_conversation:{mode}:{user_id}"
-        conversation_id = None
-        try:
-            if redis:
-                c_id = redis.get(conv_redis_key)
-                if c_id is not None:
-                    conversation_id = c_id.decode("utf-8") if hasattr(c_id, "decode") else str(c_id)
-                    if conversation_id == "None" or not conversation_id.strip():
-                        conversation_id = None
-        except Exception:
-            pass
-
-        if not conversation_id:
-            new_conversation = client.conversations.create()
-            conversation_id = new_conversation.id
-            try:
-                if redis:
-                    redis.set(conv_redis_key, conversation_id)
-            except Exception:
-                pass
-
-        user_content = f"【{tag}】\n使用者的話：{text}"
-        if mode == "tcm":
-            user_content += "\n(提醒：回答末尾請提供參考資料出處)"
-
-        try:
-            resp = client.responses.create(
-                model="gpt-4o-mini",
-                conversation=conversation_id,
-                instructions=mode_instructions,
-                input=user_content,
-                max_output_tokens=800,
-                temperature=0.3,
-                timeout=TIMEOUT_SECONDS,
-            )
-        except Exception as e:
-            print(f">>> DEBUG: responses.create failed err={e}")
-            try:
-                line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
-            except Exception as e2:
-                print(f">>> DEBUG: push_message TIMEOUT failed err={e2}")
-            return
-
-        if resp.status != "completed":
-            print(f">>> DEBUG: responses status={resp.status}")
-            try:
-                line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
-            except Exception as e:
-                print(f">>> DEBUG: push_message TIMEOUT failed err={e}")
-            return
-
-        ai_reply = (resp.output_text or "").strip()
-        if not ai_reply:
-            try:
-                line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
-            except Exception as e:
-                print(f">>> DEBUG: push_message TIMEOUT failed err={e}")
-            return
-
-        if mode == "tcm":
-            ai_reply = ai_reply.rstrip() + SAFETY_DISCLAIMER
-        # 注意：push_message 可能因 LINE 月額度限制而失敗（429）
-        try:
-            line_bot_api.push_message(user_id, text_with_quick_reply(ai_reply))
-        except Exception as e:
-            print(f">>> DEBUG: push_message failed (likely quota). err={e}")
-        try:
-            log_question(redis, user_id, text)
-            set_last_question(redis, user_id, text)
-            set_last_assistant_message(redis, user_id, ai_reply)
-        except Exception:
-            pass
-        if mode == "speaking" and mongo_db is not None:
-            try:
-                update_speaking_answer(mongo_db, user_id, ai_reply)
-            except Exception as e:
-                print(f">>> RESEARCH update_speaking_answer error: {e}")
-    except Exception as e:
-        print(f"CRITICAL ERROR: {traceback.format_exc()}")
-        try:
-            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
-        except Exception as e:
-            print(f">>> DEBUG: push_message TIMEOUT failed err={e}")
-
-
-def _run_ai_work(user_id, text, is_voice=False):
-    """依 mode 分派：REVISION_MODE → _revision_handler；其餘 → _process_assistant_sync。"""
-    try:
-        mode = _safe_get_mode(user_id)
-        print(f"[MODE] _run_ai_work user_id={user_id} mode={mode} routing={'revision' if mode == REVISION_MODE else 'assistant'}")
-        if mode == REVISION_MODE:
-            _revision_handler(user_id, text)
-            return
-        _process_assistant_sync(user_id, text)
-    except Exception as e:
-        print(f"CRITICAL ERROR: {traceback.format_exc()}")
-        try:
-            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
-        except Exception:
-            pass
-
-
-def process_ai_request(event, user_id, text, is_voice=False):
-    """
-    State-Based Router：依 user_state (mode) 切換，直接執行 AI 邏輯。
-    寫作模式 → _revision_handler；其餘 → _process_assistant_sync（內含 create_and_poll）。
-    """
-    try:
-        _run_ai_work(user_id, text, is_voice=is_voice)
-    except Exception as e:
-        print(f"CRITICAL ERROR: {traceback.format_exc()}")
-        try:
-            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
-        except Exception:
-            pass
-
-
-def _run_text_background(user_id, text, task, base_url, cron_secret):
-    """Background Task：觸發 process-text-async 或本地執行，不阻塞 webhook。"""
-    print(f"[TEXT_BG] start user_id={user_id} task={task} has_base={bool(base_url)} has_secret={bool(cron_secret)}")
-    if base_url and cron_secret:
-        try:
-            r = requests.post(
-                f"{base_url}/api/process-text-async",
-                json={"user_id": user_id, "text": text, "task": task},
-                headers={"Authorization": f"Bearer {cron_secret}"},
-                timeout=30,
-            )
-            print(f"[TEXT_BG] POST result status={r.status_code}")
-        except Exception as e:
-            print(f"[TEXT_BG] POST failed, fallback local err={e}")
-            traceback.print_exc()
-            try:
-                if task == "revision":
-                    _revision_handler(user_id, text)
-                else:
-                    _process_assistant_sync(user_id, text)
-            except Exception as inner:
-                print(f"[TEXT_BG] fallback handler failed err={inner}")
-                traceback.print_exc()
-    else:
-        try:
-            if task == "revision":
-                _revision_handler(user_id, text)
-            else:
-                _process_assistant_sync(user_id, text)
-        except Exception as e:
-            print(f"[TEXT_BG] direct handler failed err={e}")
-            traceback.print_exc()
 
 # --- 每週報告 Cron（需 CRON_SECRET 驗證）---
 try:
@@ -1751,6 +747,15 @@ def home():
 def favicon():
     """避免瀏覽器/爬蟲請求 favicon 產生 404 日誌。"""
     return "", 204
+
+
+_ASSETS_PATIENTS_DIR = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "assets", "patients")
+
+@app.route("/assets/patients/<path:filename>", methods=['GET'])
+def patient_photo(filename):
+    """口說 LIFF 用的病人靜態照片，依 clinical_cases.json 的 case_id 對應檔名。"""
+    from flask import send_from_directory
+    return send_from_directory(_ASSETS_PATIENTS_DIR, filename)
 
 
 # ============================================================
@@ -1887,18 +892,31 @@ def liff_quiz_categories():
     return jsonify({"categories": exam_list_categories()})
 
 
+@app.route("/api/liff/quiz/periods", methods=['GET'])
+def liff_quiz_periods():
+    """回傳「依年度」可選的梯次清單（線框圖上方「選類別」下拉選單第二層：依年度）。"""
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"periods": exam_list_exam_periods()})
+
+
 @app.route("/api/liff/quiz/questions", methods=['GET'])
 def liff_quiz_questions():
     """
-    回傳指定章節的題目（不含答案）。scope=year 目前尚未支援
-    （題庫還沒有年度 metadata，見 api/exam_quiz.py 開頭說明），先回空陣列＋提示訊息。
+    回傳題目（不含答案）。scope=chapter 用 category 篩選；scope=year 用
+    exam_year/exam_session/exam_stage 篩選（見 /api/liff/quiz/periods 的清單）。
     """
     if not _liff_auth_user_id():
         return jsonify({"error": "unauthorized"}), 401
-    category = (request.args.get("category") or "").strip()
     scope = (request.args.get("scope") or "chapter").strip()
     if scope == "year":
-        return jsonify({"notice": "依年度篩選尚未支援，題庫目前僅有章節分類", "questions": []})
+        exam_year = (request.args.get("exam_year") or "").strip()
+        exam_session = (request.args.get("exam_session") or "").strip()
+        exam_stage = (request.args.get("exam_stage") or "").strip()
+        if not exam_year or not exam_stage:
+            return jsonify({"error": "缺少 exam_year 或 exam_stage"}), 400
+        return jsonify({"questions": exam_get_questions_by_period(exam_year, exam_session, exam_stage)})
+    category = (request.args.get("category") or "").strip()
     return jsonify({"questions": exam_get_questions_by_category(category or None)})
 
 
@@ -1918,16 +936,24 @@ def liff_quiz_question_answer(question_id):
 
 @app.route("/api/liff/quiz/submit", methods=['POST'])
 def liff_quiz_submit():
-    """交卷評分：body = {"category": str, "answers": {question_id: "A"/"B"/"C"/"D"}}。"""
+    """
+    交卷評分：body = {"category": str, "question_ids": [str,...], "answers": {question_id: "A"/"B"/"C"/"D"}}。
+    question_ids 是這次出給使用者的完整題目清單，分數以這份清單的題數當分母
+    （沒作答的題目算答錯），不是只算使用者實際填了答案的題目，避免只答一題
+    答對就變成 100 分。
+    """
     user_id = _liff_auth_user_id()
     if not user_id:
         return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(force=True, silent=True) or {}
     category = (data.get("category") or "").strip()
+    question_ids = data.get("question_ids") or []
     answers = data.get("answers") or {}
-    if not isinstance(answers, dict) or not answers:
-        return jsonify({"error": "answers 不可為空"}), 400
-    result = exam_submit_exam(mongo_db, user_id, category, answers)
+    if not isinstance(question_ids, list) or not question_ids:
+        return jsonify({"error": "question_ids 不可為空"}), 400
+    if not isinstance(answers, dict):
+        return jsonify({"error": "answers 格式錯誤"}), 400
+    result = exam_submit_exam(mongo_db, user_id, category, question_ids, answers)
     return jsonify(result)
 
 
@@ -2213,11 +1239,11 @@ def _run_voice_background(user_id, message_id, base_url, cron_secret):
 
 def _process_voice_sync(user_id, message_id, mode=None):
     """
-    語音處理：
-    - Speaking 模式：Azure Pronunciation Assessment（有金鑰）或 fallback GPT 評估
-    - 其他模式：Whisper 辨識 → TCM Q&A
-    一律用 push_message 回傳，錯誤時主動 push 友善提示。
-    mode: 由 handle_audio 在 I/O 前預先讀取並傳入，避免 gevent 切換導致 race condition。
+    語音處理：Whisper 辨識轉文字，就當成使用者打字問了這個問題，直接走跟文字訊息
+    一樣的中醫問答模組（_tcm_openai_reply）。用 push_message 回傳，錯誤時主動 push
+    友善提示。
+    舊版「Speaking 模式」的 Azure 發音評估／練習句／TTS 示範語音整套都已經移除
+    ——口說練習現在是 LIFF 頁面（Realtime API + WebRTC），跟這裡完全不同的架構。
     """
     if not user_id or not str(user_id).strip():
         print(f"[VOICE] ERROR: user_id invalid user_id={repr(user_id)}")
@@ -2226,7 +1252,6 @@ def _process_voice_sync(user_id, message_id, mode=None):
         print(f"[VOICE] start user_id={user_id} message_id={message_id}")
         message_content = line_bot_api.get_message_content(message_id)
 
-        # 下載音訊：同時保留 bytes（Azure 用）與寫入暫存檔（Whisper fallback 用）
         audio_chunks = list(message_content.iter_content())
         audio_bytes = b"".join(audio_chunks)
         tmp_dir = tempfile.gettempdir()
@@ -2239,140 +1264,6 @@ def _process_voice_sync(user_id, message_id, mode=None):
             with open(temp_path, "wb") as f:
                 f.write(audio_bytes)
 
-        if mode is None:
-            mode = _safe_get_mode(user_id)
-        is_en_speaking = FORCE_LANG == "en"
-
-        # ── Speaking 模式：優先走 Azure Pronunciation Assessment ──
-        if mode == "speaking":
-            if _AZURE_SPEECH_KEY and _AZURE_SPEECH_REGION:
-                reference_text = _get_practice_sentence(user_id)
-                print(f"[VOICE] Azure assessment reference='{reference_text[:60]}...' user_id={user_id}")
-                az_result = _assess_pronunciation(audio_bytes, reference_text, language="en-US")
-
-                _az_nbest0 = (az_result.get("NBest") or [{}])[0] if az_result else {}
-                _az_has_pa = bool(_az_nbest0.get("PronunciationAssessment"))
-                if az_result and az_result.get("RecognitionStatus") == "Success" and _az_has_pa:
-                    transcript_text, feedback, is_good = _format_pronunciation_feedback(az_result, is_en_speaking)
-                    if not transcript_text:
-                        transcript_text = (az_result.get("DisplayText") or "").strip()
-
-                    # 顯示辨識內容
-                    transcription_msg = f"🎤 Recognized: \"{transcript_text}\"" if is_en_speaking else f"🎤 辨識內容：「{transcript_text}」"
-                    line_bot_api.push_message(user_id, TextSendMessage(text=transcription_msg))
-
-                    # 記錄到 MongoDB
-                    if mongo_db is not None:
-                        try:
-                            ensure_user(mongo_db, user_id)
-                            log_speaking(mongo_db, user_id, len(transcript_text), count_tcm_terms_in_text(transcript_text), transcript_text)
-                            run_analytics_middleware(mongo_db, user_id)
-                        except Exception as e:
-                            print(f">>> RESEARCH log_speaking error: {e}")
-
-                    # 發音回饋
-                    line_bot_api.push_message(user_id, TextSendMessage(text=feedback))
-
-                    # TTS：發音好 → TTS 學生說的內容；發音差 → TTS 參考句讓學生對照
-                    tts_text = transcript_text if is_good else (reference_text or transcript_text)
-                    tts_label = (
-                        f"🔊 Model pronunciation: \"{tts_text}\"" if is_en_speaking
-                        else f"🔊 示範語音：「{tts_text}」"
-                    )
-                    line_bot_api.push_message(user_id, TextSendMessage(text=tts_label))
-                    try:
-                        audio_url, duration_ms = _generate_tts_and_store(tts_text, voice=VOICE_COACH_TTS_VOICE)
-                        if audio_url and duration_ms:
-                            line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
-                    except Exception as tts_err:
-                        print(f"[VOICE] TTS err: {tts_err}")
-
-                    # 下一句
-                    if is_good:
-                        next_sentence = _generate_next_practice_sentence(transcript_text)
-                        if next_sentence:
-                            _set_practice_sentence(user_id, next_sentence)
-                            next_msg = (
-                                f"💡 Try this next:\n\"{next_sentence}\"\n\nSend a voice message to practice!" if is_en_speaking
-                                else f"💡 建議下一句：\n「{next_sentence}」\n\n直接傳語音跟著唸！"
-                            )
-                        else:
-                            next_msg = "Ready for the next sentence?" if is_en_speaking else "要再練習下一句嗎？"
-                        line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(next_msg))
-                    else:
-                        retry_msg = "Try again! Focus on the words above. 💪" if is_en_speaking else "再試一次！注意上面標示的字。💪"
-                        line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(retry_msg))
-
-                    if os.path.isfile(temp_path):
-                        try:
-                            os.remove(temp_path)
-                        except OSError:
-                            pass
-                    print(f"[VOICE] done Azure speaking path is_good={is_good}")
-                    return
-                else:
-                    _az_status = az_result.get("RecognitionStatus") if az_result else "no_result"
-                    _az_reason = "no PA data" if (_az_status == "Success" and not _az_has_pa) else _az_status
-                    print(f"[VOICE] Azure fallback reason={_az_reason} — falling back to Whisper")
-
-            # ── Fallback：Whisper + GPT 評估（Azure 未設定或失敗時）──
-            with open(temp_path, "rb") as audio_file:
-                transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file, language="en")
-            if os.path.isfile(temp_path):
-                try:
-                    os.remove(temp_path)
-                except OSError:
-                    pass
-            transcript_text = (transcript.text or "").strip()
-            transcription_msg = f"🎤 Recognized: \"{transcript_text}\"" if is_en_speaking else f"🎤 辨識內容：「{transcript_text}」"
-            line_bot_api.push_message(user_id, TextSendMessage(text=transcription_msg))
-
-            if mongo_db is not None:
-                try:
-                    ensure_user(mongo_db, user_id)
-                    log_speaking(mongo_db, user_id, len(transcript_text), count_tcm_terms_in_text(transcript_text), transcript_text)
-                    run_analytics_middleware(mongo_db, user_id)
-                except Exception as e:
-                    print(f">>> RESEARCH log_speaking error: {e}")
-
-            status, feedback, corrected_text = _evaluate_speech(transcript_text)
-            if status == "Correct":
-                next_sentence = _generate_next_practice_sentence(transcript_text)
-                if next_sentence:
-                    _set_practice_sentence(user_id, next_sentence)
-                praise = "Great job! Well done! 🎉\n\n🔊 Listen to the model pronunciation:" if is_en_speaking else "表現不錯！🎉\n\n🔊 聆聽示範語音："
-                next_msg = (
-                    f"💡 Try this next:\n\"{next_sentence}\"" if (next_sentence and is_en_speaking)
-                    else f"💡 建議下一句：\n「{next_sentence}」" if next_sentence
-                    else ("Ready for the next sentence?" if is_en_speaking else "要再練習下一句嗎？")
-                )
-                line_bot_api.push_message(user_id, TextSendMessage(text=praise))
-                try:
-                    audio_url, duration_ms = _generate_tts_and_store(transcript_text, voice=VOICE_COACH_TTS_VOICE)
-                    if audio_url and duration_ms:
-                        line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
-                except Exception as tts_err:
-                    print(f"[VOICE] TTS err (fallback Correct): {tts_err}")
-                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(next_msg))
-            else:
-                feedback_header = "📊 Speaking Practice Feedback" if is_en_speaking else "📊 口說練習回饋"
-                line_bot_api.push_message(user_id, text_with_quick_reply(f"{feedback_header}\n\n{feedback}"))
-                tts_text = corrected_text.strip() if corrected_text else transcript_text
-                tts_label = f"🔊 Listen and repeat: \"{tts_text}\"" if is_en_speaking else f"🔊 請跟著唸：「{tts_text}」"
-                line_bot_api.push_message(user_id, TextSendMessage(text=tts_label))
-                try:
-                    audio_url, duration_ms = _generate_tts_and_store(tts_text, voice=VOICE_COACH_TTS_VOICE)
-                    if audio_url and duration_ms:
-                        line_bot_api.push_message(user_id, AudioSendMessage(original_content_url=audio_url, duration=duration_ms))
-                except Exception as tts_err:
-                    print(f"[VOICE] TTS err (fallback NeedsImprovement): {tts_err}")
-                line_bot_api.push_message(user_id, text_with_quick_reply_speak_practice(
-                    "Demo audio sent! Try again 💪" if is_en_speaking else "示範語音已送上，再試一次 💪"
-                ))
-            print(f"[VOICE] done speaking fallback path")
-            return
-
-        # ── 非 Speaking 模式：Whisper → TCM Q&A ──
         with open(temp_path, "rb") as audio_file:
             _whisper_lang = "en" if FORCE_LANG == "en" else None
             _whisper_kwargs = {"model": "whisper-1", "file": audio_file}
@@ -2389,19 +1280,11 @@ def _process_voice_sync(user_id, message_id, mode=None):
         transcription_msg = f"🎤 Recognized: \"{transcript_text}\"" if FORCE_LANG == "en" else f"🎤 辨識內容：「{transcript_text}」"
         line_bot_api.push_message(user_id, TextSendMessage(text=transcription_msg))
 
-        if mode == REVISION_MODE:
-            _revision_handler(user_id, transcript_text)
-            print(f"[VOICE] done revision path")
-            return
-
-        if is_course_inquiry_intent(transcript_text):
-            line_bot_api.push_message(user_id, TextSendMessage(text="正在查詢課務資料..."))
-            send_course_inquiry_flex(user_id)
-        elif is_off_topic(transcript_text):
+        if is_off_topic(transcript_text):
             line_bot_api.push_message(user_id, text_with_quick_reply(OFF_TOPIC_REPLY))
         else:
-            process_ai_request(None, user_id, transcript_text, is_voice=True)
-        print(f"[VOICE] done other mode")
+            _tcm_openai_reply(user_id, transcript_text)
+        print(f"[VOICE] done")
     except Exception as e:
         print(f"[VOICE] CRITICAL err={e}")
         traceback.print_exc()
@@ -2411,85 +1294,9 @@ def _process_voice_sync(user_id, message_id, mode=None):
             pass
 
 
-def _process_quiz_sync(user_id, context, language="zh"):
-    """
-    依據中醫回答內容 context 產生三選一小測驗並 push 給使用者。
-    先以同步 redis.set 寫入 state 與 mode（TTL 1 小時），驗證後再送題目。
-    language 由呼叫端傳入（"en"/"zh"），避免 race condition。
-    """
-    if not (context or "").strip():
-        return
-    try:
-        quiz = generate_mcq_quiz(client, context, language=language)
-    except Exception:
-        traceback.print_exc()
-        quiz = None
-    if not (quiz and quiz.get("question") and quiz.get("options") and quiz.get("answer")):
-        return
-    try:
-        # 同步寫入：state 與 mode 直接 redis.set，不經 background，TTL 至少 1 小時
-        if redis:
-            state_key = f"user_state:{user_id}"
-            mode_key = _redis_user_mode_key(user_id)
-            redis.set(state_key, STATE_QUIZ_WAITING, ex=3600)
-            redis.set(mode_key, "quiz", ex=3600)
-            verify_state = redis.get(state_key)
-            verify_mode = redis.get(mode_key)
-            if isinstance(verify_state, bytes):
-                verify_state = verify_state.decode("utf-8", errors="replace").strip()
-            else:
-                verify_state = str(verify_state or "").strip()
-            if isinstance(verify_mode, bytes):
-                verify_mode = verify_mode.decode("utf-8", errors="replace").strip()
-            else:
-                verify_mode = str(verify_mode or "").strip()
-            print(f"DEBUG: Write Verification - state key expected '{STATE_QUIZ_WAITING}', got '{verify_state}'")
-            print(f"DEBUG: Write Verification - mode key expected 'quiz', got '{verify_mode}'")
-            quiz_id = secrets.token_hex(8)
-            set_mcq_quiz_data(
-                redis,
-                user_id,
-                quiz.get("question", ""),
-                quiz.get("options", []),
-                quiz.get("answer", ""),
-                quiz.get("explanation", ""),
-                category="其他",
-                quiz_id=quiz_id,
-            )
-            set_quiz_pending(redis, user_id, quiz.get("question", ""))
-            print(f"DEBUG: Successfully updated {user_id} to quiz mode")
-        if language == "en":
-            quiz_text = (
-                "——\n📝 Quiz\n"
-                + quiz["question"]
-                + "\n"
-                + "\n".join(quiz["options"])
-                + "\n\n(Select A/B/C to answer, or send a new question to continue learning.)"
-            )
-        else:
-            quiz_text = (
-                "——\n📝 小測驗\n"
-                + quiz["question"]
-                + "\n"
-                + "\n".join(quiz["options"])
-                + "\n\n(點選 A/B/C 作答，或直接輸入新問題繼續學習喔！)"
-            )
-        line_bot_api.push_message(
-            user_id,
-            TextSendMessage(text=quiz_text, quick_reply=quick_reply_quiz_choices()),
-        )
-        if redis:
-            try:
-                redis.set(f"quiz_sent_at:{user_id}", str(time.time()), ex=3600)
-            except Exception:
-                pass
-    except Exception:
-        traceback.print_exc()
-
-
 @app.route("/api/process-voice-async", methods=["POST"])
 def process_voice_async():
-    """Background Task：接收語音 message_id，執行 Whisper -> 評估 -> TTS -> Cloudinary -> push。"""
+    """Background Task：接收語音 message_id，執行 Whisper 轉文字 -> 中醫問答模組 -> push。"""
     secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
     expected = os.getenv("CRON_SECRET", "")
     if expected and secret not in (expected, "Bearer " + expected):
@@ -2514,95 +1321,6 @@ def process_voice_async():
         return str(e)[:200], 500
 
 
-def _run_process_text_task(user_id, text, task):
-    """Background worker for process-text-async：完成後 push_message。"""
-    try:
-        if task == "revision":
-            _revision_handler(user_id, text)
-        else:
-            _process_assistant_sync(user_id, text)
-        print(f"[process-text-async] done task={task}")
-    except Exception as e:
-        print(f"[process-text-async] CRITICAL err={e}")
-        traceback.print_exc()
-        try:
-            line_bot_api.push_message(user_id, text_with_quick_reply(TIMEOUT_MESSAGE))
-        except Exception as push_err:
-            print(f"[process-text-async] push error fallback failed err={push_err}")
-
-
-@app.route("/api/process-text-async", methods=["POST"])
-def process_text_async():
-    """Background Task：接收文字 AI 任務，立即回傳 200，寫作修訂/Assistant RAG 在背景執行並 push_message。"""
-    secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
-    expected = os.getenv("CRON_SECRET", "")
-    if expected and secret not in (expected, "Bearer " + expected):
-        print(f"[process-text-async] 401 Unauthorized")
-        return "Unauthorized", 401
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        user_id = (data.get("user_id") or "").strip()
-        text = (data.get("text") or "").strip()
-        task = (data.get("task") or "assistant").strip().lower()
-        print(f"[process-text-async] received user_id={user_id!r} task={task} text_len={len(text)}")
-        if not user_id:
-            return "Missing user_id", 400
-        threading.Thread(
-            target=_run_process_text_task,
-            args=(user_id, text, task),
-            daemon=True,
-        ).start()
-        return "OK", 200
-    except Exception as e:
-        print(f"[process-text-async] CRITICAL err={e}")
-        traceback.print_exc()
-        try:
-            uid = (request.get_json(force=True, silent=True) or {}).get("user_id", "")
-            if uid:
-                line_bot_api.push_message(uid, text_with_quick_reply(TIMEOUT_MESSAGE))
-        except Exception as push_err:
-            print(f"[process-text-async] push error fallback failed err={push_err}")
-        return str(e)[:200], 500
-
-
-@app.route("/api/process-quiz-async", methods=["POST"])
-def process_quiz_async():
-    """
-    Background Task：依據已送出的中醫回答內容產生三選一小測驗並推送。
-    由 _tcm_openai_reply 觸發，不阻塞原本的 webhook。
-    """
-    secret = request.headers.get("Authorization") or request.headers.get("X-Internal-Secret") or ""
-    expected = os.getenv("CRON_SECRET", "")
-    if expected and secret not in (expected, "Bearer " + expected):
-        return "Unauthorized", 401
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        user_id = (data.get("user_id") or "").strip()
-        context = (data.get("context") or "").strip()
-        if not user_id or not context:
-            return "Missing user_id or context", 400
-        _process_quiz_sync(user_id, context)
-        return "OK", 200
-    except Exception as e:
-        traceback.print_exc()
-        return str(e)[:200], 500
-
-
-@app.route("/audio/<token>", methods=['GET'])
-def serve_audio(token):
-    """提供 TTS 音檔給 LINE 播放（Redis 暫存，TTL 約 10 分鐘）。"""
-    try:
-        if not redis:
-            return "Not Found", 404
-        b64 = redis.get(f"tts_audio:{token}")
-        if not b64:
-            return "Not Found", 404
-        s = b64.decode("ascii") if hasattr(b64, "decode") else b64
-        data = base64.b64decode(s)
-        return Response(data, mimetype="audio/mpeg", direct_passthrough=True)
-    except Exception:
-        return "Not Found", 404
-
 @app.route("/callback", methods=['POST'])
 def callback():
     """LINE Webhook 唯一入口（Railway 等長連線環境：直接執行 handle，gunicorn timeout 120s）。"""
@@ -2616,561 +1334,41 @@ def callback():
         traceback.print_exc()
     return Response('OK', status=200)
 
-def _handle_quiz_answer(user_id, choice, reply_token=None):
-    """
-    處理測驗作答（文字 A/B/C 或 Postback quiz_choice=A/B/C）。
-    更新 MongoDB 對應 interaction 的 quiz_data，並回覆結果。reply_token 有值則 reply_message，否則 push_message。
-    """
-    qd = get_quiz_data(redis, user_id) or {}
-    if qd.get("type") != "mcq":
-        if reply_token:
-            line_bot_api.reply_message(reply_token, text_with_quick_reply("此題已失效，請輸入新問題繼續學習～"))
-        return
-    correct = str(qd.get("answer") or "").strip().upper()
-    explanation = (qd.get("explanation") or "").strip()
-    user_lang = "en" if FORCE_LANG == "en" else _get_user_language(user_id)
-    if user_lang == "en":
-        guidance = "Hope this helps you understand TCM better! Feel free to ask another question anytime, and I will continue to answer and generate quizzes for you. ✨"
-        if choice == correct:
-            reply = "Great job! 🎉\n\nYou got it right and your concept is solid.\n\n" + guidance
-        else:
-            reply = "Oops, not quite.\n\n"
-            reply += f"Correct answer: {correct}\n\n"
-            if explanation:
-                reply += f"Explanation:\n{explanation}\n\n"
-            reply += guidance
-    else:
-        guidance = "希望這能幫助你更了解中醫！隨時可以再輸入新問題，我會繼續為你解答並出題喔！✨"
-        if choice == correct:
-            reply = "恭喜你答對了！👏\n\n你選對了，觀念掌握得不錯。\n\n" + guidance
-        else:
-            reply = "哎呀，答錯囉！\n\n"
-            reply += f"【正確答案】{correct}\n\n"
-            if explanation:
-                reply += f"【中醫概念說明】\n{explanation}\n\n"
-            reply += guidance
-
-    # 答錯時記錄弱項，不分語言
-    if choice != correct:
-        try:
-            record_weak_category(redis, user_id, (qd.get("category") or "其他"))
-        except Exception:
-            pass
-    sent_at = redis.get(f"quiz_sent_at:{user_id}") if redis else None
-    response_time_sec = None
-    if sent_at is not None:
-        try:
-            response_time_sec = round(time.time() - float(sent_at), 2)
-        except (TypeError, ValueError):
-            pass
-    if mongo_db is not None:
-        try:
-            interaction_id_raw = redis.get(f"quiz_interaction_id:{user_id}") if redis else None
-            if interaction_id_raw is not None:
-                try:
-                    oid_str = interaction_id_raw.decode("utf-8", errors="replace").strip() if isinstance(interaction_id_raw, bytes) else str(interaction_id_raw).strip()
-                    if oid_str:
-                        update_interaction_quiz_result(
-                            mongo_db,
-                            oid_str,
-                            choice,
-                            choice == correct,
-                            True,
-                            response_time_sec=response_time_sec,
-                        )
-                except Exception as eu:
-                    print(f">>> RESEARCH update_interaction_quiz_result error: {eu}")
-            log_quiz_result(
-                mongo_db,
-                user_id,
-                (qd.get("quiz_type") or "Immediate"),
-                qd.get("quiz_id") or qd.get("question") or "",
-                choice,
-                choice == correct,
-                response_time_sec=response_time_sec,
-            )
-        except Exception as e:
-            print(f">>> RESEARCH QuizResult logging error: {e}")
-    try:
-        if redis:
-            redis.delete(f"quiz_sent_at:{user_id}")
-            redis.delete(f"quiz_interaction_id:{user_id}")
-        set_user_state(redis, user_id, STATE_NORMAL)
-        if redis:
-            redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
-        clear_quiz_data(redis, user_id)
-        clear_quiz_pending(redis, user_id)
-    except Exception:
-        pass
-    msg = text_with_quick_reply(reply)
-    if reply_token:
-        line_bot_api.reply_message(reply_token, msg)
-    else:
-        line_bot_api.push_message(user_id, msg)
-
-
 # --- 事件處理 ---
 @line_webhook_handler.add(PostbackEvent)
 def handle_postback(event):
-    data = (event.postback.data or "").strip()
+    """
+    Postback 事件現在沒有對應功能了——舊版測驗選項、課務查詢回饋星等、模式切換
+    按鈕都已經移除（國考題庫／口說教練／寫作教練都改成 LIFF，Rich Menu 是
+    uri 直連，不會觸發 Postback）。保留這個 handler 只是為了防呆：如果使用者
+    裝置上還殘留舊版選單、誤觸發了 Postback，不要噴 500，給個友善提示。
+    """
     user_id = event.source.user_id
     try:
-        # 課務助教回饋：action=feedback&score=1-5
-        if data.startswith("action=feedback"):
-            # 解析星等（允許 action=feedback&score=5 或 action=feedback&score=5&...
-            score = None
-            for part in data.split("&"):
-                if part.startswith("score="):
-                    score = part.split("=", 1)[1].strip()
-                    break
-
-            # 取使用者名稱（失敗不影響主流程）
-            user_name = None
-            try:
-                prof = line_bot_api.get_profile(user_id)
-                user_name = getattr(prof, "display_name", None)
-            except Exception:
-                user_name = None
-
-            # MongoDB：寫入 StudentFeedback（失敗不影響機器人正常運作）
-            try:
-                if mongo_db is not None:
-                    print(f">>> DEBUG: feedback write start db={getattr(mongo_db, 'name', None)} user_id={user_id} score={score} user_name={user_name}")
-                    log_student_feedback(mongo_db, user_id=user_id, user_name=user_name, score=score)
-                else:
-                    print(">>> DEBUG: feedback received but mongo_db is None")
-            except Exception as e:
-                print(f">>> DEBUG: log_student_feedback unexpected error: {e}")
-
-            # 回覆：優先 reply token，失敗再 fallback push（避免誤顯示『回饋紀錄失敗』）
-            msg = text_with_quick_reply("感謝你的回饋！已收到～")
-            try:
-                line_bot_api.reply_message(event.reply_token, msg)
-            except Exception as e:
-                print(f">>> DEBUG: feedback reply_message failed, fallback push. err={e}")
-                try:
-                    line_bot_api.push_message(user_id, msg)
-                except Exception:
-                    pass
-            return
-
-        # 測驗選項：使用者點擊 A/B/C 按鈕（Postback）
-        if data.startswith("quiz_choice="):
-            choice = data.split("=", 1)[1].strip().upper()
-            if choice in ("A", "B", "C"):
-                quiz_state = get_user_state(redis, user_id)
-                if quiz_state == STATE_QUIZ_WAITING:
-                    _handle_quiz_answer(user_id, choice, reply_token=event.reply_token)
-                    return
-        if data == "action=course" or data == "action=weekly":
-            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
-            return
-        # mode=tcm / mode=speaking / mode=writing（Rich Menu 切換）
-        mode = data.split("=")[1].strip() if "=" in data else "tcm"
-        mode_map = {"tcm": "🩺 中醫問答", "speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}
-        _set_cached_mode(user_id, mode)
-        redis_ok = False
-        try:
-            if redis:
-                redis.set(_redis_user_mode_key(user_id), mode)
-                redis_ok = True
-                # 寫入後立即讀回驗證（供除錯）
-                verify = redis.get(_redis_user_mode_key(user_id))
-                v = verify.decode("utf-8").strip() if isinstance(verify, bytes) else str(verify or "").strip()
-                verified = (v == mode)
-                print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_ok={redis_ok} verified={verified}")
-        except Exception as e:
-            print(f"[MODE] Postback user_id={user_id} set_mode={mode} redis_set_failed err={e}")
-        # 與 CLI/文字指令一致的切換訊息（寫作修訂需含操作指引）
-        if mode == REVISION_MODE:
-            msg = REVISION_MODE_PROMPT
-            if not redis:
-                msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 REDIS_URL 環境變數。"
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
-        elif mode == "speaking":
-            msg = "已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(msg))
-        else:
-            msg = f"已切換至【{mode_map.get(mode, mode)}】模式"
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(msg))
-    except Exception as e:
+        line_bot_api.reply_message(
+            event.reply_token,
+            text_with_quick_reply("這個功能已經更新囉，請用下方選單開啟考題／口說／寫作頁面。"),
+        )
+    except Exception:
         traceback.print_exc()
-        try:
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply("選單處理發生錯誤，請再試一次。"))
-        except Exception:
-            pass
 
 @line_webhook_handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    """
+    聊天室現在只做一件事：所有文字訊息都直接走中醫問答模組（蘇格拉底式引導，
+    見 _TCM_SYSTEM_PROMPT）。舊版的小測驗、口說練習、寫作修訂、課務查詢等
+    模式切換與功能已經移除——國考題庫／口說教練／寫作教練都改成 LIFF 頁面，
+    見 Rich Menu 三個入口。
+    """
     user_id = event.source.user_id
     user_text = (event.message.text or "").strip()
-    current_mode = _safe_get_mode(user_id)
-    print(f"DEBUG: Received text '{user_text}' from {user_id}. Current Mode from Redis: {current_mode}")
     try:
-        def _parse_mcq_choice(text):
-            t = (text or "").strip()
-            if not t:
-                return None
-            # 移除常見包裹符號與標點
-            norm = re.sub(r'^[\s【\[\(（『「〈《<"\'`，。、．\.\!！\?？；;：:、]+', "", t)
-            norm = re.sub(r'[\s】\]\)）』」〉》>"\'`，。、．\.\!！\?？；;：:、]+$', "", norm)
-            # 全形轉半形
-            norm = norm.replace("Ａ", "A").replace("Ｂ", "B").replace("Ｃ", "C")
-            up = norm.upper()
-            if up in ("A", "B", "C"):
-                return up
-            if re.match(r"^選\s*[ABC]", up):
-                return re.findall(r"[ABC]", up)[0]
-            if re.match(r"^\([ABC]\)", up) or re.match(r"^（[ABC]）", up):
-                return re.findall(r"[ABC]", up)[0]
-            return None
-
-        suppress_yes_no_command = False
-
-        # --- Rich Menu 按鈕：立即回覆，避免延遲 ---
-        if user_text in ("中醫問答", "回到中醫問答", "TCM Q&A"):
-            _set_cached_mode(user_id, "tcm")
-            if redis:
-                for _attempt in range(3):
-                    try:
-                        with _redis_mode_lock:
-                            redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
-                        break
-                    except Exception as _e:
-                        print(f"[MODE] TCM Q&A redis set failed attempt={_attempt} err={_e}")
-                        if _attempt < 2:
-                            time.sleep(0.2)
-            if FORCE_LANG == "en" or user_text == "TCM Q&A":
-                confirm_msg = "Switched to [🩺 TCM Q&A] mode. What would you like to ask?"
-            else:
-                confirm_msg = "已切換至【🩺 中醫問答】模式，有什麼想問的嗎？"
-            line_bot_api.reply_message(
-                event.reply_token,
-                text_with_quick_reply(confirm_msg),
-            )
-            return
-        if user_text in ("口說練習", "Speaking Practice"):
-            _set_cached_mode(user_id, "speaking")
-            if redis:
-                for _attempt in range(3):
-                    try:
-                        with _redis_mode_lock:
-                            redis.set(_redis_user_mode_key(user_id), "speaking", ex=86400)
-                        break
-                    except Exception as _e:
-                        print(f"[MODE] Speaking Practice redis set failed attempt={_attempt} err={_e}")
-                        if _attempt < 2:
-                            time.sleep(0.2)
-            if FORCE_LANG == "en" or user_text == "Speaking Practice":
-                confirm_msg = "Switched to [🗣️ Speaking Practice] mode. Send a voice message or type a sentence."
-            else:
-                confirm_msg = "已切換至【🗣️ 口說練習】模式，可傳送語音或文字。"
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply(confirm_msg))
-            return
-        if user_text in ("寫作修改", "寫作修訂", "Writing Revision"):
-            _set_cached_mode(user_id, REVISION_MODE)
-            if redis:
-                for _attempt in range(3):
-                    try:
-                        with _redis_mode_lock:
-                            redis.set(_redis_user_mode_key(user_id), REVISION_MODE, ex=86400)
-                        break
-                    except Exception as _e:
-                        print(f"[MODE] Writing Revision redis set failed attempt={_attempt} err={_e}")
-                        if _attempt < 2:
-                            time.sleep(0.2)
-            if FORCE_LANG == "en" or user_text == "Writing Revision":
-                msg = "You are now in [✍️ Writing Revision] mode. Please paste the paragraph you'd like to revise."
-                if not redis:
-                    msg += "\n\n⚠️ Mode could not be saved (Redis not configured). Please check the REDIS_URL environment variable."
-            else:
-                msg = REVISION_MODE_PROMPT
-                if not redis:
-                    msg += "\n\n⚠️ 模式無法儲存（Redis 未設定），請確認 REDIS_URL 環境變數。"
-            line_bot_api.reply_message(event.reply_token, text_with_quick_reply_writing(msg))
-            return
-        if user_text == "課務查詢":
-            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
-            return
-        if (user_text or "").strip() == "測驗模式":
-            line_bot_api.reply_message(
-                event.reply_token,
-                text_with_quick_reply(
-                    "您現在就在「中醫問答 ＋ 小測驗」循環中～\n\n"
-                    "輸入任何中醫相關問題，我會先回答，再自動出一題小測驗。答完後可繼續問新問題，形成 QA → Quiz → QA → Quiz 的學習循環喔！✨"
-                ),
-            )
-            return
-
-        # --- 寫作修訂模式隔離：優先判斷，跳過中醫邏輯 ---
-        # 直接讀 Redis（繞過本地快取），避免 Vercel 多實例快取不同步導致誤判
-        current_mode = None
-        if redis:
+        _start_loading_indicator(user_id)
+        if not _tcm_openai_reply(user_id, user_text, reply_token=event.reply_token):
             try:
-                _v = redis.get(_redis_user_mode_key(user_id))
-                if _v:
-                    current_mode = (_v.decode("utf-8") if isinstance(_v, bytes) else str(_v)).strip()
+                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("An error occurred, please try again." if FORCE_LANG == "en" else "處理時發生錯誤，請稍後再試。"))
             except Exception:
                 pass
-        if not current_mode:
-            current_mode = _safe_get_mode(user_id)
-        print(f"[MODE] handle_message user_id={user_id} current_mode={current_mode} text_preview={user_text[:50]!r}")
-        if current_mode == REVISION_MODE:
-            print(f"[MODE] handle_message -> REVISION_MODE branch, skipping TCM Assistant")
-            if user_text in ("寫作修改", "寫作修訂", "Writing Revision"):
-                if FORCE_LANG == "en" or user_text == "Writing Revision":
-                    re_enter_msg = "You are now in [✍️ Writing Revision] mode. Please paste the paragraph you'd like to revise."
-                else:
-                    re_enter_msg = REVISION_MODE_PROMPT
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_with_quick_reply_writing(re_enter_msg),
-                )
-                return
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="Analyzing your writing, please wait... ✨" if FORCE_LANG == "en" else "正在分析你的寫作，請稍候... ✨"),
-            )
-            print(f"[REVISION] running sync (worker) user_id={user_id}")
-            _revision_handler(user_id, user_text)
-            return
-
-        # 課務查詢／本週重點：統一以 Flex Message 回傳
-        if is_course_inquiry_intent(user_text):
-            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
-            return
-
-        # 小測驗等待作答：A/B/C/D 時再讀一次 state，避免漏掉剛寫入的 quiz 狀態
-        quiz_state = get_user_state(redis, user_id)
-        if (user_text or "").strip().upper() in ("A", "B", "C", "D"):
-            quiz_state = get_user_state(redis, user_id)
-        if quiz_state == STATE_QUIZ_WAITING:
-            print("DEBUG: Inside Quiz logic block - comparing answer...")
-            mode = _safe_get_mode(user_id)
-            qd = get_quiz_data(redis, user_id) or {}
-            if mode in ("tcm", "quiz") and (qd.get("type") == "mcq"):
-                choice = _parse_mcq_choice(user_text)
-                if choice:
-                    _handle_quiz_answer(user_id, choice, reply_token=event.reply_token)
-                    return
-
-                # 非選項：視為跳過，清狀態後把這則當新提問（且不要把「是/否」當作舊題庫指令）
-                suppress_yes_no_command = True
-                try:
-                    if mongo_db is not None and redis:
-                        interaction_id_raw = redis.get(f"quiz_interaction_id:{user_id}")
-                        if interaction_id_raw is not None:
-                            oid_str = interaction_id_raw.decode("utf-8", errors="replace").strip() if isinstance(interaction_id_raw, bytes) else str(interaction_id_raw).strip()
-                            if oid_str:
-                                try:
-                                    update_interaction_quiz_result(
-                                        mongo_db,
-                                        oid_str,
-                                        None,
-                                        False,
-                                        False,
-                                    )
-                                except Exception:
-                                    pass
-                            redis.delete(f"quiz_interaction_id:{user_id}")
-                    set_user_state(redis, user_id, STATE_NORMAL)
-                    if redis:
-                        redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
-                    clear_quiz_data(redis, user_id)
-                    clear_quiz_pending(redis, user_id)
-                except Exception:
-                    pass
-            else:
-                # 非 tcm/quiz 或非 MCQ：維持舊相容邏輯（視為新提問）
-                try:
-                    set_user_state(redis, user_id, STATE_NORMAL)
-                    if redis:
-                        redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
-                    clear_quiz_data(redis, user_id)
-                    clear_quiz_pending(redis, user_id)
-                except Exception:
-                    pass
-
-        # 個人化複習筆記：查 MongoDB 所有答錯與問過的紀錄，產生專屬筆記
-        if user_text == "個人化複習筆記":
-            if mongo_db is None:
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("❌ 資料庫暫時無法連線，請稍後再試。"))
-                return
-            try:
-                _start_loading_indicator(user_id)
-                note = generate_full_personalized_review_note(mongo_db, user_id, client)
-                if note:
-                    header = "📒 個人化複習筆記\n（根據你答錯過的測驗與問過的問題整理）\n\n"
-                    line_bot_api.reply_message(
-                        event.reply_token,
-                        text_with_quick_reply(header + note),
-                    )
-                else:
-                    line_bot_api.reply_message(
-                        event.reply_token,
-                        text_with_quick_reply("目前尚無足夠的學習紀錄可產生個人化筆記。\n先多問幾題中醫問題、做幾題測驗，之後再來試試看！"),
-                    )
-            except Exception as e:
-                traceback.print_exc()
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("個人化複習筆記暫時無法使用，請稍後再試。"))
-            return
-
-        # 主動複習測驗：依最近 10 筆互動產生個人化複習題
-        if user_text in ("複習測驗", "我要複習測驗") and mongo_db is not None:
-            try:
-                review_quiz = generate_review_quiz_from_interactions(mongo_db, user_id, client, last_n=10)
-                if review_quiz and review_quiz.get("question") and review_quiz.get("options") and review_quiz.get("answer"):
-                    if redis:
-                        redis.set(f"user_state:{user_id}", STATE_QUIZ_WAITING, ex=3600)
-                        redis.set(_redis_user_mode_key(user_id), "quiz", ex=3600)
-                        quiz_id_r = secrets.token_hex(8)
-                        set_mcq_quiz_data(
-                            redis,
-                            user_id,
-                            review_quiz.get("question", ""),
-                            review_quiz.get("options", []),
-                            review_quiz.get("answer", ""),
-                            review_quiz.get("explanation", ""),
-                            category="複習",
-                            quiz_id=quiz_id_r,
-                            quiz_type="Review",
-                        )
-                        set_quiz_pending(redis, user_id, review_quiz.get("question", ""))
-                    quiz_text = (
-                        "——\n📝 複習測驗（依你最近的問答出題）\n"
-                        + review_quiz["question"]
-                        + "\n"
-                        + "\n".join(review_quiz["options"])
-                        + "\n\n(點選 A/B/C 作答，或輸入新問題繼續學習～)"
-                    )
-                    line_bot_api.reply_message(
-                        event.reply_token,
-                        TextSendMessage(text=quiz_text, quick_reply=quick_reply_quiz_choices()),
-                    )
-                    if redis:
-                        redis.set(f"quiz_sent_at:{user_id}", str(time.time()), ex=3600)
-                    return
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("尚無足夠的問答記錄可出複習題，先多問幾題中醫問題吧～"))
-            except Exception as e:
-                traceback.print_exc()
-                line_bot_api.reply_message(event.reply_token, text_with_quick_reply("複習測驗暫時無法使用，請稍後再試。"))
-            return
-
-        # 主動複習：使用者選擇「要複習筆記」
-        if user_text == "要複習筆記":
-            cat = get_pending_review_category(redis, user_id)
-            clear_pending_review_category(redis, user_id)
-            if cat:
-                # 優先用個人化版本（查 MongoDB 答錯紀錄）；失敗時 fallback 通用版本
-                note = generate_personalized_review_note(mongo_db, user_id, cat, client)
-                if not note:
-                    note = generate_review_note(client, cat)
-                clear_weak_category(redis, user_id, cat)
-                review_msg = text_with_quick_reply(f"📝 【{cat}】個人化複習筆記\n\n{note}")
-            else:
-                review_msg = text_with_quick_reply("好的，有需要再跟我說～")
-            if FORCE_PUSH_MODE:
-                line_bot_api.push_message(user_id, review_msg)
-            else:
-                line_bot_api.reply_message(event.reply_token, review_msg)
-            return
-        if user_text == "不要複習筆記":
-            clear_pending_review_category(redis, user_id)
-            review_msg = text_with_quick_reply("好的，有需要再跟我說～")
-            if FORCE_PUSH_MODE:
-                line_bot_api.push_message(user_id, review_msg)
-            else:
-                line_bot_api.reply_message(event.reply_token, review_msg)
-            return
-
-        # 主動複習：偵測到弱項且超過冷卻期（在中醫問答回覆後才詢問）
-        # 這裡不直接回覆，避免擋掉原本問題回答流程。
-        pass
-
-        if user_text == "本週重點":
-            send_course_inquiry_flex(user_id, reply_token=event.reply_token)
-            return
-
-        if user_text in ("練習下一句", "Next Sentence"):
-            mode = _safe_get_mode(user_id)
-            if mode == "speaking":
-                next_sentence = _generate_next_practice_sentence()
-                if next_sentence:
-                    _set_practice_sentence(user_id, next_sentence)
-                if FORCE_LANG == "en" or user_text == "Next Sentence":
-                    if next_sentence:
-                        msg = f"💡 Try this sentence:\n\"{next_sentence}\"\n\nSend a voice message to practice!"
-                    else:
-                        msg = "Send a voice message to start practicing — I'll analyze your pronunciation!"
-                else:
-                    if next_sentence:
-                        msg = f"💡 建議練習這句：\n「{next_sentence}」\n\n傳語音跟著唸！"
-                    else:
-                        msg = "請傳送語音訊息開始練習～我會幫你分析發音！"
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    text_with_quick_reply_speak_practice(msg),
-                )
-                return
-        if user_text in ("結束練習", "End Practice"):
-            _set_cached_mode(user_id, "tcm")
-            if redis:
-                for _attempt in range(3):
-                    try:
-                        with _redis_mode_lock:
-                            redis.set(_redis_user_mode_key(user_id), "tcm", ex=86400)
-                        break
-                    except Exception as _e:
-                        print(f"[MODE] End Practice redis set failed attempt={_attempt} err={_e}")
-                        if _attempt < 2:
-                            time.sleep(0.2)
-            else:
-                print(f"[MODE] End Practice: redis unavailable, mode only in local cache")
-            if FORCE_LANG == "en" or user_text == "End Practice":
-                end_msg = "Speaking practice ended. Switched back to TCM Q&A mode."
-            else:
-                end_msg = "已結束口說練習，已切換回中醫問答模式。"
-            line_bot_api.reply_message(
-                event.reply_token,
-                text_with_quick_reply(end_msg),
-            )
-            return
-
-        # 最終路由：直接讀 Redis，跳過本地快取，避免多 worker 快取不同步導致誤判
-        mode = None
-        if redis:
-            try:
-                with _redis_mode_lock:
-                    _rv = redis.get(_redis_user_mode_key(user_id))
-                if _rv:
-                    mode = (_rv.decode("utf-8") if isinstance(_rv, bytes) else str(_rv)).strip()
-            except Exception as _e:
-                print(f"[MODE] final routing redis read failed: {_e}")
-        if not mode:
-            mode = _safe_get_mode(user_id)
-        print(f"[MODE] handle_message -> AI (current_mode={mode!r})")
-
-        # 統一 TCM 問答：tcm / quiz 一律走同一邏輯（避免 push：直接用 reply_token 回覆最終結果）
-        if mode in ("tcm", "quiz"):
-            _start_loading_indicator(user_id)
-            if not _tcm_openai_reply(user_id, user_text, reply_token=event.reply_token):
-                try:
-                    line_bot_api.reply_message(event.reply_token, text_with_quick_reply("An error occurred, please try again." if FORCE_LANG == "en" else "處理時發生錯誤，請稍後再試。"))
-                except Exception:
-                    pass
-            # 七天後（冷卻）弱項檢查：先回答原問題，之後再詢問是否要複習筆記
-            _maybe_send_review_prompt(user_id, reply_token=None)
-            return
-
-        # 口說 / 寫作：依模式顯示載入訊息並走 Assistant API
-        if FORCE_LANG == "en":
-            mode_name = {"speaking": "🗣️ Speaking Practice", "writing": "✍️ Writing Revision"}.get(mode, mode)
-            analyzing_msg = f"Analyzing in [{mode_name}] mode, please wait... ✨"
-        else:
-            mode_name = {"speaking": "🗣️ 口說練習", "writing": "✍️ 寫作修訂"}.get(mode, mode)
-            analyzing_msg = f"正在以【{mode_name}】模式分析中..."
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=analyzing_msg))
-        _run_ai_work(user_id, user_text)
     except Exception as e:
         traceback.print_exc()
         err_msg = str(e).strip()[:100]
@@ -3184,31 +1382,17 @@ def handle_message(event):
 
 @line_webhook_handler.add(MessageEvent, message=AudioMessage)
 def handle_audio(event):
-    """口說教練：立即回覆釋放 token，背景/同步處理語音。"""
+    """語音訊息：立即回覆釋放 token，背景/同步轉文字後走中醫問答模組。"""
     user_id = event.source.user_id
     message_id = event.message.id
-
-    # 直接讀 Redis（繞過本地 _mode_cache），避免兩個 gunicorn worker 快取不同步。
-    # 也要在任何 I/O 之前讀，避免 gevent 在 reply_message 時切換 greenlet 改掉 mode。
-    captured_mode = None
-    if redis:
-        try:
-            with _redis_mode_lock:
-                _v = redis.get(_redis_user_mode_key(user_id))
-            if _v:
-                captured_mode = (_v.decode("utf-8") if isinstance(_v, bytes) else str(_v)).strip().lower()
-        except Exception:
-            pass
-    if not captured_mode:
-        captured_mode = _safe_get_mode(user_id)
 
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(text="Converting voice, please wait... 🎙️" if FORCE_LANG == "en" else "正在轉換語音，請稍候... 🎙️"),
     )
 
-    print(f"[VOICE] running sync (worker) user_id={user_id} captured_mode={captured_mode}")
-    _process_voice_sync(user_id, message_id, mode=captured_mode)
+    print(f"[VOICE] running sync (worker) user_id={user_id}")
+    _process_voice_sync(user_id, message_id)
 
 
 @line_webhook_handler.add(MessageEvent, message=ImageMessage)

@@ -1,6 +1,7 @@
 [
   {
     "case_id": "insomnia_01",
+    "name": "Emma Carter",
     "difficulty": "beginner",
     "age": 34,
     "gender": "female",
@@ -40,6 +41,7 @@
   },
   {
     "case_id": "chronic_headache_01",
+    "name": "David Reyes",
     "difficulty": "intermediate",
     "age": 45,
     "gender": "male",
@@ -79,6 +81,7 @@
   },
   {
     "case_id": "stress_anxiety_01",
+    "name": "Sarah Bennett",
     "difficulty": "intermediate",
     "age": 27,
     "gender": "female",
@@ -118,6 +121,7 @@
   },
   {
     "case_id": "gi_discomfort_01",
+    "name": "Frank Mercer",
     "difficulty": "beginner",
     "age": 52,
     "gender": "male",
@@ -157,6 +161,7 @@
   },
   {
     "case_id": "dysmenorrhea_01",
+    "name": "Amy Rodriguez",
     "difficulty": "beginner",
     "age": 24,
     "gender": "female",
@@ -196,6 +201,7 @@
   },
   {
     "case_id": "fatigue_01",
+    "name": "Kevin Novak",
     "difficulty": "advanced",
     "age": 39,
     "gender": "male",

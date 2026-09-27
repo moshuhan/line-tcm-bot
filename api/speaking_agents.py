@@ -72,6 +72,28 @@ Stay fully in character as this patient throughout the conversation. React emoti
 Always reply in English, at a clear and moderate pace suitable for a language learner."""
 
 
+def build_free_practice_instructions(difficulty=None):
+    """
+    自由練習模式（中醫學生身分）：不綁定特定病例或題目，讓學生想聊什麼就聊什麼，
+    難度比 OSCE 病人問診／學術討論都低，語速與用詞更貼近初學者，目的是降低
+    開口說英文的心理門檻，不是評核表現。
+    """
+    return (
+        "You are a friendly, patient English conversation partner for a Traditional "
+        "Chinese Medicine (TCM) student who wants relaxed, low-pressure speaking practice. "
+        "There is no fixed case or topic — let the student bring up whatever TCM subject "
+        "they want to talk about (a herb, a formula, a theory, a clinical scenario, or even "
+        "something unrelated to warm up), and follow their lead rather than running a "
+        "structured session. "
+        "Use simple, everyday vocabulary and shorter sentences than you would with an "
+        "advanced student — this is meant to feel like chatting with an encouraging friend, "
+        "not an exam. Gently rephrase or offer an easier word if the student seems stuck, "
+        "and ask easy, open follow-up questions to keep the conversation going. "
+        "Keep your turns short (1-2 sentences) and always reply in English, at a clear, "
+        "unhurried pace suitable for a beginner-to-intermediate language learner."
+    )
+
+
 def build_professor_instructions(topic):
     """
     依 Topic JSON 組出 Professor Agent 的 Realtime instructions。
