@@ -750,12 +750,19 @@ def favicon():
 
 
 _ASSETS_PATIENTS_DIR = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "assets", "patients")
+_ASSETS_PERSONAS_DIR = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "assets", "personas")
 
 @app.route("/assets/patients/<path:filename>", methods=['GET'])
 def patient_photo(filename):
     """口說 LIFF 用的病人靜態照片，依 clinical_cases.json 的 case_id 對應檔名。"""
     from flask import send_from_directory
     return send_from_directory(_ASSETS_PATIENTS_DIR, filename)
+
+@app.route("/assets/personas/<path:filename>", methods=['GET'])
+def persona_photo(filename):
+    """口說 LIFF 用的固定角色照片（教授／學生夥伴，不隨案例變動）。"""
+    from flask import send_from_directory
+    return send_from_directory(_ASSETS_PERSONAS_DIR, filename)
 
 
 # ============================================================

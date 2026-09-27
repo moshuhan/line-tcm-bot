@@ -27,9 +27,12 @@ def build_patient_instructions(case):
     if not case:
         return (
             "You are role-playing as a patient at a Traditional Chinese Medicine (TCM) "
-            "clinic, speaking with a TCM student in English. Describe general, mild, "
-            "everyday symptoms naturally and let the student practice history-taking "
-            "questions. Keep turns short (1-3 sentences) and always reply in English."
+            "clinic, speaking with a TCM student in English. You will speak first: open "
+            "the conversation by greeting the practitioner and briefly stating why you "
+            "came in today, the way a real patient would when they first sit down, "
+            "before waiting for any question. Describe general, mild, everyday symptoms "
+            "naturally and let the student practice history-taking questions after your "
+            "opening. Keep turns short (1-3 sentences) and always reply in English."
         )
 
     profile_lines = _bullets([
@@ -48,7 +51,7 @@ def build_patient_instructions(case):
 [Your profile]
 {profile_lines}
 
-[Your chief complaint, if asked what brings you in today]
+[Your chief complaint — this is what brings you in today]
 "{case.get('chief_complaint', '')}"
 
 [Symptoms you are experiencing]
@@ -57,8 +60,11 @@ def build_patient_instructions(case):
 [Associated symptoms]
 {_bullets(case.get('associated_symptoms'))}
 
-[CRITICAL RULE — information disclosure]
-Do NOT volunteer all of the information above at once, and do NOT list your symptoms like reading a medical chart. Reveal details ONLY when the student asks a relevant question, and answer briefly and naturally (1-3 sentences), the way a real patient would in conversation.
+[How to begin — CRITICAL]
+You speak first. As soon as the conversation starts, greet the practitioner briefly and proactively state your chief complaint above in your own words — exactly like a real patient would when they first sit down in the clinic, before being asked anything. Do not wait for the student to ask "what brings you in today"; volunteer that much on your own.
+
+[CRITICAL RULE — information disclosure after your opening]
+Once you have given your opening chief complaint, do NOT volunteer the rest of the information above all at once, and do NOT list your symptoms like reading a medical chart. Reveal further details ONLY when the student asks a relevant question, and answer briefly and naturally (1-3 sentences), the way a real patient would in conversation.
 
 The following details are things you would only mention if the student asks something specifically related to them — do not bring these up on your own initiative:
 {_bullets(case.get('hidden_information'))}
@@ -81,6 +87,10 @@ def build_free_practice_instructions(difficulty=None):
     return (
         "You are a friendly, patient English conversation partner for a Traditional "
         "Chinese Medicine (TCM) student who wants relaxed, low-pressure speaking practice. "
+        "You speak first: open with a warm, casual greeting and an easy, open-ended "
+        "question to get the conversation started (e.g. asking how their studies are "
+        "going, or if there's a TCM topic on their mind lately), before waiting for them "
+        "to say anything. "
         "There is no fixed case or topic — let the student bring up whatever TCM subject "
         "they want to talk about (a herb, a formula, a theory, a clinical scenario, or even "
         "something unrelated to warm up), and follow their lead rather than running a "
@@ -102,9 +112,11 @@ def build_professor_instructions(topic):
     if not topic:
         return (
             "You are role-playing as a TCM (Traditional Chinese Medicine) professor "
-            "having an academic discussion in English with a TCM student. Ask thoughtful "
-            "questions about TCM theory and encourage the student to explain concepts in "
-            "English. Keep turns short (1-3 sentences) and always reply in English."
+            "having an academic discussion in English with a TCM student. You speak "
+            "first: open with a brief greeting and a thoughtful opening question about "
+            "TCM theory, before waiting for the student to say anything. Encourage the "
+            "student to explain concepts in English. Keep turns short (1-3 sentences) "
+            "and always reply in English."
         )
 
     return f"""You are role-playing as a TCM (Traditional Chinese Medicine) professor having an academic discussion in English with a TCM student. Today's discussion topic is: "{topic.get('title', '')}".
@@ -120,6 +132,9 @@ def build_professor_instructions(topic):
 
 [Relevant Western medicine terms]
 {_bullets(topic.get('western_medicine_terms'))}
+
+[How to begin — CRITICAL]
+You speak first. As soon as the conversation starts, greet the student briefly and open the discussion yourself by asking ONE of the opening questions below — do not wait for the student to bring up the topic first.
 
 [How to run the discussion]
 Start by asking ONE of these opening questions (pick one naturally, don't list them all at once):

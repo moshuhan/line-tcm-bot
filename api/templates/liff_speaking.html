@@ -58,22 +58,23 @@
         <span class="material-symbols-outlined text-white/25 text-[96px]" id="char-avatar-icon">person</span>
         <img id="char-photo" class="absolute inset-0 w-full h-full object-cover hidden" alt="" />
       </div>
-      <div class="absolute top-2 left-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm max-w-[75%]">
+      <div class="absolute top-2 left-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm max-w-[60%] pointer-events-none">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse"></span>
         <span class="text-[12px] text-white font-bold truncate" id="char-name">患者</span>
         <span class="text-[10px] text-white/60 shrink-0" id="char-meta"></span>
       </div>
-      <button onclick="toggleVideoSize()" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white" title="縮放視訊視窗">
+      <button onclick="toggleVideoSize()" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white z-10" title="縮放視訊視窗">
         <span class="material-symbols-outlined text-[16px]" id="video-size-icon">collapse_content</span>
       </button>
-      <p class="absolute bottom-2 left-2 right-2 text-[11px] text-white/85 bg-black/30 backdrop-blur-sm rounded-lg px-2.5 py-1.5 truncate" id="char-complaint"></p>
+      <p class="absolute bottom-2 left-2 right-2 text-[11px] text-white/85 bg-black/30 backdrop-blur-sm rounded-lg px-2.5 py-1.5 truncate pointer-events-none" id="char-complaint"></p>
     </div>
     <div class="mt-2 bg-slate-50 border border-slate-200 rounded-xl" id="hint-box">
       <button class="w-full flex items-center justify-between px-3 py-2" onclick="toggleHint()">
-        <span class="flex items-center gap-1.5 text-[12px] font-bold text-slate-600"><span class="material-symbols-outlined text-[15px] text-emerald-600">lightbulb</span>衛教與術語引導提示 (Topic Hints)</span>
+        <span class="flex items-center gap-1.5 text-[12px] font-bold text-slate-600"><span class="material-symbols-outlined text-[15px] text-emerald-600">lightbulb</span>對話情境與提示 (Context &amp; Hints)</span>
         <span class="material-symbols-outlined text-[16px] text-slate-400" id="hint-toggle-icon">expand_more</span>
       </button>
       <div class="hidden px-3 pb-2.5" id="hint-body">
+        <p class="text-[12.5px] text-slate-600 leading-relaxed whitespace-pre-line mb-2" id="hint-full-text"></p>
         <div class="flex flex-wrap gap-1.5" id="hint-topics"></div>
       </div>
     </div>
@@ -123,7 +124,6 @@ let pc = null;
 let dc = null;
 let localStream = null;
 let micLive = false;
-let videoExpanded = true;
 let transcript = [];
 let charDeltaBuffer = "";
 let charBubbleEl = null;
@@ -187,15 +187,17 @@ function renderHome() {
     const quote = s.key === "clinical" ? p.chief_complaint : (s.key === "academic" ? p.title : MODE_DESC.student);
     const meta = s.key === "clinical" ? `${p.age ?? "—"}y · ${escapeHtml(p.gender || "")}` : (MODE_META[s.key] || "");
     const topics = (p.expected_topics || []).slice(0, 4);
+    const photoUrl = p.photo_url || s.photo_url;
+    const avatarHtml = photoUrl
+      ? `<img src="${escapeHtml(photoUrl)}" class="w-11 h-11 rounded-full object-cover shrink-0" alt="" />`
+      : `<div class="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-emerald-700 text-[22px]">${iconForMode(s.key)}</span></div>`;
     return `
       <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-2.5">
         <div class="flex items-center gap-2.5">
-          <div class="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-            <span class="material-symbols-outlined text-emerald-700 text-[22px]">${iconForMode(s.key)}</span>
-          </div>
+          ${avatarHtml}
           <div class="min-w-0">
             <div class="text-[15px] font-bold text-slate-800">${escapeHtml(s.label_zh)}</div>
-            <div class="text-[12px] text-slate-500">對話角色：${escapeHtml(s.character_zh)}${meta ? " · " + meta : ""}</div>
+            <div class="text-[12px] text-slate-500">對話角色：${escapeHtml(s.display_name || s.character_zh)}${meta ? " · " + meta : ""}</div>
           </div>
         </div>
         ${quote ? `<div class="bg-slate-50 rounded-lg p-2.5 text-[13px] text-slate-700 italic">"${escapeHtml(quote)}"</div>` : ""}
@@ -218,7 +220,7 @@ function toggleHint() {
   icon.textContent = collapsed ? "expand_less" : "expand_more";
 }
 
-function applyCharVisual(scenarioKey, name, age, gender, occupation, photoUrl) {
+function applyCharVisual(name, meta, photoUrl) {
   const photo = document.getElementById("char-photo");
   const icon = document.getElementById("char-avatar-icon");
   if (photoUrl) {
@@ -229,28 +231,39 @@ function applyCharVisual(scenarioKey, name, age, gender, occupation, photoUrl) {
     photo.classList.add("hidden");
     icon.classList.remove("hidden");
   }
-  if (scenarioKey === "clinical") {
-    document.getElementById("char-name").textContent = name || "患者";
-    document.getElementById("char-meta").textContent = `${age ?? "—"}y · ${gender || ""}${occupation ? " · " + occupation : ""}`;
-  }
+  document.getElementById("char-name").textContent = name || "";
+  document.getElementById("char-meta").textContent = meta || "";
+}
+
+// 視訊視窗尺寸：3 段循環（大／中／收合），每次按按鈕都切到下一個，可以一直來回切換
+const VIDEO_SIZES = [
+  { key: "full", aspectRatio: "16/9", height: "", showIllustration: true, showComplaint: true, nextIcon: "photo_size_select_small" },
+  { key: "mini", aspectRatio: "auto", height: "110px", showIllustration: true, showComplaint: false, nextIcon: "collapse_content" },
+  { key: "bar", aspectRatio: "auto", height: "44px", showIllustration: false, showComplaint: false, nextIcon: "expand_content" },
+];
+let videoSizeIndex = 0;
+
+function applyVideoSize() {
+  const size = VIDEO_SIZES[videoSizeIndex];
+  const frame = document.getElementById("video-frame");
+  const illustration = document.getElementById("video-illustration");
+  const complaint = document.getElementById("char-complaint");
+  const icon = document.getElementById("video-size-icon");
+  frame.style.aspectRatio = size.aspectRatio;
+  frame.style.height = size.height;
+  illustration.style.display = size.showIllustration ? "flex" : "none";
+  complaint.style.display = size.showComplaint ? "block" : "none";
+  icon.textContent = size.nextIcon;
 }
 
 function toggleVideoSize() {
-  videoExpanded = !videoExpanded;
-  const frame = document.getElementById("video-frame");
-  const illustration = document.getElementById("video-illustration");
-  const icon = document.getElementById("video-size-icon");
-  if (videoExpanded) {
-    frame.style.height = "";
-    frame.style.aspectRatio = "16/9";
-    illustration.style.display = "flex";
-    icon.textContent = "collapse_content";
-  } else {
-    frame.style.aspectRatio = "auto";
-    frame.style.height = "44px";
-    illustration.style.display = "none";
-    icon.textContent = "expand_content";
-  }
+  videoSizeIndex = (videoSizeIndex + 1) % VIDEO_SIZES.length;
+  applyVideoSize();
+}
+
+function resetVideoSize() {
+  videoSizeIndex = 0;
+  applyVideoSize();
 }
 
 async function startConversation(scenarioKey) {
@@ -263,19 +276,18 @@ async function startConversation(scenarioKey) {
 
   const s = scenarios[scenarioKey] || {};
   const p = s.preview || {};
-  document.getElementById("char-name").textContent = s.character_zh || "";
   document.getElementById("char-avatar-icon").textContent = iconForMode(scenarioKey);
-  document.getElementById("char-meta").textContent = scenarioKey === "clinical" ? `${p.age ?? "—"}y · ${p.gender || ""}` : (MODE_META[scenarioKey] || "");
+  const previewMeta = scenarioKey === "clinical" ? `${p.age ?? "—"}y · ${p.gender || ""}${p.occupation ? " · " + p.occupation : ""}` : (MODE_META[scenarioKey] || "");
+  applyCharVisual(p.name || s.display_name || s.character_zh, previewMeta, p.photo_url || s.photo_url);
   document.getElementById("char-complaint").textContent = scenarioKey === "clinical" ? (p.chief_complaint || "") : (scenarioKey === "academic" ? (p.title || "") : (MODE_DESC.student || ""));
-  applyCharVisual(scenarioKey, p.name, p.age, p.gender, null, p.photo_url);
+  document.getElementById("hint-full-text").textContent = scenarioKey === "clinical" ? (p.chief_complaint || "") : (scenarioKey === "academic" ? [p.title, p.background].filter(Boolean).join("\n") : (MODE_DESC.student || ""));
   document.getElementById("hint-topics").innerHTML = (p.expected_topics || []).map(t => `<span class="px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600 text-[11px]">${escapeHtml(t)}</span>`).join("");
   document.getElementById("transcript-log").innerHTML = "";
   document.getElementById("mic-status").textContent = "連線中...";
   document.getElementById("mic-btn").classList.remove("live");
   document.getElementById("mic-btn").className = "relative w-16 h-16 rounded-full bg-slate-300 text-white flex items-center justify-center transition-colors active:scale-95";
   micLive = false;
-  videoExpanded = false;
-  toggleVideoSize();
+  resetVideoSize();
   dialogueStartedAt = Date.now();
   startDialogueTimer();
 
@@ -287,13 +299,19 @@ async function startConversation(scenarioKey) {
     return;
   }
   currentSessionId = sessionRes.session_id;
-  if (scenarioKey === "clinical") {
-    applyCharVisual(scenarioKey, sessionRes.content_name, sessionRes.content_age, sessionRes.content_gender, sessionRes.content_occupation, sessionRes.photo_url);
+  // 真正抽到的病例/題目可能跟主頁預覽不同，連線成功後用實際內容再套一次視覺與提示文字
+  const realMeta = scenarioKey === "clinical"
+    ? `${sessionRes.content_age ?? "—"}y · ${sessionRes.content_gender || ""}${sessionRes.content_occupation ? " · " + sessionRes.content_occupation : ""}`
+    : previewMeta;
+  applyCharVisual(sessionRes.display_name, realMeta, sessionRes.photo_url);
+  if (sessionRes.full_context) {
+    document.getElementById("hint-full-text").textContent = sessionRes.full_context;
+    if (scenarioKey === "clinical") document.getElementById("char-complaint").textContent = sessionRes.full_context;
   }
 
   try {
-    await connectRealtime(sessionRes.client_secret, sessionRes.model);
-    document.getElementById("mic-status").textContent = "已連線，按下麥克風開始說話";
+    await connectRealtime(sessionRes.client_secret, sessionRes.model, sessionRes.opening_hint);
+    document.getElementById("mic-status").textContent = "已連線，對方會先開口，請直接聆聽或按麥克風接著說";
   } catch (e) {
     console.error("[speaking] connectRealtime failed", e);
     document.getElementById("mic-status").textContent = "連線失敗，請重新嘗試";
@@ -313,7 +331,7 @@ function stopDialogueTimer() {
   if (dialogueTimerHandle) { clearInterval(dialogueTimerHandle); dialogueTimerHandle = null; }
 }
 
-async function connectRealtime(ephemeralKey, model) {
+async function connectRealtime(ephemeralKey, model, openingHint) {
   pc = new RTCPeerConnection();
   pc.ontrack = (e) => { document.getElementById("remote-audio").srcObject = e.streams[0]; };
 
@@ -325,6 +343,19 @@ async function connectRealtime(ephemeralKey, model) {
 
   dc = pc.createDataChannel("oai-events");
   dc.addEventListener("message", handleRealtimeEvent);
+  // 對方要主動開口（像臨床看診一樣先交代主訴，或教授先拋出討論問題），不用等學生先講話：
+  // data channel 一開通就送一個 response.create，讓角色照 system instructions 開場。
+  dc.addEventListener("open", () => {
+    try {
+      dc.send(JSON.stringify({
+        type: "response.create",
+        response: {
+          instructions: "Begin the conversation now. Speak first, in character, exactly as your role instructions describe."
+            + (openingHint ? (" If it fits naturally, you can steer toward: " + openingHint) : ""),
+        },
+      }));
+    } catch (e) { console.error("[speaking] failed to trigger opening response", e); }
+  });
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
