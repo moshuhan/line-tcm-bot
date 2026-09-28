@@ -69,7 +69,7 @@
       <button onclick="hangUp()" class="flex items-center gap-1 px-2 py-1 rounded-full bg-rose-50 text-rose-600 text-[12px] font-bold"><span class="material-symbols-outlined text-[15px]">call_end</span>結束對話</button>
     </div>
   </header>
-  <div class="max-w-[480px] mx-auto w-full px-3 pt-2 shrink-0">
+  <div class="max-w-[480px] mx-auto w-full px-3 pt-2 shrink-0" id="video-wrap">
     <div class="relative bg-gradient-to-br from-emerald-800 via-slate-800 to-slate-900 rounded-xl overflow-hidden shadow-sm transition-[height] duration-300 char-avatar" id="video-frame" style="aspect-ratio: 16/9;">
       <div class="absolute inset-0 flex items-center justify-center" id="video-illustration">
         <span class="material-symbols-outlined text-white/25 text-[96px]" id="char-avatar-icon">person</span>
@@ -286,24 +286,45 @@ function applyCharVisual(name, meta, photoUrl) {
   document.getElementById("char-meta").textContent = meta || "";
 }
 
-// 視訊視窗尺寸：3 段循環（大／中／收合），每次按按鈕都切到下一個，可以一直來回切換
+// 視訊視窗尺寸：3 段循環（標準／大【像真的在視訊通話】／收合），每次按按鈕都切到
+// 下一個，可以一直來回切換。「大」會把對話逐字稿暫時收起來，把整個畫面（扣掉頭尾）都讓給
+// 視訊畫面，比例接近真人視訊通話那種直向大畫面；離開「大」尺寸逐字稿會自動恢復顯示。
 const VIDEO_SIZES = [
-  { key: "full", aspectRatio: "16/9", height: "", showIllustration: true, showComplaint: true, nextIcon: "photo_size_select_small" },
-  { key: "mini", aspectRatio: "auto", height: "110px", showIllustration: true, showComplaint: false, nextIcon: "collapse_content" },
-  { key: "bar", aspectRatio: "auto", height: "44px", showIllustration: false, showComplaint: false, nextIcon: "expand_content" },
+  { key: "standard", aspectRatio: "16/9", height: "", fillMode: false, showIllustration: true, showComplaint: true, hideTranscript: false, nextIcon: "open_in_full" },
+  { key: "large", aspectRatio: "auto", height: "", fillMode: true, showIllustration: true, showComplaint: true, hideTranscript: true, nextIcon: "close_fullscreen" },
+  { key: "bar", aspectRatio: "auto", height: "44px", fillMode: false, showIllustration: false, showComplaint: false, hideTranscript: false, nextIcon: "expand_content" },
 ];
 let videoSizeIndex = 0;
 
 function applyVideoSize() {
   const size = VIDEO_SIZES[videoSizeIndex];
+  const wrap = document.getElementById("video-wrap");
   const frame = document.getElementById("video-frame");
   const illustration = document.getElementById("video-illustration");
   const complaint = document.getElementById("char-complaint");
   const icon = document.getElementById("video-size-icon");
+  const transcriptLog = document.getElementById("transcript-log");
+
+  if (size.fillMode) {
+    wrap.style.display = "flex";
+    wrap.style.flexDirection = "column";
+    wrap.style.flex = "1 1 auto";
+    wrap.style.minHeight = "0";
+    frame.style.flex = "1 1 auto";
+    frame.style.minHeight = "0";
+  } else {
+    wrap.style.display = "";
+    wrap.style.flexDirection = "";
+    wrap.style.flex = "";
+    wrap.style.minHeight = "";
+    frame.style.flex = "";
+    frame.style.minHeight = "";
+  }
   frame.style.aspectRatio = size.aspectRatio;
   frame.style.height = size.height;
   illustration.style.display = size.showIllustration ? "flex" : "none";
   complaint.style.display = size.showComplaint ? "block" : "none";
+  transcriptLog.style.display = size.hideTranscript ? "none" : "flex";
   icon.textContent = size.nextIcon;
 }
 

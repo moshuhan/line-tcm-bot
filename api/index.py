@@ -217,6 +217,13 @@ FORCE_PUSH_MODE = os.getenv("LINE_FORCE_PUSH", "true").strip().lower() in ("1", 
 # 英文版部署時設 FORCE_LANG=en，強制所有回覆使用英文，不依賴動態語言偵測
 FORCE_LANG = os.getenv("FORCE_LANG", "").strip().lower()  # "en" | "" (空=動態偵測)
 
+# 「智慧問答」路徑共用的模型常數：聊天室中醫問答（_tcm_openai_reply）跟國考題庫
+# 「AI 即刻問／查看完整詳解」（_exam_explain_answer／_exam_explain_structured）都吃這個常數，
+# 只改這裡就能一次換掉三個地方的模型，不用到處找。
+# 目前仍是 gpt-4o-mini；確定要換 gpt-5 系列時記得同步處理：gpt-5 系列不支援自訂 temperature，
+# 且用 max_completion_tokens 取代 max_tokens——三個呼叫點都要一起改，不能只換這個字串。
+_SMART_QA_MODEL = "gpt-4o-mini"
+
 # --- QuickReply ---
 # 聊天室現在只有中醫問答一種功能，不需要模式切換按鈕，統一不附加 quick reply。
 def text_with_quick_reply(content):
@@ -381,6 +388,122 @@ def _semantic_search(query_text: str, top_k: int = 3) -> str:
     return "\n\n".join(text for _, text in scores[:top_k])
 
 
+# --- 中醫問答：近十年國考題庫語意檢索（讓聊天室回答優先參考真實考題與官方正解）---
+_EXAM_EMBED_CACHE = None  # {"matrix": np.ndarray (N,512), "norms": np.ndarray (N,), "ids": list[str]}；{} 表示不可用
+_EXAM_QUESTIONS_BY_ID = None  # dict[id -> question dict]，快取
+_EXAM_SIM_THRESHOLD = 0.25  # 相似度低於這個門檻就不附加，避免不相關的題目誤導模型
+
+
+def _load_exam_embeddings():
+    """
+    載入 data/exam_embeddings.npy + exam_embeddings_ids.json（由
+    scripts/generate_exam_embeddings.py 產生，5254 題國考題庫的 embedding），快取至記憶體。
+    檔案不存在（還沒跑過產生腳本）或 numpy 不可用時回傳空 dict，讓呼叫端 fallback。
+    """
+    global _EXAM_EMBED_CACHE
+    if _EXAM_EMBED_CACHE is not None:
+        return _EXAM_EMBED_CACHE
+    _EXAM_EMBED_CACHE = {}
+    if not _NUMPY_AVAILABLE:
+        return _EXAM_EMBED_CACHE
+    npy_path = os.path.join(_DATA_DIR, "exam_embeddings.npy")
+    ids_path = os.path.join(_DATA_DIR, "exam_embeddings_ids.json")
+    if not (os.path.isfile(npy_path) and os.path.isfile(ids_path)):
+        return _EXAM_EMBED_CACHE
+    try:
+        matrix = np.load(npy_path)
+        with open(ids_path, "r", encoding="utf-8") as f:
+            ids = json.load(f)
+        norms = np.linalg.norm(matrix, axis=1)
+        norms[norms == 0] = 1e-9
+        _EXAM_EMBED_CACHE = {"matrix": matrix, "norms": norms, "ids": ids}
+        print(f"[ExamEmbed] 載入 {len(ids)} 題國考題庫 embeddings，shape={matrix.shape}")
+    except Exception as e:
+        print(f"[ExamEmbed] 載入失敗：{e}")
+        _EXAM_EMBED_CACHE = {}
+    return _EXAM_EMBED_CACHE
+
+
+def _load_exam_questions_by_id():
+    """載入 data/exam_questions.json，依 id 建立查詢字典，快取至記憶體。"""
+    global _EXAM_QUESTIONS_BY_ID
+    if _EXAM_QUESTIONS_BY_ID is not None:
+        return _EXAM_QUESTIONS_BY_ID
+    _EXAM_QUESTIONS_BY_ID = {}
+    path = os.path.join(_DATA_DIR, "exam_questions.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            questions = json.load(f)
+        for q in questions:
+            if q.get("id"):
+                _EXAM_QUESTIONS_BY_ID[q["id"]] = q
+    except Exception as e:
+        print(f"[ExamEmbed] 載入 exam_questions.json 失敗：{e}")
+    return _EXAM_QUESTIONS_BY_ID
+
+
+def _format_exam_question_for_context(q):
+    lines = [f"【題目】{q.get('question', '')}"]
+    options = q.get("options") or {}
+    for letter in ("A", "B", "C", "D"):
+        if options.get(letter):
+            lines.append(f"{letter}. {options[letter]}")
+    if q.get("answer"):
+        lines.append(f"【正確答案】{q['answer']}")
+    return "\n".join(lines)
+
+
+def _semantic_search_exam(query_text: str, top_k: int = 3) -> str:
+    """
+    在近十年中醫國考題庫（5254 題）裡做語意向量搜尋，回傳最相關 Top-K 題的題目、選項、
+    官方正解，格式化成文字 context。找不到相關題目、embeddings 未產生、或 API 失敗時
+    回傳空字串，讓呼叫端 fallback（不影響原本教材知識庫的問答流程）。
+    """
+    cache = _load_exam_embeddings()
+    if not cache:
+        return ""
+    try:
+        resp = client.embeddings.create(
+            model="text-embedding-3-small", input=query_text[:2000], dimensions=512
+        )
+        q_vec = np.array(resp.data[0].embedding, dtype="float32")
+    except Exception as e:
+        print(f"[ExamEmbed] query embedding 失敗：{e}")
+        return ""
+
+    matrix, norms, ids = cache["matrix"], cache["norms"], cache["ids"]
+    q_norm = float(np.linalg.norm(q_vec)) + 1e-9
+    sims = matrix.dot(q_vec) / (norms * q_norm)
+    top_idx = np.argsort(sims)[::-1][:top_k]
+
+    by_id = _load_exam_questions_by_id()
+    parts = []
+    for i in top_idx:
+        if sims[i] < _EXAM_SIM_THRESHOLD:
+            continue
+        q = by_id.get(ids[i])
+        if q:
+            parts.append(_format_exam_question_for_context(q))
+    return "\n\n".join(parts)
+
+
+def _build_exam_grounded_context(query_text: str) -> str:
+    """
+    統一的『國考題庫優先、教材補充』context 組裝邏輯：聊天室中醫問答、國考題「AI 即刻問」
+    與「查看完整詳解」三個路徑都共用這個函式，確保檢索優先順序一致——都是先查近十年
+    國考題庫，再查教材知識庫補充，兩邊都查不到才 fallback 到全量教材文字。
+    """
+    exam_ctx = _semantic_search_exam(query_text, top_k=3)
+    kb_ctx = _semantic_search(query_text, top_k=2)
+    parts = []
+    if exam_ctx:
+        parts.append("【近十年中醫國考題庫參考】\n" + exam_ctx)
+    if kb_ctx:
+        parts.append("【教材補充資料】\n" + kb_ctx)
+    ctx = "\n\n".join(parts)
+    return ctx if ctx.strip() else _build_full_tcm_context()[:4000]
+
+
 _TCM_SYSTEM_PROMPT = """
 【最優先規則：在閱讀任何對話歷史之前，先判斷使用者「最新這一則」訊息的意圖】
 - 若是社交短句（謝謝、好的、了解、再見、哈囉、讚、收到、沒問題等），只需一句話親切回應，不附任何中醫內容或資料來源。
@@ -400,6 +523,7 @@ _TCM_SYSTEM_PROMPT = """
 5. 純社交短句、課程行政問題不套用引導，維持最上面【最優先規則】的處理方式。
 
 【內容原則】
+0. 若下方背景資料包含「近十年中醫國考題庫參考」區塊：這是近十年（105～115年）中醫師執照考試的真實考題與官方正解，優先度高於你自己的中醫知識——你的說明邏輯、辨證方向、最終結論都必須跟這裡列出的正確答案一致，不要給出跟題庫正解矛盾的說法。可以用自己的知識補充解釋「為什麼」，但不能推翻題庫給的答案。若題庫參考跟這一題關聯度不高（只是語意相近但問的不是同一件事），就當作沒有這個區塊，依下列原則正常作答。
 1. 優先從「課程教材」、「中醫經典文獻（如：黃帝內經、傷寒雜病論、神農本草經）」以及「PubMed 上的現代醫學論文」中提取資訊。
 2. 嚴禁自行推斷或編造未經證實的療效。若資料庫中無相關記載，請誠實告知。
 3. 避免產生幻覺，不確定的資訊不要提供。
@@ -439,6 +563,7 @@ You are a TCM (Traditional Chinese Medicine) academic assistant. When answering 
 5. Social phrases and course-administration questions skip this guidance entirely — handle them per the TOP PRIORITY rule above.
 
 [Content principles]
+0. If the context below includes a "Reference: Last-10-Years TCM Licensing Exam Questions" block: these are real questions and official correct answers from Taiwan's TCM licensing exam (years 105-115). This takes priority over your own knowledge — your reasoning, pattern-differentiation direction, and final conclusion must be consistent with the correct answer(s) shown there; do not contradict them. You may use your own knowledge to explain "why," but never override the exam's given answer. If the retrieved exam questions are only loosely/semantically related and not actually about the same question, ignore this block and answer normally per the principles below.
 1. Prioritize information from course materials, TCM classical texts (e.g., Huangdi Neijing, Shang Han Lun, Shen Nong Ben Cao Jing), and modern medical papers on PubMed.
 2. Never fabricate or infer unverified therapeutic effects. If the information is not in the knowledge base, say so honestly.
 3. Avoid hallucinations — do not provide information you are uncertain about.
@@ -599,9 +724,9 @@ def _log_interaction_to_mongodb_async(user_id, text, ai_reply, is_eng):
 
 def _tcm_openai_reply(user_id, text, reply_token=None):
     """
-    以 tcm_master_knowledge.json 為 context，用 OpenAI gpt-4o-mini 生成回覆。
-    語義向量搜尋（_semantic_search）找出最相關 Top-3 知識點作為 context；
-    embeddings 未產生時自動 fallback 至全量 context。不經過 Assistant API。
+    以「近十年中醫國考題庫」為優先 context、tcm_master_knowledge.json 為補充 context，
+    用 OpenAI 生成回覆。語義向量搜尋（_semantic_search_exam／_semantic_search）分別找出
+    最相關的國考題目與教材知識點；兩邊都找不到時 fallback 至全量 context。不經過 Assistant API。
     回傳 True 若已回覆，False 若失敗。
     """
     if not (text or "").strip():
@@ -614,10 +739,9 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         return False
     start_ts = time.time()
 
-    # 語義搜尋取得 context；embeddings 不存在時 fallback 到全量文字
-    ctx = _semantic_search(txt, top_k=3)
-    if not ctx or not ctx.strip():
-        ctx = _build_full_tcm_context()[:4000]
+    # 優先查國考題庫（近十年真實考題＋官方正解），再查教材知識庫補充；
+    # 兩邊都查不到才 fallback 到全量教材文字（維持原本行為）
+    ctx = _build_exam_grounded_context(txt)
 
     if not ctx or not ctx.strip():
         return False
@@ -671,7 +795,7 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         messages.append({"role": "user", "content": user_question})
 
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=_SMART_QA_MODEL,
             messages=messages,
             max_tokens=800,
             temperature=0.2,
@@ -799,12 +923,13 @@ def _liff_auth_user_id():
 
 def _exam_explain_answer(question_text, correct_answer_text, user_followup=None):
     """
-    國考題「詳解 / AI 即刻問」：用既有的語意檢索（_semantic_search）找相關知識點當 context，
-    純函式、回傳文字，不寫入 LINE。失敗回傳空字串，由呼叫端決定如何提示使用者。
+    國考題「詳解 / AI 即刻問」：跟聊天室問答共用同一套「國考題庫優先、教材補充」檢索邏輯
+    （_build_exam_grounded_context）當 context，純函式、回傳文字，不寫入 LINE。
+    失敗回傳空字串，由呼叫端決定如何提示使用者。
     """
     if not (question_text or "").strip():
         return ""
-    base_ctx = _semantic_search(question_text, top_k=3) or _build_full_tcm_context()[:4000]
+    base_ctx = _build_exam_grounded_context(question_text)
     if user_followup and user_followup.strip():
         user_prompt = (
             f"[背景資料]\n{base_ctx}\n\n[題目]\n{question_text}\n\n[正確答案]\n{correct_answer_text}\n\n"
@@ -817,7 +942,7 @@ def _exam_explain_answer(question_text, correct_answer_text, user_followup=None)
         )
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=_SMART_QA_MODEL,
             messages=[
                 {"role": "system", "content": _TCM_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
@@ -837,11 +962,12 @@ def _exam_explain_structured(question_text, options, correct_answer_text):
     高頻陷阱／口訣／經典引證／延伸考點／追問建議），給 LIFF 卡片式排版用。
     breakdown 的角色標籤（君臣佐使等）只在題目是方劑組成時才有意義，其餘題型
     （穴位、辨證等）由模型自訂最貼切的 breakdown_title，role 留空字串即可。
+    跟聊天室問答共用同一套「國考題庫優先、教材補充」檢索邏輯（_build_exam_grounded_context）。
     失敗回傳 None，由呼叫端決定如何提示使用者。
     """
     if not (question_text or "").strip():
         return None
-    base_ctx = _semantic_search(question_text, top_k=3) or _build_full_tcm_context()[:4000]
+    base_ctx = _build_exam_grounded_context(question_text)
     options_text = "\n".join(f"{k}. {v}" for k, v in (options or {}).items())
     user_prompt = (
         f"[背景資料]\n{base_ctx}\n\n[題目]\n{question_text}\n\n[選項]\n{options_text}\n\n"
@@ -865,7 +991,7 @@ def _exam_explain_structured(question_text, options, correct_answer_text):
     )
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=_SMART_QA_MODEL,
             messages=[
                 {"role": "system", "content": _TCM_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
