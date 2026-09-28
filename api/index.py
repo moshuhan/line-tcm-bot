@@ -510,6 +510,7 @@ _TCM_SYSTEM_PROMPT = """
 【最優先規則：在閱讀任何對話歷史之前，先判斷使用者「最新這一則」訊息的意圖】
 - 若是社交短句（謝謝、好的、了解、再見、哈囉、讚、收到、沒問題等），只需一句話親切回應，不附任何中醫內容或資料來源。
 - 若是詢問課程聯絡方式、助教或老師資訊，只需回覆：「相關問題請至課程 LINE 群組發問。」，不需其他內容。
+- 若是在問「題庫／資料庫本身」的問題——例如「國考題有類似的內容嗎」「這是不是考古題」「資料庫裡有沒有相關題目」——這是在問你有沒有查到相關考題，不是要你教他辨證、更不是要他自己去猜哪一題比較像。直接根據背景資料裡的「近十年中醫國考題庫參考」區塊，誠實回答有沒有查到相關題目：有的話直接列出題目內容、選項與正確答案；沒有的話就直接說沒有查到相關題目。這種問題完全不套用下面的蘇格拉底式引導，不可以反問學生、不可以叫學生自己比對。
 - 其他問題才依照以下中醫學術助教的原則完整回答。
 
 你是中醫學術助教，回答中醫專業問題時請遵循以下原則：
@@ -550,6 +551,7 @@ _TCM_SYSTEM_PROMPT_EN = """
 [TOP PRIORITY — evaluate the user's LATEST message ONLY, ignoring prior conversation:]
 - If it is a social phrase (thanks, ok, great, bye, hello, got it, noted, etc.), reply in ONE warm sentence only — no TCM content, no sources.
 - If it is asking for course contact info, the TA, or the instructor, reply ONLY with: "Please ask in the course LINE group." — nothing more.
+- If it is a question ABOUT the question bank / database itself — e.g. "is there a similar exam question", "is this a past exam question", "does the database have anything related" — the student is asking whether you found a matching question, NOT asking you to teach pattern-differentiation, and NOT asking them to guess which one matches. Answer directly and honestly based on the "Reference: Last-10-Years TCM Licensing Exam Questions" block in the context below: if there's a match, quote the question, its options, and the correct answer; if there isn't, just say so. Do NOT apply the Socratic guidance principle to this kind of question — never turn it back into a guiding question or ask the student to compare the questions themselves.
 - For all other messages, follow the full TCM guidelines below.
 
 You are a TCM (Traditional Chinese Medicine) academic assistant. When answering TCM questions, follow these principles:
@@ -748,6 +750,19 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
     _direct_answer_en = {"answer", "ans", "reveal", "reveal the answer"}
     is_direct_answer_request = txt in _direct_answer_zh or txt.lower() in _direct_answer_en
 
+    # 學生在問「題庫本身」——例如「國考題有類似的內容嗎」「這是不是考古題」。這種問法
+    # 千變萬化，沒辦法像「答」那樣列出固定字串比對，改用關鍵字組合判斷：句子裡同時出現
+    # 「國考／考題／考古題／題庫」這類詞，加上「類似／相似／相關／像／一樣」這類比較詞。
+    _txt_lower_for_meta = txt.lower()
+    _exam_bank_words_zh = ("國考", "考題", "考古題", "題庫")
+    _similarity_words_zh = ("類似", "相似", "相關", "有沒有像", "一樣嗎", "是不是")
+    _exam_bank_words_en = ("exam question", "past paper", "question bank", "past exam")
+    _similarity_words_en = ("similar", "related", "like this", "same as")
+    is_exam_lookup_question = (
+        (any(k in txt for k in _exam_bank_words_zh) and any(w in txt for w in _similarity_words_zh))
+        or (any(k in _txt_lower_for_meta for k in _exam_bank_words_en) and any(w in _txt_lower_for_meta for w in _similarity_words_en))
+    )
+
     # 帶入最近 3 輪對話歷史，讓 GPT 自己判斷這一題是新問題還是同一題的延續
     # （是否換題交給 system prompt 的蘇格拉底式引導原則判斷，這裡不用「有沒有歷史」
     # 這種粗略條件強制套格式）。但「上一輪是引導還是已經公布答案」這件事不能只靠
@@ -756,12 +771,12 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
     # 一定會有的標記，來明確告訴模型現在是不是已經引導過一次。
     history = get_conv_history(redis, user_id)
 
-    # 如果這則訊息本身就是「答」這種簡短暗號，它本身沒有實質內容可以拿去檢索——
-    # 真正的問題在上一輪的學生提問裡，用那個去查題庫／教材，而不是拿「答」這個字去查
-    # （用「答」查語意檢索只會查到不相關的內容）。
-    retrieval_query = txt
-    if is_direct_answer_request and history:
-        retrieval_query = history[-1].get("u", "") or txt
+    # 這兩種情況，這則訊息本身都不適合直接拿去查題庫／教材：
+    # 「答」這種暗號本身沒有實質內容；「國考題有類似的內容嗎」這種問法問的是「題庫本身」，
+    # 拿這句話去做語意檢索找到的東西是隨機的、跟真正在討論的病證無關。兩種情況都改成
+    # 抓「上一輪學生真正問的問題」去檢索，才能可靠地找到跟當下話題相關的題目。
+    uses_previous_question = (is_direct_answer_request or is_exam_lookup_question) and bool(history)
+    retrieval_query = (history[-1].get("u", "") or txt) if uses_previous_question else txt
 
     # 優先查國考題庫（近十年真實考題＋官方正解），再查教材知識庫補充；
     # 兩邊都查不到才 fallback 到全量教材文字（維持原本行為）
@@ -770,10 +785,12 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
     if not ctx or not ctx.strip():
         return False
     try:
-        is_eng = True if FORCE_LANG == "en" else _is_english_input(retrieval_query)
-        # 顯示給模型看的「這一題在問什麼」：暗號訊息就顯示回原本的問題，而不是顯示「答」
-        # 這個字本身——這樣模型才知道要公布的是哪一題的答案。
-        question_for_prompt = retrieval_query if (is_direct_answer_request and history) else txt
+        is_eng = True if FORCE_LANG == "en" else _is_english_input(txt)
+        # 顯示給模型看的「這一題在問什麼」：只有「答」這種暗號要換成原本的問題（因為「答」
+        # 本身不是問題）；「國考題有類似的內容嗎」這種問法本身就是完整、有意義的問題，要
+        # 照原樣顯示給模型看，不能被換掉——不然模型會搞不清楚使用者現在是在問「題庫裡有沒有
+        # 相關題目」，而誤以為是在重新問那個舊問題本身。
+        question_for_prompt = (history[-1].get("u", "") or txt) if (is_direct_answer_request and history) else txt
         if is_eng:
             system_prompt = _TCM_SYSTEM_PROMPT_EN
             disclaimer = SAFETY_DISCLAIMER_EN
@@ -807,10 +824,16 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         if history:
             last_reply = history[-1].get("a", "")
             already_revealed = ("資料來源" in last_reply) or ("Sources" in last_reply)
-        should_reveal = is_direct_answer_request or (history is not None and history and not already_revealed)
+        # 題庫本身的詢問（「國考題有類似的內容嗎」）不算「延續同一題要收斂答案」，是完全不同的
+        # 意圖（見 system prompt 最優先規則），不能被這條規則強制拉去重新公布舊問題的答案。
+        should_reveal = (not is_exam_lookup_question) and (
+            is_direct_answer_request or (history is not None and history and not already_revealed)
+        )
 
         note = ""
-        if is_direct_answer_request:
+        if is_exam_lookup_question:
+            pass  # system prompt 最優先規則已經完整處理這類問題，不需要額外的 note
+        elif is_direct_answer_request:
             note = (
                 "\n\n[System note: the student's message is a terse direct request for the answer "
                 "(e.g. just \"answer\"/\"ans\"). Reveal the complete answer now per rule 4(b) — do not "
