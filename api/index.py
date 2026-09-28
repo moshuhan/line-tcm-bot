@@ -220,9 +220,11 @@ FORCE_LANG = os.getenv("FORCE_LANG", "").strip().lower()  # "en" | "" (空=動�
 # 「智慧問答」路徑共用的模型常數：聊天室中醫問答（_tcm_openai_reply）跟國考題庫
 # 「AI 即刻問／查看完整詳解」（_exam_explain_answer／_exam_explain_structured）都吃這個常數，
 # 只改這裡就能一次換掉三個地方的模型，不用到處找。
-# 目前仍是 gpt-4o-mini；確定要換 gpt-5 系列時記得同步處理：gpt-5 系列不支援自訂 temperature，
-# 且用 max_completion_tokens 取代 max_tokens——三個呼叫點都要一起改，不能只換這個字串。
-_SMART_QA_MODEL = "gpt-4o-mini"
+# gpt-5 系列（含 gpt-5.4）不支援自訂 temperature（只能用預設值），且用 max_completion_tokens
+# 取代 max_tokens——這三個呼叫點已經配合改好，若之後要換回 gpt-4o 系列，記得把這兩個參數
+# 換回來（gpt-4o 系列吃 max_tokens，且支援自訂 temperature，拿掉 temperature 只是少了那個
+# 0.2 的低隨機性調校，不會報錯，但建議換回來維持原本的穩定輸出風格）。
+_SMART_QA_MODEL = "gpt-5.4"
 
 # --- QuickReply ---
 # 聊天室現在只有中醫問答一種功能，不需要模式切換按鈕，統一不附加 quick reply。
@@ -518,7 +520,7 @@ _TCM_SYSTEM_PROMPT = """
 3. 引導必須「收斂」——牢牢扣著使用者問的這個問題本身，不要為了引導而扯出不相關的延伸主題、反問或知識點，把話題越帶越開。
 4. 引導最多只進行一輪。只要符合下列任一情況，這一輪「必須」完整公布答案，並依照下面的【格式規則】簡潔說明——不可以再提出下一個引導反問、不可以再問「那你覺得該用哪個方劑」這類延伸問題：
    (a) 對話歷史裡，你上一則回覆已經對「同一個問題」給過引導（不管學生這次回得對不對、完不完整）；或
-   (b) 學生明確表示不知道、答不出來、或直接要求「告訴我答案」「不要引導了」。
+   (b) 學生明確表示不知道、答不出來、或直接要求公布答案——包含完整句子（如「告訴我答案」「不要引導了」），也包含極簡短的要求（如只打一個字「答」，或「答案」「解答」）。
    換句話說：同一個問題最多只能引導一次，第二輪一定要收斂給出完整答案，不能一直用新的反問把答案往後拖。
 5. 純社交短句、課程行政問題不套用引導，維持最上面【最優先規則】的處理方式。
 
@@ -558,7 +560,7 @@ You are a TCM (Traditional Chinese Medicine) academic assistant. When answering 
 3. Guidance must stay converged on the actual question asked — don't wander into unrelated tangents, side-questions, or extra concepts just to "guide more."
 4. Guidance runs for at most ONE round. As soon as either condition below is met, you MUST reveal the full answer this turn, formatted per the [Format rules] below — do NOT ask yet another guiding question or probe deeper (e.g. "so which formula would you use for that?"):
    (a) your previous reply already gave a guiding hint on this same question (regardless of whether the student's attempt was right, wrong, or partial), or
-   (b) the student explicitly says they don't know, can't answer, or asks directly for the answer / to stop guiding.
+   (b) the student explicitly asks for the answer or to stop guiding — whether in a full sentence ("just tell me the answer", "stop guiding") or a terse one-word request ("answer", "ans").
    In other words: a given question gets guided at most once — the second round must converge on the complete answer, not stall with another guiding question.
 5. Social phrases and course-administration questions skip this guidance entirely — handle them per the TOP PRIORITY rule above.
 
@@ -739,19 +741,44 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
         return False
     start_ts = time.time()
 
+    # 學生想跳過引導、直接要答案時的簡短暗號——不只靠模型自己判斷語意，用程式碼明確
+    # 攔截幾個常見的極簡短寫法，確保「打『答』就直接公布答案」100% 生效，不會因為
+    # 訊息太短、模型誤判成別的意思而繼續引導。
+    _direct_answer_zh = {"答", "答案", "解答", "公布答案", "給答案", "直接給答案", "直接公布答案", "揭曉答案"}
+    _direct_answer_en = {"answer", "ans", "reveal", "reveal the answer"}
+    is_direct_answer_request = txt in _direct_answer_zh or txt.lower() in _direct_answer_en
+
+    # 帶入最近 3 輪對話歷史，讓 GPT 自己判斷這一題是新問題還是同一題的延續
+    # （是否換題交給 system prompt 的蘇格拉底式引導原則判斷，這裡不用「有沒有歷史」
+    # 這種粗略條件強制套格式）。但「上一輪是引導還是已經公布答案」這件事不能只靠
+    # 模型自己記憶多輪歷史來判斷——實測會一直順著引導問下去、忘記已經引導過一次了，
+    # 所以這裡改成用程式判斷：上一輪回覆有沒有「資料來源／Sources」這個公布答案時
+    # 一定會有的標記，來明確告訴模型現在是不是已經引導過一次。
+    history = get_conv_history(redis, user_id)
+
+    # 如果這則訊息本身就是「答」這種簡短暗號，它本身沒有實質內容可以拿去檢索——
+    # 真正的問題在上一輪的學生提問裡，用那個去查題庫／教材，而不是拿「答」這個字去查
+    # （用「答」查語意檢索只會查到不相關的內容）。
+    retrieval_query = txt
+    if is_direct_answer_request and history:
+        retrieval_query = history[-1].get("u", "") or txt
+
     # 優先查國考題庫（近十年真實考題＋官方正解），再查教材知識庫補充；
     # 兩邊都查不到才 fallback 到全量教材文字（維持原本行為）
-    ctx = _build_exam_grounded_context(txt)
+    ctx = _build_exam_grounded_context(retrieval_query)
 
     if not ctx or not ctx.strip():
         return False
     try:
-        is_eng = True if FORCE_LANG == "en" else _is_english_input(txt)
+        is_eng = True if FORCE_LANG == "en" else _is_english_input(retrieval_query)
+        # 顯示給模型看的「這一題在問什麼」：暗號訊息就顯示回原本的問題，而不是顯示「答」
+        # 這個字本身——這樣模型才知道要公布的是哪一題的答案。
+        question_for_prompt = retrieval_query if (is_direct_answer_request and history) else txt
         if is_eng:
             system_prompt = _TCM_SYSTEM_PROMPT_EN
             disclaimer = SAFETY_DISCLAIMER_EN
             user_question = (
-                f"[Context]\n{ctx}\n\n[Question]\n{txt}\n\n"
+                f"[Context]\n{ctx}\n\n[Question]\n{question_for_prompt}\n\n"
                 f"IMPORTANT: If the question above is a social phrase (e.g. 'thank you', 'ok', 'great', 'bye', 'got it'), "
                 f"reply in ONE short sentence only — no TCM content, no sources, no key points.\n"
                 f"Otherwise, follow the Socratic guidance principle in the system prompt to decide whether to "
@@ -761,52 +788,67 @@ def _tcm_openai_reply(user_id, text, reply_token=None):
             system_prompt = _TCM_SYSTEM_PROMPT
             disclaimer = SAFETY_DISCLAIMER
             user_question = (
-                f"[背景資料]\n{ctx}\n\n[問題]\n{txt}\n\n"
+                f"[背景資料]\n{ctx}\n\n[問題]\n{question_for_prompt}\n\n"
                 f"重要：若上方問題是社交短句（如「謝謝」「好的」「了解」「再見」等），只需一句話親切回應，不附任何中醫內容或資料來源。\n"
                 f"否則請依照 system prompt 的蘇格拉底式引導原則，判斷這一題該先引導還是直接公布答案，"
                 f"不要跳過引導步驟直接給答案。"
             )
 
-        # 帶入最近 3 輪對話歷史，讓 GPT 自己判斷這一題是新問題還是同一題的延續
-        # （是否換題交給 system prompt 的蘇格拉底式引導原則判斷，這裡不用「有沒有歷史」
-        # 這種粗略條件強制套格式）。但「上一輪是引導還是已經公布答案」這件事不能只靠
-        # 模型自己記憶多輪歷史來判斷——gpt-4o-mini 實測會一直順著引導問下去、忘記已經
-        # 引導過一次了，所以這裡改成用程式判斷：上一輪回覆有沒有「資料來源／Sources」
-        # 這個公布答案時一定會有的標記，來明確告訴模型現在是不是已經引導過一次。
-        history = get_conv_history(redis, user_id)
         messages = [{"role": "system", "content": system_prompt}]
         for turn in history:
             messages.append({"role": "user", "content": turn.get("u", "")})
             messages.append({"role": "assistant", "content": turn.get("a", "")})
 
+        # already_revealed：上一輪是不是已經公布過答案了（沒有歷史就當作 None，不適用）。
+        # should_reveal：這一輪「照設計」本來就該公布完整答案——不是用回覆長度去猜的，是
+        # 用我們已經明確告訴模型的規則去判斷：直接要答案的暗號，或上一輪引導過這輪要收斂。
+        # 這個旗標同時決定要不要送 note、以及等一下要不要對這輪的回覆強制補「資料來源」。
+        already_revealed = None
         if history:
             last_reply = history[-1].get("a", "")
             already_revealed = ("資料來源" in last_reply) or ("Sources" in last_reply)
-            if not already_revealed:
-                note = (
-                    "\n\n[System note: your previous reply was a guiding hint, not the full answer. "
-                    "If this message continues the same question, you must reveal the complete answer now per rule 4 — do not guide again.]"
-                    if is_eng else
-                    "\n\n【系統提示：你上一輪回覆是引導反問，還沒有公布答案。如果這一則訊息是延續同一題，"
-                    "這次依規則4必須公布完整答案，不要再繼續引導。】"
-                )
-                user_question += note
+        should_reveal = is_direct_answer_request or (history is not None and history and not already_revealed)
+
+        note = ""
+        if is_direct_answer_request:
+            note = (
+                "\n\n[System note: the student's message is a terse direct request for the answer "
+                "(e.g. just \"answer\"/\"ans\"). Reveal the complete answer now per rule 4(b) — do not "
+                "guide again, and do not ask the student to clarify what they mean.]"
+                if is_eng else
+                "\n\n【系統提示：學生這則訊息是直接要求公布答案的簡短暗號（例如只打「答」）。"
+                "請依規則4(b)這次直接公布完整答案，不要再引導，也不用反問學生是什麼意思。】"
+            )
+        elif should_reveal:
+            note = (
+                "\n\n[System note: your previous reply was a guiding hint, not the full answer. "
+                "If this message continues the same question, you must reveal the complete answer now per rule 4 — do not guide again.]"
+                if is_eng else
+                "\n\n【系統提示：你上一輪回覆是引導反問，還沒有公布答案。如果這一則訊息是延續同一題，"
+                "這次依規則4必須公布完整答案，不要再繼續引導。】"
+            )
+        if note:
+            user_question += note
 
         messages.append({"role": "user", "content": user_question})
 
         resp = client.chat.completions.create(
             model=_SMART_QA_MODEL,
             messages=messages,
-            max_tokens=800,
-            temperature=0.2,
+            max_completion_tokens=800,
         )
         base_reply = (resp.choices[0].message.content or "").strip()[:800]
         # 社交短句判斷：GPT 回應很短且不含資料來源標記，視為社交回應，不補 disclaimer
         _is_social_reply = len(base_reply) < 120 and "資料來源" not in base_reply and "Sources" not in base_reply
         if _is_social_reply:
             ai_reply = base_reply
-        else:
+        elif should_reveal:
+            # 這輪照規則本來就該公布答案：確保真的有「資料來源」這行，模型自己漏掉的話用這個補上
             base_reply = _ensure_sources_section(base_reply, english=is_eng)
+            ai_reply = base_reply + disclaimer
+        else:
+            # 這輪照規則本來就該是「引導」，不該有來源——就算模型講得比較長（gpt-5.4 常見），
+            # 也不要因為長度誤判成「這是完整答案」硬補一行「資料來源：無」上去。
             ai_reply = base_reply + disclaimer
 
         # MongoDB 寫入改為背景非同步（不阻塞答復流程）
@@ -947,8 +989,7 @@ def _exam_explain_answer(question_text, correct_answer_text, user_followup=None)
                 {"role": "system", "content": _TCM_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=600,
-            temperature=0.2,
+            max_completion_tokens=600,
         )
         return (resp.choices[0].message.content or "").strip()
     except Exception:
@@ -996,8 +1037,7 @@ def _exam_explain_structured(question_text, options, correct_answer_text):
                 {"role": "system", "content": _TCM_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=900,
-            temperature=0.2,
+            max_completion_tokens=900,
             response_format={"type": "json_object"},
         )
         return json.loads(resp.choices[0].message.content or "{}")
