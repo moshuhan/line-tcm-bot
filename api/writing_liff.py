@@ -2,12 +2,17 @@
 """
 Writing LIFF：即時逐字標註（Grammarly 風格）＋ 送出批改 ＋ 儲存練習內容。
 
-現況與已知限制（都是刻意的簡化，先求可用，之後再擴充）：
-- 「評分標準」目前是寫死在 `_REVIEW_SYSTEM_PROMPT` 裡的暫定 rubric（內容正確性／學術語域／
-  文法清晰度／段落結構各 25 分），不是真正跟 TEEMI 做區隔用的正式評分標準——等老師/顏老師
-  那邊有實際的評分規準文件，再回來換掉這個 prompt。
+現況與已知限制：
+- 「評分標準」寫死在 `_REVIEW_SYSTEM_PROMPT` 裡，四個面向對應 IELTS Writing Task 2 的
+  官方評分規準（Task Response／Lexical Resource／Grammatical Range and Accuracy／
+  Coherence and Cohesion），並疊加中醫學術寫作特有的內容正確性要求；之後老師/顏老師
+  那邊有正式評分規準文件時，再回來對照微調用字。
 - 「主題／範本」目前只有 `data/writing_prompts.json` 裡兩篇中醫中文段落（中譯英摘要練習）
-  ＋ 一個「自由寫作」選項，之後題庫擴充時比照 exam_quiz.py 的模式直接加進 JSON 檔案即可。
+  ＋ 一個「自由寫作」選項，之後題庫擴充時比照 exam_quiz.py 的模式直接加進 JSON 檔案即可
+  （先求可用、之後補廣度，是刻意的取捨，不是遺漏）。
+- 「自由寫作」沒有固定的中醫來源段落，送出批改前會先比照聊天室的 `is_off_topic()` 判斷
+  離題，離題就直接回傳引導訊息、不呼叫 AI 批改（見 `full_review()`），避免評分失真也省
+  token；有 source_zh/instruction_zh 的題目本身鎖定中醫來源，不需要這層檢查。
 - 儲存的練習紀錄寫入 MongoDB `writing_practice`（跟口說 LIFF 不同——寫作是明確要求要儲存的）。
 """
 import os
@@ -15,20 +20,44 @@ import json
 import traceback
 from datetime import datetime, timezone
 
+try:
+    from api.syllabus import is_off_topic
+except ImportError:
+    from syllabus import is_off_topic
+
 COLL_WRITING_PRACTICE = "writing_practice"
+
+# 自由寫作沒有固定的中醫來源段落，使用者可能打任何主題——比照聊天室的離題判斷邏輯
+# （api/syllabus.py 的 is_off_topic），離題就直接擋下、不呼叫 AI 批改，省下無意義的
+# token 花費，也避免評分結果對非中醫內容失真。有 source_zh/instruction_zh 的題目
+# （SCI 摘要、中翻英）本身就鎖定中醫來源段落，不需要這層檢查。
+OFF_TOPIC_WRITING_REPLY = (
+    "這裡是中醫英文寫作練習，內容需要與中醫相關（例如中醫理論、證型、治療、衛教等主題）。"
+    "麻煩把這段文字改寫成與中醫有關的內容再送出批改，這樣才能給你有意義的回饋喔！"
+)
 
 _TOPICS_CACHE = None
 
-# 暫定評分標準（見檔頭說明：不是正式版，等實際 rubric 文件）
+# 評分標準：比照 IELTS Writing Task 2 的四大評分面向（Task Response、Lexical Resource、
+# Grammatical Range and Accuracy、Coherence and Cohesion）等比例改寫成 100 分制，
+# 並在 Task Response 這一項加入中醫學術寫作特有的「內容正確性」要求（IELTS 本身不評
+# 專業內容對錯，這裡是額外疊加的中醫專業把關）。細部用字仍會依老師/顏老師之後提供的
+# 正式評分規準文件微調，但整體框架已經是對齊國際公認寫作測驗標準、而非隨意訂的暫定版。
 _REVIEW_SYSTEM_PROMPT = """
 你是一位嚴謹的中醫學術英文寫作教練。使用者會交來一段英文寫作（可能是中醫衛教文章摘要，
-也可能是自由寫作），請依以下暫定評分標準批改：
+也可能是自由寫作），請依以下評分標準批改——四個面向分別對應 IELTS Writing Task 2 的
+四大官方評分規準（Task Response／Lexical Resource／Grammatical Range and Accuracy／
+Coherence and Cohesion），並疊加中醫學術寫作特有的內容正確性要求：
 
-【評分標準（各 25 分，總分 100，屬暫定版本，之後會替換成正式 rubric）】
-1. 內容正確性（中醫概念/邏輯是否正確，若非中醫主題則看論述是否合理）
-2. 學術語域與用詞精準度（是否用詞恰當、避免口語化）
-3. 文法與表達清晰度
-4. 段落結構與銜接
+【評分標準（各 25 分，總分 100）】
+1. content（內容正確性與任務達成度，對應 IELTS Task Response）：是否切題、論點是否充分
+   開展並回應題目要求；中醫主題另需檢查中醫概念/邏輯是否正確，非中醫主題則看論述是否合理。
+2. register（學術語域與用詞精準度，對應 IELTS Lexical Resource）：字彙廣度與精準度、
+   詞語搭配（collocation）是否自然、是否避免口語化或不當重複用詞。
+3. grammar（文法正確性與句式多樣性，對應 IELTS Grammatical Range and Accuracy）：
+   句型結構是否多樣（含複合句、從屬子句等），文法錯誤是否影響語意理解。
+4. structure（段落結構與銜接，對應 IELTS Coherence and Cohesion）：全文邏輯推進是否
+   清楚、段落安排是否合理、銜接詞與指代（referencing）使用是否恰當。
 
 【完整度是評分的前提，不是額外加分項】
 使用者訊息裡如果有附上「題目要求」（字數/句數範圍、任務說明），批改前務必先比對使用者
@@ -117,11 +146,16 @@ def annotate_realtime(openai_client, text):
 def full_review(openai_client, text, topic_id=None):
     """
     送出批改：完整評分＋修正版＋說明。回傳 dict，失敗回傳 None。
+    離題（僅限沒有固定中醫來源段落的自由寫作）回傳 {"off_topic": True, "message": ...}，
+    不呼叫 AI，前端要另外處理這個 key，不能直接當成正常評分結果渲染。
     """
     text = (text or "").strip()
     if not text:
         return None
     topic = get_topic(topic_id) if topic_id else None
+    has_fixed_tcm_source = bool(topic and (topic.get("source_zh") or topic.get("instruction_zh")))
+    if not has_fixed_tcm_source and is_off_topic(text):
+        return {"off_topic": True, "message": OFF_TOPIC_WRITING_REPLY}
     word_count = len(text.split())
     user_content = text[:3000]
     if topic and (topic.get("source_zh") or topic.get("instruction_zh")):

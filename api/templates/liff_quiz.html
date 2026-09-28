@@ -258,6 +258,7 @@ tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'on-primary-
       <input id="mistakes-search" type="text" oninput="renderMistakes()" placeholder="搜尋題目關鍵字..." class="bg-transparent font-body-sm text-body-sm text-on-surface outline-none w-full placeholder:text-outline">
     </div>
     <div class="flex flex-wrap gap-1.5" id="mistakes-category-pills"></div>
+    <div class="flex flex-wrap gap-1.5" id="mistakes-concept-pills"></div>
     <div class="flex flex-col gap-space-sm" id="mistakes-list"></div>
     <div id="mistakes-empty" class="font-body-sm text-on-surface-variant text-center py-16" style="display:none;">目前沒有標記的錯題</div>
   </div>
@@ -356,6 +357,7 @@ let quizTimerHandle = null;
 let lastResult = null;
 let wrongList = [];
 let mistakesActiveCategory = "";
+let mistakesActiveConcept = "";
 let aiDrawerContext = null;
 let currentPage = "home";
 
@@ -777,13 +779,20 @@ async function loadMistakes() {
   pillsBox.innerHTML = cats.map(c => `
     <button type="button" class="cat-pill px-space-sm py-1 rounded-full font-label-sm text-label-sm ${((c === "全部章節" && !mistakesActiveCategory) || c === mistakesActiveCategory) ? "bg-primary text-on-primary" : "bg-surface-container-lowest text-on-surface"}" onclick="setMistakesCategory('${c === "全部章節" ? "" : escapeHtml(c)}')">${escapeHtml(c)}</button>
   `).join("");
+  const conceptPillsBox = document.getElementById("mistakes-concept-pills");
+  const concepts = ["全部考點", ...Array.from(new Set(wrongList.flatMap(q => q.concepts || []).filter(Boolean)))];
+  conceptPillsBox.innerHTML = concepts.length > 1 ? concepts.map(c => `
+    <button type="button" class="concept-pill px-space-sm py-1 rounded-full border font-label-sm text-label-sm ${((c === "全部考點" && !mistakesActiveConcept) || c === mistakesActiveConcept) ? "bg-tertiary-fixed border-tertiary-fixed text-on-tertiary-fixed" : "bg-transparent border-outline-variant text-on-surface-variant"}" onclick="setMistakesConcept('${c === "全部考點" ? "" : escapeHtml(c)}')">${escapeHtml(c)}</button>
+  `).join("") : "";
   renderMistakes();
 }
 function setMistakesCategory(c) { mistakesActiveCategory = c; loadMistakes(); }
+function setMistakesConcept(c) { mistakesActiveConcept = c; loadMistakes(); }
 function renderMistakes() {
   const search = (document.getElementById("mistakes-search").value || "").trim();
   let items = wrongList;
   if (mistakesActiveCategory) items = items.filter(q => q.category === mistakesActiveCategory);
+  if (mistakesActiveConcept) items = items.filter(q => (q.concepts || []).includes(mistakesActiveConcept));
   if (search) items = items.filter(q => (q.question || "").includes(search));
   const list = document.getElementById("mistakes-list");
   const empty = document.getElementById("mistakes-empty");
@@ -792,8 +801,11 @@ function renderMistakes() {
   list.innerHTML = items.map(q => `
     <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
       <div class="flex items-center justify-between">
-        <span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">${escapeHtml(q.category || "")}</span>
-        <button type="button" class="w-7 h-7 rounded-full bg-secondary-fixed text-secondary flex items-center justify-center" onclick="removeWrong('${q.id}')" title="移除">
+        <div class="flex flex-wrap gap-1">
+          <span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">${escapeHtml(q.category || "")}</span>
+          ${(q.concepts || []).map(c => `<span class="px-space-sm py-0.5 rounded-full bg-tertiary-fixed/40 text-on-tertiary-fixed font-label-sm text-label-sm">${escapeHtml(c)}</span>`).join("")}
+        </div>
+        <button type="button" class="w-7 h-7 rounded-full bg-secondary-fixed text-secondary flex items-center justify-center shrink-0" onclick="removeWrong('${q.id}')" title="移除">
           <span class="material-symbols-outlined text-[16px]">bookmark</span>
         </button>
       </div>

@@ -248,8 +248,14 @@ def toggle_bookmark(db, user_id, question_id):
     return True
 
 
-def list_wrong_questions(db, user_id, category=None):
-    """回傳使用者錯題本清單（附完整題目內容含正確答案），可依 category 篩選，最新標記在前。"""
+def list_wrong_questions(db, user_id, category=None, concept=None):
+    """
+    回傳使用者錯題本清單（附完整題目內容含正確答案），可依 category（章節）
+    及/或 concept（考點標籤）篩選，最新標記在前。
+    concepts 一律從題庫（q）即時讀取，不存在 exam_wrong_questions 文件裡——
+    這樣之後調整 data/exam_questions.json 的 concepts 分類，錯題本會自動跟著更新，
+    不用另外做資料遷移。
+    """
     if db is None or not user_id:
         return []
     query = {"user_id": user_id}
@@ -264,9 +270,13 @@ def list_wrong_questions(db, user_id, category=None):
         q = _question_by_id(d.get("question_id"))
         if not q:
             continue
+        concepts = q.get("concepts") or []
+        if concept and concept not in concepts:
+            continue
         out.append({
             "id": q.get("id"),
             "category": q.get("category"),
+            "concepts": concepts,
             "question": q.get("question"),
             "options": q.get("options"),
             "answer": q.get("answer"),

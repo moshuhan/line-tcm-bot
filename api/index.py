@@ -1173,12 +1173,13 @@ def liff_quiz_bookmark():
 
 @app.route("/api/liff/quiz/wrong-questions", methods=['GET'])
 def liff_quiz_wrong_questions():
-    """錯題本清單，可用 ?category=xxx 篩單一章節。"""
+    """錯題本清單，可用 ?category=xxx 篩單一章節、?concept=xxx 篩單一考點標籤。"""
     user_id = _liff_auth_user_id()
     if not user_id:
         return jsonify({"error": "unauthorized"}), 401
     category = (request.args.get("category") or "").strip() or None
-    return jsonify({"questions": exam_list_wrong_questions(mongo_db, user_id, category)})
+    concept = (request.args.get("concept") or "").strip() or None
+    return jsonify({"questions": exam_list_wrong_questions(mongo_db, user_id, category, concept)})
 
 
 @app.route("/api/liff/quiz/wrong-questions/<question_id>", methods=['DELETE'])

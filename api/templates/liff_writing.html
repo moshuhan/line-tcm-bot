@@ -343,6 +343,18 @@ async function submitReview() {
   btn.disabled = false;
   btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">auto_awesome</span><span>送出批改</span>';
   if (res.error) { alert("批改失敗：" + res.error); return; }
+  if (res.off_topic) {
+    lastReviewResult = null;
+    const panel = document.getElementById("review-panel");
+    panel.style.display = "flex";
+    panel.innerHTML = `
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm flex items-start gap-2.5">
+        <span class="material-symbols-outlined text-amber-600 text-[20px] shrink-0">info</span>
+        <p class="text-[13px] text-amber-800 leading-relaxed">${escapeHtml(res.message || "")}</p>
+      </div>
+    `;
+    return;
+  }
   lastReviewResult = res;
   renderReview(res);
 }
