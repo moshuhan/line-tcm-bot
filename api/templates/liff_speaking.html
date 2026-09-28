@@ -43,6 +43,23 @@
   </main>
 </div>
 
+<!-- ============ PAGE: CASE PICKER (OSCE 訓練指定病患) ============ -->
+<div class="page flex-col w-full min-h-screen" id="page-case-picker">
+  <header class="fixed top-0 w-full z-50 pt-safe bg-white/90 backdrop-blur-xl border-b border-slate-200">
+    <div class="h-14 px-4 max-w-[480px] mx-auto flex items-center gap-2">
+      <button onclick="showPage('home')" class="flex items-center justify-center w-8 h-8 rounded-full text-slate-600"><span class="material-symbols-outlined text-[20px]">arrow_back</span></button>
+      <span class="text-[15px] font-bold text-slate-800">選擇病患情境</span>
+    </div>
+  </header>
+  <main class="flex flex-col w-full max-w-[480px] mx-auto px-4 pt-16 pb-10 gap-3">
+    <p class="text-[13px] text-slate-500 -mt-1">選一位病患開始問診練習，或隨機抽一位。</p>
+    <button type="button" onclick="startConversation('clinical')" class="w-full py-3 rounded-xl border-2 border-dashed border-emerald-300 text-emerald-700 font-bold text-[14px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition bg-emerald-50/50">
+      <span class="material-symbols-outlined text-[18px]">shuffle</span><span>隨機抽一位病患</span>
+    </button>
+    <div id="case-list" class="flex flex-col gap-3"></div>
+  </main>
+</div>
+
 <!-- ============ PAGE: DIALOGUE ============ -->
 <div class="page flex-col w-full h-screen" id="page-dialogue">
   <header class="pt-safe bg-white/95 backdrop-blur-xl border-b border-slate-200 shrink-0">
@@ -119,6 +136,7 @@ function iconForMode(key) { return MODE_ICONS[key] || ICON_PATIENT; }
 let idToken = null;
 let scenarios = {};
 let currentScenarioKey = null;
+let currentCaseId = null;
 let currentSessionId = null;
 let pc = null;
 let dc = null;
@@ -204,10 +222,43 @@ function renderHome() {
         <div class="flex flex-wrap gap-1.5">
           ${topics.map(t => `<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px]">${escapeHtml(t.length > 24 ? t.slice(0, 24) + "…" : t)}</span>`).join("")}
         </div>
-        <button type="button" onclick="startConversation('${s.key}')" class="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-[14px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
-          <span class="material-symbols-outlined text-[18px]">mic</span><span>啟動對話 (Start Consultation)</span>
+        <button type="button" onclick="${s.key === 'clinical' ? 'openCasePicker()' : `startConversation('${s.key}')`}" class="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-[14px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+          <span class="material-symbols-outlined text-[18px]">${s.key === 'clinical' ? 'person_search' : 'mic'}</span><span>${s.key === 'clinical' ? '選擇病患情境' : '啟動對話 (Start Consultation)'}</span>
         </button>
       </div>
+    `;
+  }).join("");
+}
+
+let allCases = null;
+
+async function openCasePicker() {
+  showPage("case-picker");
+  if (!allCases) {
+    const data = await apiGet("/api/liff/speaking/cases");
+    allCases = data.cases || [];
+  }
+  renderCasePicker();
+}
+
+function renderCasePicker() {
+  const list = document.getElementById("case-list");
+  list.innerHTML = (allCases || []).map(c => {
+    const avatarHtml = c.photo_url
+      ? `<img src="${escapeHtml(c.photo_url)}" class="w-12 h-12 rounded-full object-cover shrink-0" alt="" />`
+      : `<div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-emerald-700 text-[22px]">personal_injury</span></div>`;
+    return `
+      <button type="button" onclick="startConversation('clinical', '${c.case_id}')" class="w-full bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex items-center gap-3 text-left active:scale-[0.98] transition">
+        ${avatarHtml}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[14px] font-bold text-slate-800">${escapeHtml(c.name || "")}</span>
+            <span class="text-[11px] text-slate-400">${c.age ?? "—"}y · ${escapeHtml(c.gender || "")}</span>
+          </div>
+          <p class="text-[12px] text-slate-500 mt-0.5 line-clamp-2">${escapeHtml(c.chief_complaint || "")}</p>
+        </div>
+        <span class="material-symbols-outlined text-slate-300 text-[20px] shrink-0">chevron_right</span>
+      </button>
     `;
   }).join("");
 }
@@ -266,8 +317,9 @@ function resetVideoSize() {
   applyVideoSize();
 }
 
-async function startConversation(scenarioKey) {
+async function startConversation(scenarioKey, caseId) {
   currentScenarioKey = scenarioKey;
+  currentCaseId = caseId || null;
   transcript = [];
   charDeltaBuffer = "";
   charBubbleEl = null;
@@ -275,7 +327,10 @@ async function startConversation(scenarioKey) {
   pendingAssistantBubble = null;
 
   const s = scenarios[scenarioKey] || {};
-  const p = s.preview || {};
+  // 如果是從『選擇病患情境』清單指定病例，先用清單裡已經抓到的資料當立即預覽，
+  // 不用等連線完成；沒有指定（隨機／academic／student）才用主頁的隨機預覽。
+  const pickedCase = caseId ? (allCases || []).find(c => c.case_id === caseId) : null;
+  const p = pickedCase || s.preview || {};
   document.getElementById("char-avatar-icon").textContent = iconForMode(scenarioKey);
   const previewMeta = scenarioKey === "clinical" ? `${p.age ?? "—"}y · ${p.gender || ""}${p.occupation ? " · " + p.occupation : ""}` : (MODE_META[scenarioKey] || "");
   applyCharVisual(p.name || s.display_name || s.character_zh, previewMeta, p.photo_url || s.photo_url);
@@ -293,7 +348,7 @@ async function startConversation(scenarioKey) {
 
   showPage("dialogue");
 
-  const sessionRes = await apiPost("/api/liff/speaking/session", { mode: scenarioKey });
+  const sessionRes = await apiPost("/api/liff/speaking/session", { mode: scenarioKey, case_id: currentCaseId });
   if (sessionRes.error || !sessionRes.client_secret) {
     document.getElementById("mic-status").textContent = "連線失敗：" + (sessionRes.error || "未知錯誤");
     return;
@@ -350,7 +405,7 @@ async function connectRealtime(ephemeralKey, model, openingHint) {
       dc.send(JSON.stringify({
         type: "response.create",
         response: {
-          instructions: "Begin the conversation now. Speak first, in character, exactly as your role instructions describe."
+          instructions: "Begin the conversation now. Speak first, in character, exactly as your role instructions describe. Respond only in English — never Chinese, Russian, or any other language."
             + (openingHint ? (" If it fits naturally, you can steer toward: " + openingHint) : ""),
         },
       }));
@@ -501,7 +556,7 @@ function backToHome(fromSummary) {
 }
 
 function restartConversation() {
-  if (currentScenarioKey) startConversation(currentScenarioKey);
+  if (currentScenarioKey) startConversation(currentScenarioKey, currentCaseId);
 }
 
 function renderSummary(data) {

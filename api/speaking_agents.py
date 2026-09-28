@@ -18,6 +18,23 @@ def _bullets(items):
     return "\n".join(f"- {str(x).strip()}" for x in items if str(x or "").strip())
 
 
+# 曾經真的遇過 Realtime API 突然講出俄文的狀況（模型偶爾會「切換」語言），所以這條規則
+# 放在每一種角色 instructions 的最前面、用最強硬的字眼講，且在整段 instructions 結尾
+# 再重複一次——不只是安靜地寫「always reply in English」這麼溫和而已。
+_LANGUAGE_RULE = (
+    "[ABSOLUTE RULE — LANGUAGE — READ THIS FIRST]\n"
+    "You must respond ONLY in English. Never respond in Chinese, Russian, Japanese, "
+    "Korean, or any other language, no matter what language the student speaks, writes, "
+    "or explicitly asks you to use. This rule has no exceptions and overrides every "
+    "other instruction below. If you are ever unsure what to say, default to a short, "
+    "simple English sentence rather than switching language."
+)
+
+
+def _with_language_rule(body):
+    return f"{_LANGUAGE_RULE}\n\n{body}\n\n{_LANGUAGE_RULE}"
+
+
 def build_patient_instructions(case):
     """
     依 Case JSON 組出 Patient Agent 的 Realtime instructions。
@@ -25,7 +42,7 @@ def build_patient_instructions(case):
     避免整個對話功能因為 data/clinical_cases.json 暫時沒東西而掛掉。
     """
     if not case:
-        return (
+        return _with_language_rule(
             "You are role-playing as a patient at a Traditional Chinese Medicine (TCM) "
             "clinic, speaking with a TCM student in English. You will speak first: open "
             "the conversation by greeting the practitioner and briefly stating why you "
@@ -46,7 +63,7 @@ def build_patient_instructions(case):
         f"How you feel about this (emotional context): {case.get('emotional_context', '')}",
     ])
 
-    return f"""You are role-playing as a patient at a Traditional Chinese Medicine (TCM) clinic, speaking with a TCM student in English for a history-taking practice session.
+    return _with_language_rule(f"""You are role-playing as a patient at a Traditional Chinese Medicine (TCM) clinic, speaking with a TCM student in English for a history-taking practice session.
 
 [Your profile]
 {profile_lines}
@@ -75,7 +92,7 @@ You must NEVER reveal or imply any of the following, even if asked directly (a r
 [Your character]
 Stay fully in character as this patient throughout the conversation. React emotionally the way this person would, based on the emotional context above. If the student gives self-care or health education advice, react like a real patient would — ask a follow-up question, express relief, or show mild concern, whichever fits your character.
 
-Always reply in English, at a clear and moderate pace suitable for a language learner."""
+Always reply in English, at a clear and moderate pace suitable for a language learner.""")
 
 
 def build_free_practice_instructions(difficulty=None):
@@ -84,7 +101,7 @@ def build_free_practice_instructions(difficulty=None):
     難度比 OSCE 病人問診／學術討論都低，語速與用詞更貼近初學者，目的是降低
     開口說英文的心理門檻，不是評核表現。
     """
-    return (
+    return _with_language_rule(
         "You are a friendly, patient English conversation partner for a Traditional "
         "Chinese Medicine (TCM) student who wants relaxed, low-pressure speaking practice. "
         "You speak first: open with a warm, casual greeting and an easy, open-ended "
@@ -110,7 +127,7 @@ def build_professor_instructions(topic):
     topic 為 None 時 fallback 到通用中醫學術討論教授角色。
     """
     if not topic:
-        return (
+        return _with_language_rule(
             "You are role-playing as a TCM (Traditional Chinese Medicine) professor "
             "having an academic discussion in English with a TCM student. You speak "
             "first: open with a brief greeting and a thoughtful opening question about "
@@ -119,7 +136,7 @@ def build_professor_instructions(topic):
             "and always reply in English."
         )
 
-    return f"""You are role-playing as a TCM (Traditional Chinese Medicine) professor having an academic discussion in English with a TCM student. Today's discussion topic is: "{topic.get('title', '')}".
+    return _with_language_rule(f"""You are role-playing as a TCM (Traditional Chinese Medicine) professor having an academic discussion in English with a TCM student. Today's discussion topic is: "{topic.get('title', '')}".
 
 [Background]
 {topic.get('background', '')}
@@ -151,4 +168,4 @@ If the discussion stalls or the student runs out of things to say, you can steer
 [Your character]
 Act as a knowledgeable but encouraging professor: ask thoughtful follow-up questions, gently correct imprecise terminology, challenge the student to go deeper, and share your own insight when relevant. Keep your turns short and conversational (1-3 sentences) — this is a discussion, not a lecture.
 
-Always reply in English, at a clear and moderate pace suitable for a language learner."""
+Always reply in English, at a clear and moderate pace suitable for a language learner.""")

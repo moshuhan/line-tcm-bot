@@ -106,6 +106,7 @@ try:
     from api.liff_auth import verify_liff_id_token
     from api.speaking_liff import (
         list_modes as speaking_list_modes,
+        list_cases as speaking_list_cases,
         mint_ephemeral_session as speaking_mint_ephemeral_session,
         process_turn as speaking_process_turn,
         build_session_summary as speaking_build_session_summary,
@@ -134,6 +135,7 @@ except ImportError:
     from liff_auth import verify_liff_id_token
     from speaking_liff import (
         list_modes as speaking_list_modes,
+        list_cases as speaking_list_cases,
         mint_ephemeral_session as speaking_mint_ephemeral_session,
         process_turn as speaking_process_turn,
         build_session_summary as speaking_build_session_summary,
@@ -1060,12 +1062,21 @@ def liff_speaking_scenarios():
     return jsonify({"scenarios": speaking_list_modes()})
 
 
+@app.route("/api/liff/speaking/cases", methods=['GET'])
+def liff_speaking_cases():
+    """『選擇病患情境』清單：列出全部臨床病例，讓使用者指定要練習哪一個，而不是每次隨機抽。"""
+    if not _liff_auth_user_id():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"cases": speaking_list_cases()})
+
+
 @app.route("/api/liff/speaking/session", methods=['POST'])
 def liff_speaking_session():
     """
-    開始一段對話：body = {"mode": "clinical"|"academic", "difficulty": str(optional)}。
-    後端會動態抽一個 Case（臨床衛教）或 Topic（學術討論），組出 Realtime session 的
-    角色 instructions，並建立一個 Session Manager 記錄（session_id）。
+    開始一段對話：body = {"mode": "clinical"|"academic"|"student", "difficulty": str(optional),
+    "case_id": str(optional，只對 clinical 有意義，使用者從清單指定病例時帶這個)}。
+    後端會依 case_id 指定或動態抽一個 Case（臨床衛教）或 Topic（學術討論），組出 Realtime
+    session 的角色 instructions，並建立一個 Session Manager 記錄（session_id）。
     回傳 ephemeral client_secret，前端用它直接對 OpenAI 建立 WebRTC 連線，不經過我們的伺服器。
     """
     if not _liff_auth_user_id():
@@ -1073,7 +1084,8 @@ def liff_speaking_session():
     data = request.get_json(force=True, silent=True) or {}
     mode = (data.get("mode") or data.get("scenario") or "").strip()
     difficulty = (data.get("difficulty") or "").strip() or None
-    session_info = speaking_mint_ephemeral_session(client, redis, mode, difficulty)
+    case_id = (data.get("case_id") or "").strip() or None
+    session_info = speaking_mint_ephemeral_session(client, redis, mode, difficulty, case_id)
     if not session_info:
         return jsonify({"error": "無法建立語音對話 session，請再試一次"}), 500
     return jsonify(session_info)

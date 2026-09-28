@@ -16,6 +16,9 @@
   .mono { font-family: 'JetBrains Mono', monospace; }
   .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
   .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  /* 浮動操作列要疊在底部導覽列「上方」，底部導覽列實際高度是 4rem + 安全區，
+     操作列的 bottom 位移沒有算安全區的話，在有安全區的手機上會被導覽列蓋住一截 */
+  .bottom-safe-nav { bottom: calc(4rem + env(safe-area-inset-bottom, 0px)); }
   .page { display: none; }
   .page.active { display: flex; }
   .editor-wrap { position: relative; width: 100%; min-height: 220px; }
@@ -129,7 +132,7 @@
 </main>
 
 <!-- Editor bottom action bar -->
-<div class="fixed bottom-16 left-0 right-0 z-40 px-4 pointer-events-none" id="editor-action-bar" style="display:none;">
+<div class="fixed bottom-safe-nav left-0 right-0 z-40 px-4 pointer-events-none" id="editor-action-bar" style="display:none;">
   <div class="max-w-[480px] mx-auto pointer-events-auto bg-white/95 backdrop-blur-md rounded-xl p-2 shadow-lg border border-slate-200 flex gap-2">
     <button type="button" onclick="saveDraft()" class="flex-1 py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold text-sm active:scale-[0.98] transition">暫存草稿</button>
     <button type="button" onclick="submitReview()" id="review-btn" class="flex-[1.5] py-3 rounded-lg bg-[#0D5C46] text-white font-semibold text-sm flex items-center justify-center gap-1.5 active:scale-[0.98] transition">

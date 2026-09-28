@@ -19,6 +19,9 @@ tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'on-primary-
     body { overscroll-behavior: none; min-height: max(884px, 100dvh); }
     .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
     .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+    /* 浮動操作列要疊在底部導覽列「上方」，底部導覽列實際高度是 4rem + 安全區，
+       操作列的 bottom 位移沒有算安全區的話，在有安全區的手機上會被導覽列蓋住一截 */
+    .bottom-safe-nav { bottom: calc(4rem + env(safe-area-inset-bottom, 0px)); }
   }
   ::-webkit-scrollbar { display: none; }
   .page { display: none; }
@@ -262,7 +265,7 @@ tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'on-primary-
 </main>
 
 <!-- Quiz bottom sticky action bar -->
-<div class="fixed bottom-16 left-0 right-0 z-40 px-margin pointer-events-none" id="quiz-action-bar" style="display:none;">
+<div class="fixed bottom-safe-nav left-0 right-0 z-40 px-margin pointer-events-none" id="quiz-action-bar" style="display:none;">
   <div class="max-w-[480px] mx-auto pointer-events-auto bg-surface/95 backdrop-blur-md rounded-2xl p-space-sm shadow-xl flex items-center gap-space-sm">
     <div class="flex-1 flex flex-col justify-center bg-surface-container-low px-space-md py-2 rounded-xl">
       <div class="flex items-center justify-between mb-1">

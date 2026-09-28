@@ -28,25 +28,45 @@ import os
 import traceback
 
 try:
-    from api.speaking_content import get_random_case, get_random_topic
+    from api.speaking_content import get_random_case, get_random_topic, get_case_by_id, load_cases
     from api.speaking_agents import build_patient_instructions, build_professor_instructions, build_free_practice_instructions
     from api.speaking_evaluator import analyze_turn, summarize_session
     from api.speaking_session import create_session, get_session, record_turn, compute_session_state, delete_session
 except ImportError:
-    from speaking_content import get_random_case, get_random_topic
+    from speaking_content import get_random_case, get_random_topic, get_case_by_id, load_cases
     from speaking_agents import build_patient_instructions, build_professor_instructions, build_free_practice_instructions
     from speaking_evaluator import analyze_turn, summarize_session
     from speaking_session import create_session, get_session, record_turn, compute_session_state, delete_session
 
 MODES = {
-    "clinical": {"label_zh": "OSCE 訓練", "character_zh": "患者", "voice": "shimmer"},
-    "academic": {"label_zh": "學術研究者", "character_zh": "教授", "voice": "cedar",
+    "clinical": {"label_zh": "OSCE 訓練", "character_zh": "患者"},
+    "academic": {"label_zh": "學術研究者", "character_zh": "教授",
                  "persona_name": "Dr. Maria Chen", "persona_photo": "academic_professor"},
-    "student": {"label_zh": "中醫學生", "character_zh": "夥伴", "voice": "shimmer",
+    "student": {"label_zh": "中醫學生", "character_zh": "夥伴",
                 "persona_name": "Alex Wong", "persona_photo": "student_partner"},
 }
 DEFAULT_MODE = "clinical"
 REALTIME_MODEL = "gpt-realtime"
+
+# 語音選擇：依角色性別挑聲音，避免「圖片是男生、開口卻是女生聲音」的違和感。
+# academic／student 是固定角色（Dr. Maria Chen 女性／Alex Wong 男性），clinical
+# 則依抽到／選到的病例 gender 欄位動態決定；gender 不是 male/female 時退回中性音。
+FEMALE_VOICE = "shimmer"
+MALE_VOICE = "echo"
+NEUTRAL_VOICE = "alloy"
+
+
+def _voice_for(mode_key, content):
+    if mode_key == "academic":
+        return FEMALE_VOICE
+    if mode_key == "student":
+        return MALE_VOICE
+    gender = ((content or {}).get("gender") or "").strip().lower()
+    if gender == "male":
+        return MALE_VOICE
+    if gender == "female":
+        return FEMALE_VOICE
+    return NEUTRAL_VOICE
 
 _PATIENTS_DIR = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "assets", "patients")
 _PERSONAS_DIR = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "assets", "personas")
@@ -118,14 +138,35 @@ def list_modes():
     return out
 
 
-def _pick_content_and_instructions(mode_key, difficulty=None):
-    """依 mode 抽 Case 或 Topic，回傳 (content_id, content_dict, instructions)。內容庫是空的時 content 為 None。"""
+def list_cases():
+    """給前端『選擇病患情境』畫面用：列出全部臨床病例的基本資訊（不含 hidden_information／
+    forbidden_information 等只給 Patient Agent 用的欄位），讓使用者可以指定要練習哪一個病例，
+    而不是每次都隨機抽。"""
+    out = []
+    for c in load_cases():
+        out.append({
+            "case_id": c.get("case_id"),
+            "name": c.get("name"),
+            "age": c.get("age"),
+            "gender": c.get("gender"),
+            "occupation": c.get("occupation"),
+            "difficulty": c.get("difficulty"),
+            "chief_complaint": c.get("chief_complaint"),
+            "expected_topics": c.get("expected_topics") or [],
+            "photo_url": _photo_url(c.get("case_id")),
+        })
+    return out
+
+
+def _pick_content_and_instructions(mode_key, difficulty=None, case_id=None):
+    """依 mode 抽 Case 或 Topic，回傳 (content_id, content_dict, instructions)。內容庫是空的時 content 為 None。
+    case_id 有給的話（使用者從清單指定病例）就直接用該病例，不再隨機抽。"""
     if mode_key == "academic":
         topic = get_random_topic(difficulty)
         return (topic.get("topic_id") if topic else None, topic, build_professor_instructions(topic))
     if mode_key == "student":
         return (None, None, build_free_practice_instructions(difficulty))
-    case = get_random_case(difficulty)
+    case = (get_case_by_id(case_id) if case_id else None) or get_random_case(difficulty)
     return (case.get("case_id") if case else None, case, build_patient_instructions(case))
 
 
@@ -147,21 +188,22 @@ def _full_context_text(mode_key, content):
     return "沒有固定病例或題目，想聊什麼都可以，用簡單的英文輕鬆練習開口說。"
 
 
-def mint_ephemeral_session(openai_client, redis_client, mode_key, difficulty=None):
+def mint_ephemeral_session(openai_client, redis_client, mode_key, difficulty=None, case_id=None):
     """
-    開始一場新對話：抽 Case/Topic → 組 instructions → 建 Realtime ephemeral secret
+    開始一場新對話：抽/指定 Case 或抽 Topic → 組 instructions → 建 Realtime ephemeral secret
     → 建立 Session Manager 記錄。回傳前端需要的一切（含 session_id）；失敗回傳 None。
+    case_id 只對 clinical 模式有意義，使用者從『選擇病患情境』清單指定病例時會帶這個參數。
     """
     mode_key = mode_key if mode_key in MODES else DEFAULT_MODE
     mode = MODES[mode_key]
-    content_id, content, instructions = _pick_content_and_instructions(mode_key, difficulty)
+    content_id, content, instructions = _pick_content_and_instructions(mode_key, difficulty, case_id)
 
     session_config = {
         "type": "realtime",
         "model": REALTIME_MODEL,
         "instructions": instructions,
         "audio": {
-            "output": {"voice": mode["voice"]},
+            "output": {"voice": _voice_for(mode_key, content)},
             "input": {
                 "transcription": {"model": "gpt-4o-mini-transcribe"},
                 "turn_detection": {"type": "server_vad"},
