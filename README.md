@@ -97,13 +97,13 @@
 - 後端邏輯已用 Flask test client＋直接呼叫函式測試過（題庫載入、分類篩選、評分計算、AI 詳解都實測跑過一次），MongoDB 因本機連不到 Railway internal 網路無法實測寫入，但已確認 `mongo_db=None` 時的 fallback 不會噴例外。
 
 **LIFF ID 已申請並填好（2026-09-11）：**
-三個 LIFF App 都掛在同一個 Messaging API Channel 下，共用同一組 `LIFF_CHANNEL_ID=2011558628`。
+三個 LIFF App 都掛在同一個 Messaging API Channel 下，共用同一組 `LIFF_CHANNEL_ID=2011870208`。
 
 | 頁面 | LIFF ID | Endpoint URL |
 |---|---|---|
-| 考題 | `2011558628-8li3MSJw` | `/liff/quiz` |
-| 口說 | `2011558628-VDHP3SsC` | `/liff/speaking` |
-| 寫作 | `2011558628-VKytwC2e` | `/liff/writing` |
+| 考題 | `2011870208-ET66KFq7` | `/liff/quiz` |
+| 口說 | `2011870208-KNn6vb4B` | `/liff/speaking` |
+| 寫作 | `2011870208-i3BoQwad` | `/liff/writing` |
 
 三個 `.html` 檔案裡的 `LIFF_ID` 常數、本機 `.env` 的 `LIFF_CHANNEL_ID` 都已經填好正式值。
 
@@ -121,7 +121,7 @@
   之後想清可以用 `client.deleteRichMenu(richMenuId)` 自行清理，這次沒有動它們。
 
 **還缺、要你自己在後台補的：**
-1. **Railway 環境變數加 `LIFF_CHANNEL_ID=2011558628`**（本機 `.env` 不會自動同步到 Railway，這是兩個獨立設定；沒加的話 `verify_liff_id_token` 會一律驗證失敗，所有 `/api/liff/*` 都回 401）。
+1. **Railway 環境變數加 `LIFF_CHANNEL_ID=2011870208`**（本機 `.env` 不會自動同步到 Railway，這是兩個獨立設定；沒加的話 `verify_liff_id_token` 會一律驗證失敗，所有 `/api/liff/*` 都回 401）。
 2. 確認 LINE Developers Console 裡三個 LIFF App 的 Endpoint URL 對應正確（尤其「寫作」那個中途調整過 ID，容易對錯）。
 4. 題庫目前只有 20 題種子資料，「依年度」篩選還沒做（缺年度/級別 metadata），之後題庫擴充時要在 `data/exam_questions.json` 補齊相關欄位再回來接這段邏輯。
 
@@ -138,7 +138,7 @@
 **還沒測、也測不了的部分（需要你之後在真機／瀏覽器上驗證）：**
 1. **實際的 WebRTC 語音對話**——這個環境沒有瀏覽器跟麥克風，沒辦法測試真人講話、AI 語音回覆、即時字幕这整條路徑。
 2. **Realtime API 事件名稱**：`liff_speaking.html` 裡監聽的事件類型（如 `conversation.item.input_audio_transcription.completed`、`response.audio_transcript.delta/.done`）是依我目前所知的 Realtime API 事件命名寫的，但這個 API 版本更新較快，實際名稱可能有出入。程式碼裡已經把所有收到的事件都 `console.log` 出來，第一次真機測試時請打開瀏覽器 DevTools 的 Console，把實際看到的事件名稱回報給我，我再對照調整。
-3. `LIFF_ID`（`2011558628-VDHP3SsC`）已填好，`LIFF_CHANNEL_ID` 已寫入本機 `.env`——**但 Railway 後台的環境變數、Rich Menu 入口都還沒接**，見上方「考題 LIFF」小節的統整表格。
+3. `LIFF_ID`（`2011870208-KNn6vb4B`）已填好，`LIFF_CHANNEL_ID` 已寫入本機 `.env`——**但 Railway 後台的環境變數、Rich Menu 入口都還沒接**，見上方「考題 LIFF」小節的統整表格。
 4. 麥克風權限：LINE 內建瀏覽器（LIFF 執行環境）能不能正常跳出麥克風授權、iOS/Android 行為是否一致，也需要真機測過才能確定。
 
 #### 寫作 LIFF：目前進度
@@ -172,7 +172,7 @@
   不是字串（因為 prompt 要求「條列」，模型直接回傳 JSON 陣列），原本會讓 `.strip()` 噴例外——已
   修成用 `_as_text()` 統一轉字串處理，並在 prompt 裡加強講清楚要單一字串。
 - **沒測、要真機驗證**：疊層編輯器在 LINE 內建瀏覽器（尤其 iOS）的實際對齊效果、手機輸入法
-  （注音/拼音組字中）搭配 debounce 會不會誤觸發標註。`LIFF_ID`（`2011558628-VKytwC2e`）已填好，
+  （注音/拼音組字中）搭配 debounce 會不會誤觸發標註。`LIFF_ID`（`2011870208-i3BoQwad`）已填好，
   其餘 Railway 環境變數／Rich Menu 入口見上方「考題 LIFF」小節的統整表格。
 
 #### 現況盤點：業務邏輯與 LINE 傳訊耦合程度

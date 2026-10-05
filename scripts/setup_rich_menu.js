@@ -14,9 +14,9 @@ const client = new line.Client(config);
 
 // LIFF App ID（LINE Developers Console → LIFF 分頁，2026-09-11 建立）
 const LIFF_IDS = {
-    quiz: '2011558628-8li3MSJw',      // 國考題庫 → /liff/quiz
-    speaking: '2011558628-VDHP3SsC',  // 口說教練 → /liff/speaking
-    writing: '2011558628-VKytwC2e',   // 寫作教練 → /liff/writing
+    quiz: '2011870208-ET66KFq7',      // 國考題庫 → /liff/quiz
+    speaking: '2011870208-KNn6vb4B',  // 口說教練 → /liff/speaking
+    writing: '2011870208-i3BoQwad',   // 寫作教練 → /liff/writing
 };
 
 async function setupRichMenu() {
