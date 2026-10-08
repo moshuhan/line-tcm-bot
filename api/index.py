@@ -12,6 +12,11 @@ import tempfile
 import traceback
 from datetime import date, datetime, timezone
 
+# 本機開發用：讀取 .env 檔案載入環境變數。正式環境（Railway）由平台直接注入環境變數，
+# 沒有 .env 檔案，load_dotenv() 在那裡只是安全的 no-op，不影響正式站。
+from dotenv import load_dotenv
+load_dotenv()
+
 # Startup ENV check (names only, no values) for Railway
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
 print("ENV CHECK: REDIS_URL exists:", bool(REDIS_URL))

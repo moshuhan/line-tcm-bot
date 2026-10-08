@@ -386,7 +386,7 @@ async function startConversation(scenarioKey, caseId) {
   }
 
   try {
-    await connectRealtime(sessionRes.client_secret, sessionRes.model, sessionRes.opening_hint);
+    await connectRealtime(sessionRes.client_secret, sessionRes.model, sessionRes.opening_hint, scenarioKey);
     document.getElementById("mic-status").textContent = "已連線，對方會先開口，請直接聆聽或按麥克風接著說";
   } catch (e) {
     console.error("[speaking] connectRealtime failed", e);
@@ -407,7 +407,34 @@ function stopDialogueTimer() {
   if (dialogueTimerHandle) { clearInterval(dialogueTimerHandle); dialogueTimerHandle = null; }
 }
 
-async function connectRealtime(ephemeralKey, model, openingHint) {
+// 組出「開場強制指令」：之前這裡只寫「if it fits naturally, you can steer toward」，
+// 措辭太軟——在完全沒有對話歷史、模型要自己決定「怎麼開場比較自然」的情況下，
+// 它會傾向選訓練資料裡最常見的萬用開場白（"It sounds like you have something on
+// your mind..."），而不是真的講出該講的主訴/討論問題，等於角色設定在第一句話
+// 就直接被蓋掉。改成強制指令，並且明確點名禁止那種通用助理/諮商師式開場句型。
+function _openingInstructions(scenarioKey, openingHint) {
+  const base = "Begin the conversation now. Speak first, in character.";
+  const forbidden = "You must NOT open with a generic therapist-style or assistant-style "
+    + "greeting such as \"It sounds like you have something on your mind\" or \"How can I "
+    + "help you today?\" — stay fully in character instead.";
+  const lang = "Respond only in English — never Chinese, Russian, or any other language.";
+
+  if (scenarioKey === "clinical" && openingHint) {
+    return `${base}\nYour very first sentence MUST clearly state, in your own words, the `
+      + `following: "${openingHint}". This is not optional — do not skip it, soften it into `
+      + `a vague greeting, or replace it with a question back to the student. State your `
+      + `actual complaint first, in your own personality and speech style, then stop and `
+      + `wait for the student to respond.\n${forbidden}\n${lang}`;
+  }
+  if (scenarioKey === "academic" && openingHint) {
+    return `${base}\nYour very first thing you say MUST be a brief greeting followed by this `
+      + `opening discussion question, in your own words: "${openingHint}". Do not skip the `
+      + `question or replace it with small talk only.\n${forbidden}\n${lang}`;
+  }
+  return `${base}${openingHint ? (" " + openingHint) : ""}\n${forbidden}\n${lang}`;
+}
+
+async function connectRealtime(ephemeralKey, model, openingHint, scenarioKey) {
   pc = new RTCPeerConnection();
   pc.ontrack = (e) => { document.getElementById("remote-audio").srcObject = e.streams[0]; };
 
@@ -425,10 +452,7 @@ async function connectRealtime(ephemeralKey, model, openingHint) {
     try {
       dc.send(JSON.stringify({
         type: "response.create",
-        response: {
-          instructions: "Begin the conversation now. Speak first, in character, exactly as your role instructions describe. Respond only in English — never Chinese, Russian, or any other language."
-            + (openingHint ? (" If it fits naturally, you can steer toward: " + openingHint) : ""),
-        },
+        response: { instructions: _openingInstructions(scenarioKey, openingHint) },
       }));
     } catch (e) { console.error("[speaking] failed to trigger opening response", e); }
   });

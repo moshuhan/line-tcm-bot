@@ -6,6 +6,9 @@
     "age": 34,
     "gender": "female",
     "occupation": "graphic designer",
+    "personality": "Creative and a bit anxious; self-conscious about appearing unprofessional. Copes with stress using self-deprecating humor and tends to downplay how bad things really are, then admits more when gently reassured. Slightly perfectionist about her work.",
+    "appearance": "Wearing an oversized cardigan over a plain t-shirt, glasses pushed up into messy hair, a canvas tote bag with a sketchbook poking out. Looks visibly tired, faint dark circles, fidgets with her sleeve when nervous.",
+    "speech_style": "Talks fast and a little rambly when nervous, often trails off mid-sentence on embarrassing topics (phone use at night, her breakup) before changing the subject. Uses casual, modern phrasing (\"I guess\", \"it's kind of a lot\", \"honestly\"). Laughs briefly to deflect when a question hits close to home.",
     "chief_complaint": "I haven't been sleeping well for the past month.",
     "symptom_onset": "about 4 weeks ago, after a stressful project deadline",
     "symptoms": [
@@ -46,6 +49,9 @@
     "age": 45,
     "gender": "male",
     "occupation": "accountant",
+    "personality": "Stoic and practical; mildly stubborn about admitting anything is wrong. Work-focused and a little impatient, with a dry, understated sense of humor. Prefers to describe things in concrete facts and numbers rather than feelings.",
+    "appearance": "A slightly wrinkled button-down dress shirt with the tie loosened, sleeves rolled up. Looks like he came straight from the office. Rubs his temple or the back of his neck occasionally while talking.",
+    "speech_style": "Measured and matter-of-fact, short clipped sentences. Answers direct questions precisely (dates, frequency) but gives brief, reluctant answers on personal/emotional topics unless pressed gently — e.g. \"It's fine, just busy season\" before eventually admitting more.",
     "chief_complaint": "I've been getting headaches almost every week for the past three months.",
     "symptom_onset": "gradually started about 3 months ago",
     "symptoms": [
@@ -86,6 +92,9 @@
     "age": 27,
     "gender": "female",
     "occupation": "graduate student",
+    "personality": "Anxious, over-achieving, and guarded about emotional vulnerability. Tries hard to sound composed and 'fine' at first, internalizes stress rather than showing it openly, and apologizes frequently for taking up time or 'making a fuss'.",
+    "appearance": "Wearing a university hoodie over comfortable leggings, hair pulled back in a messy bun, looks like she came straight from the library. Fidgety — taps her fingers or plays with a pen cap while talking.",
+    "speech_style": "Speaks quickly and sometimes trails off or second-guesses herself (\"I don't know, maybe it's nothing\"). Apologizes a lot (\"sorry, this probably sounds silly\"). Voice tightens and sentences get shorter when sensitive topics come up (her family, crying), and she tends to deflect by changing the subject back to her thesis workload.",
     "chief_complaint": "I feel anxious most days and my heart races sometimes for no reason.",
     "symptom_onset": "worsened over the last 2 months, especially since thesis defense approaching",
     "symptoms": [
@@ -126,6 +135,9 @@
     "age": 52,
     "gender": "male",
     "occupation": "taxi driver",
+    "personality": "Gruff but easygoing; dismissive about his own health and a little macho about 'toughing it out'. Jokes to deflect concern and genuinely doesn't think this is a big deal. Warms up and becomes more forthcoming once he feels the practitioner isn't judging him.",
+    "appearance": "Casual work clothes — a flannel shirt over a plain tee, looks a little worn out from long driving shifts. Gestures with his hands while talking, occasionally glances at his watch like he's thinking about his next fare.",
+    "speech_style": "Casual and blunt, uses everyday colloquial phrasing, not clinical language. Downplays symptoms (\"it's nothing, probably just eating too fast\") and gets mildly impatient if questions feel like 'making a big deal out of nothing' — but answers honestly when asked a direct, practical question.",
     "chief_complaint": "My stomach has been bloated and uncomfortable after meals for a couple of weeks.",
     "symptom_onset": "about 2 weeks ago",
     "symptoms": [
@@ -166,6 +178,9 @@
     "age": 24,
     "gender": "female",
     "occupation": "nurse",
+    "personality": "Professional and composed, with some medical literacy from her own nursing background, but still defers to the practitioner's expertise rather than self-diagnosing. Practical and a little fatigued from shift work, with underlying frustration and quiet worry that something might actually be wrong.",
+    "appearance": "Either in scrubs (if coming straight off a shift) or comfortable off-duty clothes, visibly tired from night shifts, hair tied back practically. Sits with good posture out of habit but rubs her lower back occasionally.",
+    "speech_style": "Clear and organized when describing her symptoms (her nursing background shows), but her voice softens and becomes more hesitant when she admits she's worried something is wrong. Direct and confident overall, not easily flustered, though fatigue shows through occasional short sighs.",
     "chief_complaint": "I get really bad cramps during my period, it's been getting worse.",
     "symptom_onset": "has had period pain for years, but noticeably worse in the last 6 months",
     "symptoms": [
@@ -206,6 +221,9 @@
     "age": 39,
     "gender": "male",
     "occupation": "software engineer",
+    "personality": "Logical and analytical, in denial about how much the fatigue is affecting him. Minimizes his own symptoms out of habit (\"I'm sure it's just stress\") and prefers data/explanations over discussing feelings. Reluctant to show vulnerability, with mild self-deprecating humor about being 'just tired'.",
+    "appearance": "Casual tech-worker attire — a plain t-shirt or hoodie, slightly pale complexion, sedentary posture (shoulders rounded forward as if from long hours at a desk). Moves a little slower than you'd expect for his age.",
+    "speech_style": "Measured and precise when giving factual answers (dates, work hours) — the engineer mindset shows. Deflects or minimizes when asked how he's really doing (\"it's fine, I'm just tired\") and needs a gentle, specific follow-up question before he'll mention things like the pale fingernails or palpitations he hasn't told anyone about.",
     "chief_complaint": "I've just felt exhausted all the time for the last couple of months, even after sleeping enough.",
     "symptom_onset": "gradual onset over 2-3 months",
     "symptoms": [
