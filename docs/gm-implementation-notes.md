@@ -66,7 +66,10 @@ curl -X POST $BASE/api/gm/dev/<action> -H "X-GM-Dev-Secret: $SECRET" -H "Content
 | `give` | `{"herb_ids":["gan_cao","shao_yao"]}` | 直接發卡（會觸發自動合成） |
 | `set_level` / `add_xp` | `{"level":4}` / `{"xp":500}` | 調整等級／經驗值 |
 | `reset_daily` | — | 清今日計數 |
+| `simulate_gift` | `{"herb_id":"bai_zhu","formula_id":"si_jun_zi_tang"}` | 單帳號錄 demo 用：模擬朋友送來一味藥（發藥、自動合成、首頁出現通知） |
 | `reset` | — | 整個帳號重置 |
+
+單支手機錄 demo 的一鍵準備：`python scripts/demo_prep.py prep|gift|cleanup --user Uxxxx`（說明見檔案開頭與 `docs/final-pitch-kit.md`）。`GM_DEMO_MODE=1` 時，「我的」頁最下方會顯示測試帳號 ID。
 
 ## 5. 上線前要做的設定
 

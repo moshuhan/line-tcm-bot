@@ -467,3 +467,13 @@ def test_share_cards_progress_and_season():
     req = {"id": "abc", "herb_id": "bai_zhu", "formula_id": "si_jun_zi_tang"}
     alt, b = S.build_request_flex(req, "https://x.test", "https://liff.line.me/1")
     assert "白朮" in alt and "page=gift&req=abc" in str(b) and "非處方" in str(b)
+
+
+def test_dev_simulate_gift_for_single_account_demo():
+    svc = make_service()
+    now = at(2026, 10, 13)
+    _setup_only_one_missing(svc, "demo", now)
+    r = svc.dev("demo", "simulate_gift", {"herb_id": "bai_zhu", "formula_id": "si_jun_zi_tang"}, now=now)
+    assert r["formulas_unlocked"] == 1
+    n = r["notices"][0]
+    assert n["type"] == "gift" and n["herb_name"] == "白朮" and n["unlocked"] == ["si_jun_zi_tang"]

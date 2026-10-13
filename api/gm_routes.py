@@ -148,7 +148,10 @@ def register(app, get_user_id, db):
         uid, err = _auth()
         if err:
             return err
-        return jsonify(service.me(uid))
+        me = service.me(uid)
+        if (os.getenv("GM_DEMO_MODE") or "").strip() == "1":
+            me["debug_user_id"] = uid          # 只有開了 GM_DEMO_MODE 才回傳，給 scripts/demo_prep.py 用
+        return jsonify(me)
 
     @bp.route("/api/liff/gm/codex", methods=["GET"])
     def gm_codex():

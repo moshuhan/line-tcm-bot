@@ -657,7 +657,8 @@ async function renderMe(){
     <div class="card stack" style="margin-top:14px"><h3 style="margin:0">Pro 方案</h3>
       <p class="muted" style="margin:0">・節氣關卡 24 關隨時開放、每天不限關數<br>・完整茶飲食譜與做法<br>・口說、寫作不限次數練習<br>・小銅人季節限定造型</p>
       <p class="tiny" style="margin:0">藥材與食材永遠不能用錢買，卡片都要自己玩出來。Pro 方案即將開放。</p></div>
-    ${Object.keys(me.dev || {}).length ? `<p class="tiny" style="margin-top:12px">開發開關：${esc(JSON.stringify(me.dev))}</p>` : ""}`;
+    ${Object.keys(me.dev || {}).length ? `<p class="tiny" style="margin-top:12px">開發開關：${esc(JSON.stringify(me.dev))}</p>` : ""}
+    ${me.debug_user_id ? `<p class="tiny" style="margin-top:12px;word-break:break-all;user-select:all">測試帳號 ID：${esc(me.debug_user_id)}</p>` : ""}`;
   $("#shareProgress").onclick = () => shareCard("progress_card", "");
 }
 
