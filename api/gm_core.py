@@ -668,6 +668,18 @@ def dev_apply(doc, action, params, now=None):
         add_xp(doc, 0)
     elif action == "add_xp":
         add_xp(doc, int(params.get("xp", 0)))
+    elif action == "simulate_gift":
+        # 單帳號錄 demo 用：模擬朋友把藥送過來（正式流程是 GmService.request_fulfill，這裡只是跳過另一位使用者）
+        hid = params.get("herb_id") or "bai_zhu"
+        if hid not in C.herbs():
+            raise GmError("bad_herb", "unknown herb")
+        roll_daily(doc, str(C.today_taipei(now)))
+        grant_herb(doc, hid, "gift", now)
+        new_f, _ = check_synthesis(doc, now)
+        doc.setdefault("notices", []).append({
+            "id": "demo-" + secrets.token_urlsafe(4), "type": "gift", "herb_id": hid,
+            "herb_name": C.herbs()[hid]["name_zh"], "formula_id": params.get("formula_id"),
+            "unlocked": new_f, "at": _iso(now), "seen": False})
     elif action == "reset_daily":
         doc["counters"] = new_doc(doc["user_id"])["counters"]
         doc["last_practice_date"] = None
