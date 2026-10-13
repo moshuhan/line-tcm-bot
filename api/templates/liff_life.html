@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>岐黃 · 節氣闖關</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F7F0E1; --paper2:#EFE5CC; --card:#FFFDF7; --ink:#2A2118; --ink2:#6B5E4B; --mute:#9A8D78;
+    --gold:#B8860B; --gold2:#D9A92C; --goldsoft:#F1DFA6; --jade:#1F6F54; --jadesoft:#D6EBDD;
+    --cinnabar:#B23A2E; --cinsoft:#F6DCD6; --line:#E2D6B8;
+    --spring:#4F9A6B; --summer:#D9862B; --autumn:#B5562F; --winter:#4A6FA5;
+    --radius:16px; --shadow:0 2px 10px rgba(80,55,15,.10);
+    --serif:'Noto Serif TC','Songti TC',serif; --sans:'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
+  body{min-height:100dvh}
+  button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+  .app{max-width:480px;margin:0 auto;min-height:100dvh;position:relative;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+  header.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
+    padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(247,240,225,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:8px;font-family:var(--serif);font-weight:900;font-size:17px;letter-spacing:.06em;white-space:nowrap;min-width:0}
+  .brand i{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--goldsoft);font-style:normal;font-size:14px}
+  .chips{display:flex;gap:6px;flex:none}
+  .chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:99px;background:var(--card);border:1px solid var(--line);font-size:12.5px;font-weight:700;white-space:nowrap;flex:none}
+  .chip.fire{color:var(--cinnabar)} .chip.lvl{color:var(--gold)}
+  .view{display:none;padding:16px;animation:fade .25s ease}
+  .view.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  h2{font-family:var(--serif);font-size:20px;margin:4px 0 12px;letter-spacing:.04em}
+  h3{font-family:var(--serif);font-size:16px;margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+  .muted{color:var(--ink2);font-size:13px;line-height:1.7}
+  .tiny{font-size:11.5px;color:var(--mute);line-height:1.6}
+  .row{display:flex;align-items:center;gap:10px}
+  .spread{justify-content:space-between}
+  .stack>*+*{margin-top:12px}
+
+  /* hero */
+  .hero{display:flex;align-items:flex-end;gap:6px;overflow:hidden;background:linear-gradient(135deg,#FFF6D8 0%,#F5E4AE 100%);position:relative}
+  .hero .mascot{width:112px;height:auto;margin:-6px 0 -16px -4px;filter:drop-shadow(0 6px 8px rgba(120,80,0,.25))}
+  .hero .txt{flex:1;padding-bottom:4px}
+  .hero h1{font-family:var(--serif);margin:0 0 4px;font-size:21px;line-height:1.35}
+  .bar{height:9px;border-radius:9px;background:rgba(0,0,0,.08);overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold));border-radius:9px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:13px 20px;border-radius:14px;font-weight:700;font-size:15.5px;letter-spacing:.04em}
+  .btn.primary{background:var(--jade);color:#fff;box-shadow:0 4px 0 #14503C}
+  .btn.primary:active{transform:translateY(3px);box-shadow:0 1px 0 #14503C}
+  .btn.gold{background:var(--gold2);color:#2A1D00;box-shadow:0 4px 0 #9B7414}
+  .btn.gold:active{transform:translateY(3px);box-shadow:0 1px 0 #9B7414}
+  .btn.ghost{background:var(--card);border:1.5px solid var(--line)}
+  .btn.block{display:flex;width:100%}
+  .btn[disabled]{opacity:.45;pointer-events:none}
+  .term{display:flex;align-items:center;gap:14px}
+  .term .big{font-family:var(--serif);font-size:34px;font-weight:900;line-height:1;letter-spacing:.06em}
+  .seal{display:grid;place-items:center;width:54px;height:54px;border-radius:12px;background:var(--cinnabar);color:#FFE9E4;font-family:var(--serif);font-weight:900;font-size:22px;transform:rotate(-4deg);box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center}
+  .stat b{display:block;font-family:var(--serif);font-size:20px}
+  .stat span{font-size:11.5px;color:var(--ink2)}
+
+  /* map */
+  .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .tab{padding:10px 0;border-radius:12px;background:var(--card);border:1.5px solid var(--line);font-family:var(--serif);font-weight:700;font-size:15px;position:relative}
+  .tab small{display:block;font-family:var(--sans);font-weight:500;font-size:10.5px;color:var(--mute)}
+  .tab.on{color:#fff;border-color:transparent}
+  .tab.on small{color:rgba(255,255,255,.85)}
+  .tab[data-s=spring].on{background:var(--spring)} .tab[data-s=summer].on{background:var(--summer)}
+  .tab[data-s=autumn].on{background:var(--autumn)} .tab[data-s=winter].on{background:var(--winter)}
+  .path{position:relative;padding-left:0}
+  .lv{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:13px 14px;margin-bottom:10px;border-radius:16px;background:var(--card);border:1.5px solid var(--line);box-shadow:var(--shadow);position:relative}
+  .lv:active{transform:scale(.99)}
+  .lv .no{flex:none;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:var(--serif);font-weight:900;font-size:17px;background:var(--paper2);color:var(--ink2)}
+  .lv.open .no{background:var(--jade);color:#fff;box-shadow:0 0 0 4px var(--jadesoft)}
+  .lv.done .no{background:var(--gold2);color:#2A1D00}
+  .lv.locked{opacity:.55;background:var(--paper2)}
+  .lv.boss{border-color:var(--gold2);background:linear-gradient(135deg,#FFF9E6,#FBEAB5)}
+  .lv .nm{font-family:var(--serif);font-size:19px;font-weight:700;letter-spacing:.06em}
+  .lv .sub{font-size:12px;color:var(--ink2);margin-top:2px}
+  .lv .end{margin-left:auto;font-size:12px;font-weight:700;text-align:right}
+  .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;margin-left:6px;vertical-align:2px}
+  .tag.cur{background:var(--cinnabar);color:#fff} .tag.boss{background:var(--ink);color:var(--goldsoft)}
+  .notice{background:var(--goldsoft);border-radius:14px;padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:12px}
+
+  /* quiz */
+  .qhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .dots{display:flex;gap:6px;flex:1}
+  .dots i{flex:1;height:7px;border-radius:7px;background:var(--line)}
+  .dots i.on{background:var(--jade)} .dots i.bad{background:var(--cinnabar)} .dots i.cur{background:var(--gold2)}
+  .x{width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--line);font-size:17px}
+  .qtype{font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.1em;margin-bottom:6px}
+  .qtext{font-family:var(--serif);font-size:19px;line-height:1.65;font-weight:700;margin-bottom:14px}
+  .qimg{display:block;width:44%;max-width:170px;margin:0 auto 14px;border-radius:14px;border:1px solid var(--line);aspect-ratio:2/3;object-fit:cover;background:var(--paper2)}
+  .opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;margin-bottom:10px;border-radius:14px;background:var(--card);border:1.5px solid var(--line);font-size:15.5px;line-height:1.5;transition:.15s}
+  .opt:active{transform:scale(.99)}
+  .opt .k{flex:none;width:28px;height:28px;border-radius:8px;background:var(--paper2);display:grid;place-items:center;font-weight:700;font-size:13px}
+  .opt.right{background:var(--jadesoft);border-color:var(--jade)} .opt.right .k{background:var(--jade);color:#fff}
+  .opt.wrong{background:var(--cinsoft);border-color:var(--cinnabar)} .opt.wrong .k{background:var(--cinnabar);color:#fff}
+  .opt.dim{opacity:.5}
+  .zones{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .zone{min-height:150px;border-radius:16px;padding:10px;border:2px dashed var(--line);background:var(--card)}
+  .zone.cold{background:#EAF3FA;border-color:#9DBFD8} .zone.hot{background:#FCEBE0;border-color:#E2A883}
+  .zone h4{margin:0 0 8px;font-family:var(--serif);font-size:15px;text-align:center}
+  .zone.cold h4{color:#2F6C99} .zone.hot h4{color:#B5562F}
+  .pool{display:flex;flex-wrap:wrap;gap:8px;min-height:48px;margin-bottom:14px;padding:10px;border-radius:14px;background:var(--paper2)}
+  .itm{padding:9px 14px;border-radius:99px;background:var(--card);border:1.5px solid var(--line);font-weight:700;font-size:15px;box-shadow:var(--shadow)}
+  .itm.sel{border-color:var(--gold2);background:var(--goldsoft);transform:scale(1.06)}
+  .zone .itm{display:block;margin-bottom:6px;text-align:center}
+  .itm.ok{background:var(--jadesoft);border-color:var(--jade)} .itm.no{background:var(--cinsoft);border-color:var(--cinnabar)}
+  .hint{font-size:12.5px;color:var(--ink2);text-align:center;margin:-4px 0 10px}
+  .fb{margin-top:14px;display:flex;gap:12px;align-items:flex-start;border-radius:18px;padding:14px;animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
+  .fb.good{background:var(--jadesoft);border:1.5px solid var(--jade)} .fb.bad{background:var(--cinsoft);border:1.5px solid var(--cinnabar)}
+  .fb img{width:64px;flex:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.2))}
+  .fb b{font-family:var(--serif);font-size:16px} .fb p{margin:6px 0 0;font-size:14px;line-height:1.75}
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+
+  /* result */
+  .res{text-align:center}
+  .res .mascot{width:150px;margin:0 auto -8px;display:block;filter:drop-shadow(0 8px 10px rgba(120,80,0,.28));animation:bob 2.4s ease-in-out infinite}
+  @keyframes bob{50%{transform:translateY(-7px)}}
+  .res h2{font-size:26px;margin:8px 0 2px}
+  .xpline{margin:14px 0 4px;text-align:left}
+  .lvup{display:none;margin:10px 0;padding:10px;border-radius:14px;background:var(--cinnabar);color:#FFE9E4;font-family:var(--serif);font-weight:900;letter-spacing:.08em;animation:pop .5s}
+  .lvup.on{display:block}
+  .cards{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin:14px 0}
+  .flip{width:96px;height:140px;perspective:700px}
+  .flip>div{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.3,1.3,.5,1);transform:rotateY(180deg)}
+  .flip.up>div{transform:rotateY(0)}
+  .face{position:absolute;inset:0;backface-visibility:hidden;border-radius:14px;overflow:hidden;border:2px solid var(--gold2);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;box-shadow:0 6px 14px rgba(120,80,0,.22)}
+  .face.back{transform:rotateY(180deg);background:repeating-linear-gradient(45deg,#8A6414 0 6px,#A3791C 6px 12px);color:var(--goldsoft);font-family:var(--serif);font-size:30px;font-weight:900}
+  .face .pic{width:100%;flex:1;min-height:0;object-fit:cover;border-radius:8px}
+  .face .em{font-size:44px;flex:1;display:grid;place-items:center}
+  .face b{font-size:13.5px;margin-top:4px;font-family:var(--serif)}
+  .face .new{position:absolute;top:5px;right:5px;background:var(--cinnabar);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px}
+  .face .q{position:absolute;top:5px;left:5px;background:var(--ink);color:var(--goldsoft);font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px}
+  .synth{margin:14px 0;padding:18px 14px;border-radius:20px;background:radial-gradient(circle at 50% 0%,#FFF3C4,#F5D77A);border:2px solid var(--gold2);animation:pop .6s cubic-bezier(.2,1.4,.4,1)}
+  .synth .sparkle{font-size:26px;letter-spacing:6px}
+  .synth h3{font-size:22px;margin:6px 0}
+  .banner{margin:10px 0;padding:12px;border-radius:14px;background:var(--ink);color:var(--goldsoft);font-family:var(--serif);font-weight:700;letter-spacing:.06em}
+  .why{margin:10px 0;padding:10px 12px;border-radius:12px;background:var(--paper2);font-size:13px;color:var(--ink2);text-align:left}
+
+  /* codex */
+  .seg{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto}
+  .seg button{flex:none;padding:8px 14px;border-radius:99px;background:var(--card);border:1.5px solid var(--line);font-weight:700;font-size:13.5px}
+  .seg button.on{background:var(--ink);color:var(--goldsoft);border-color:var(--ink)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .hc{position:relative;border-radius:14px;overflow:hidden;background:var(--card);border:1.5px solid var(--line);text-align:center;box-shadow:var(--shadow);padding:0 0 8px}
+  .hc .pic{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--paper2)}
+  .hc .em{aspect-ratio:2/3;display:grid;place-items:center;font-size:46px;background:linear-gradient(160deg,#FFF6D8,#F1DFA6)}
+  .hc b{display:block;font-family:var(--serif);font-size:13.5px;margin-top:6px;padding:0 4px}
+  .hc.off .pic,.hc.off .em{filter:grayscale(1) brightness(.75) contrast(.9);opacity:.55}
+  .hc.off b{color:var(--mute)}
+  .hc .qty{position:absolute;top:6px;right:6px;background:var(--ink);color:var(--goldsoft);font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px}
+  .hc .lock{position:absolute;left:0;right:0;top:34%;font-size:11.5px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+  .fm{padding:14px;margin-bottom:10px;border-radius:16px;background:var(--card);border:1.5px solid var(--line);box-shadow:var(--shadow);width:100%;text-align:left;display:block}
+  .fm.done{border-color:var(--gold2);background:linear-gradient(135deg,#FFFBEA,#FBF0C8)}
+  .fm .nm{font-family:var(--serif);font-size:17.5px;font-weight:700}
+  .comps{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
+  .cp{padding:3px 10px;border-radius:99px;font-size:12.5px;font-weight:700;background:var(--paper2);color:var(--mute);border:1px solid var(--line)}
+  .cp.have{background:var(--jadesoft);color:var(--jade);border-color:var(--jade)}
+  .pbar{height:6px;border-radius:6px;background:var(--paper2);overflow:hidden}.pbar>i{display:block;height:100%;background:var(--jade)}
+  .disc{margin:14px 2px;font-size:11.5px;color:var(--mute);line-height:1.7}
+
+  /* modal */
+  .sheet{position:fixed;inset:0;z-index:60;display:none;background:rgba(30,20,5,.55);align-items:flex-end;justify-content:center}
+  .sheet.on{display:flex}
+  .sheet .in{width:100%;max-width:480px;max-height:88dvh;overflow:auto;background:var(--paper);border-radius:24px 24px 0 0;padding:18px 18px calc(24px + env(safe-area-inset-bottom));animation:up .28s ease}
+  @keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+  .sheet .grab{width:44px;height:5px;border-radius:5px;background:var(--line);margin:0 auto 14px}
+  .dl{display:grid;grid-template-columns:78px 1fr;gap:8px 10px;font-size:14px;margin:10px 0}
+  .dl dt{color:var(--mute);font-weight:700} .dl dd{margin:0}
+  .role{display:flex;gap:10px;margin:8px 0;padding:10px;border-radius:12px;background:var(--card);border:1px solid var(--line)}
+  .role .r{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--goldsoft);display:grid;place-items:center;font-family:var(--serif);font-weight:900;font-size:14px}
+  .warn{padding:10px 12px;border-radius:12px;background:var(--cinsoft);color:var(--cinnabar);font-size:13px;font-weight:700;margin:8px 0}
+  .locked-box{padding:14px;border-radius:14px;background:var(--paper2);border:1.5px dashed var(--gold2);text-align:center;font-size:13.5px}
+
+  /* nav */
+  nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;background:rgba(255,253,247,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+  nav.bottom .in{display:grid;grid-template-columns:repeat(4,1fr);width:100%;max-width:480px}
+  nav.bottom button{padding:9px 0 8px;font-size:11.5px;font-weight:700;color:var(--mute);display:flex;flex-direction:column;align-items:center;gap:2px}
+  nav.bottom button span{font-size:21px;line-height:1}
+  nav.bottom button.on{color:var(--jade)}
+  body.focus nav.bottom{display:none}
+  body.focus .app{padding-bottom:24px}
+  .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:99px;font-size:13.5px;opacity:0;pointer-events:none;transition:.25s;z-index:80;max-width:88%;text-align:center}
+  .toast.on{opacity:1;transform:translateX(-50%)}
+  .loading{position:fixed;inset:0;z-index:70;display:none;place-items:center;background:rgba(247,240,225,.8)}
+  .loading.on{display:grid}
+  .loading img{width:110px;animation:bob 1.4s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top" id="topbar">
+    <div class="brand"><i>醫</i>岐黃 · 節氣闖關</div>
+    <div class="chips"><span class="chip fire" id="chipStreak">🔥 0</span><span class="chip lvl" id="chipLv">Lv1</span></div>
+  </header>
+
+  <!-- HOME -->
+  <section class="view" id="v-home"></section>
+  <!-- MAP -->
+  <section class="view" id="v-map"></section>
+  <!-- QUIZ -->
+  <section class="view" id="v-quiz"></section>
+  <!-- RESULT -->
+  <section class="view" id="v-result"></section>
+  <!-- CODEX -->
+  <section class="view" id="v-codex"></section>
+  <!-- ME -->
+  <section class="view" id="v-me"></section>
+</div>
+
+<nav class="bottom"><div class="in">
+  <button data-go="home"><span>🏮</span>首頁</button>
+  <button data-go="map"><span>🗺️</span>闖關</button>
+  <button data-go="codex"><span>📖</span>圖鑑</button>
+  <button data-go="me"><span>🧧</span>我的</button>
+</div></nav>
+
+<div class="sheet" id="sheet"><div class="in"><div class="grab"></div><div id="sheetBody"></div></div></div>
+<div class="loading" id="loading"><img id="loadingImg" alt=""></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------------------------------------------------------------- 設定
+const LIFF_ID = (function(){ const v = "__LIFE_LIFF_ID__"; return v.indexOf("__") === 0 ? "2011870208-kD6N9oKn" : v; })();
+const Q = new URLSearchParams(location.search);
+// 本機預覽：網址加 ?debug=1 跳過 LINE 登入（需後端設定 LIFF_DEBUG_TOKEN，正式站不會設）
+const DEBUG_MODE = Q.get("debug") === "1";
+const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
+const MASCOT_OUTFIT = "";   // 之後換裝：assets/mascot/{outfit}/{state}.webp
+const SEASON = { spring:{n:"春",c:"var(--spring)"}, summer:{n:"夏",c:"var(--summer)"}, autumn:{n:"秋",c:"var(--autumn)"}, winter:{n:"冬",c:"var(--winter)"} };
+const SEASON_ORDER = ["spring","summer","autumn","winter"];
+const TYPE_LABEL = { trivia_choice:"節氣冷知識", myth_true_false:"迷思真假", identify_image:"看圖認食材", hot_cold_sort:"寒熱分類" };
+const ROLE_LABEL = { jun:"君", chen:"臣", zuo:"佐", shi:"使" };
+const ROLE_NAME = { jun:"君藥", chen:"臣藥", zuo:"佐藥", shi:"使藥" };
+
+let idToken = null;
+const S = { me:null, map:null, codex:null, quiz:null, codexTab:"herb", track:null, season:null, view:"home" };
+
+// ---------------------------------------------------------------- 小工具
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+const mascotUrl = st => `/assets/mascot/${MASCOT_OUTFIT ? MASCOT_OUTFIT + "/" : ""}${st}.webp`;
+const imgUrl = p => p ? `/assets/${p}` : "";
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove("on"), 2400); }
+function loading(on){ $("#loadingImg").src = mascotUrl("thinking"); $("#loading").classList.toggle("on", !!on); }
+function vib(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
+function pic(item, cls="pic"){ // 有圖用圖，沒有就用 emoji 底卡
+  const em = esc(item.emoji || "🌿");
+  if(!item.image) return `<div class="em">${em}</div>`;
+  return `<img class="${cls}" src="${imgUrl(item.image)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;em&quot;>${em}</div>'">`;
+}
+
+async function api(path, opts={}){
+  const headers = { "Content-Type":"application/json" };
+  if(idToken) headers["Authorization"] = "Bearer " + idToken;
+  let res;
+  try { res = await fetch(path, { method: opts.method || "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined }); }
+  catch(e){ toast("網路不穩，請再試一次"); throw e; }
+  let data = {};
+  try { data = await res.json(); } catch(e){}
+  if(!res.ok){ const err = new Error(data.error || "發生錯誤"); err.status = res.status; err.code = data.code; throw err; }
+  return data;
+}
+const get = p => api(p);
+const post = (p, b) => api(p, { method:"POST", body:b });
+
+// ---------------------------------------------------------------- 導覽
+function go(view, opts={}){
+  S.view = view;
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + view));
+  document.querySelectorAll("nav.bottom button").forEach(b => b.classList.toggle("on", b.dataset.go === view));
+  document.body.classList.toggle("focus", view === "quiz");
+  $("#topbar").style.display = view === "quiz" ? "none" : "flex";
+  window.scrollTo(0, 0);
+  if(view === "home") renderHome();
+  else if(view === "map") loadMap();
+  else if(view === "codex") loadCodex(opts);
+  else if(view === "me") renderMe();
+}
+document.querySelectorAll("nav.bottom button").forEach(b => b.onclick = () => go(b.dataset.go));
+
+async function refreshMe(){
+  S.me = await get("/api/liff/gm/me");
+  $("#chipStreak").textContent = "🔥 " + S.me.streak_days;
+  $("#chipLv").textContent = "Lv" + S.me.level;
+  return S.me;
+}
+
+// ---------------------------------------------------------------- 首頁
+async function renderHome(){
+  const el = $("#v-home");
+  if(!S.me) await refreshMe();
+  if(!S.map) { try { S.map = await get("/api/liff/life/map"); } catch(e){} }
+  const me = S.me, m = S.map;
+  const pct = me.next_xp ? Math.round((me.xp - me.level_floor) / (me.next_xp - me.level_floor) * 100) : 100;
+  const cur = m && m.current_term;
+  const curLv = m ? m.seasons.flatMap(s => s.levels).find(l => l.is_current) : null;
+  const nextLv = m ? m.seasons.flatMap(s => s.levels).find(l => l.available && !l.cleared) : null;
+  const sea = cur ? SEASON[cur.season] : SEASON.spring;
+  const hello = me.streak_active_today ? "今天已經打卡囉！" : (me.streak_days ? "連續 " + me.streak_days + " 天，今天也來一關吧" : "歡迎來到岐黃節氣闖關");
+  el.innerHTML = `
+    <div class="card hero">
+      <img class="mascot" src="${mascotUrl("happy")}" alt="小銅人">
+      <div class="txt">
+        <div class="tiny">小銅人說</div>
+        <h1>${esc(hello)}</h1>
+        <div class="row spread tiny" style="margin-bottom:5px"><b style="color:var(--ink)">Lv${me.level} ${esc(me.level_name)}</b><span>${me.xp}${me.next_xp ? " / " + me.next_xp : ""} XP</span></div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+      </div>
+    </div>
+    <div class="card stack" style="margin-top:14px">
+      <div class="term">
+        <div class="seal">${cur ? esc(sea.n) : "節"}</div>
+        <div style="flex:1">
+          <div class="tiny">當季節氣</div>
+          <div class="big">${cur ? esc(cur.name_zh) : "—"}</div>
+        </div>
+        ${curLv && curLv.available && !curLv.cleared ? `<span class="tag cur" style="margin:0">當季加成 +1 張</span>` : ""}
+      </div>
+      <p class="muted" style="margin:0">二十四節氣是依太陽位置劃分的季節時鐘。闖關答題、收集食材，合成四季茶飲與藥膳。</p>
+      <button class="btn primary block" id="goPlay">${nextLv ? "繼續闖關：" + esc(nextLv.solar_term) : "進入節氣地圖"}</button>
+    </div>
+    <div class="stats" style="margin-top:14px">
+      <div class="stat"><b>${me.herbs_owned}/${me.herbs_total}</b><span>藥材食材</span></div>
+      <div class="stat"><b>${me.formulas_unlocked + me.recipes_unlocked}/${me.formulas_total + me.recipes_total}</b><span>方劑茶飲</span></div>
+      <div class="stat"><b>${me.levels_cleared}/${me.levels_total}</b><span>節氣關卡</span></div>
+    </div>
+    <p class="disc">本頁為傳統文化與飲食常識的學習內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。</p>`;
+  $("#goPlay").onclick = () => nextLv ? startLevel(nextLv.id) : go("map");
+}
+
+// ---------------------------------------------------------------- 地圖
+async function loadMap(){
+  const el = $("#v-map");
+  try { S.map = await get("/api/liff/life/map"); } catch(e){ return; }
+  const m = S.map;
+  if(!S.season){
+    const all = m.seasons.flatMap(s => s.levels);
+    const nxt = all.find(l => l.available && !l.cleared) || all.find(l => l.is_current);
+    S.season = nxt ? nxt.season : "spring";
+  }
+  const lim = m.free_levels_per_day;
+  const info = m.open_all ? `<div class="notice">🌟 ${m.plan === "pro" ? "Pro" : "開發模式"}：24 關全開、不限次數</div>`
+    : `<div class="notice">🎟️ 今日免費關卡 <b>${Math.min(m.attempted_today, lim)} / ${lim}</b><br><span class="tiny">Pro：24 關隨時開放、不限次數</span></div>`;
+  const sea = m.seasons.find(s => s.season === S.season) || m.seasons[0];
+  el.innerHTML = `
+    <h2>節氣地圖</h2>${info}
+    <div class="tabs">${m.seasons.map(s => `<button class="tab ${s.season === S.season ? "on" : ""}" data-s="${s.season}">${SEASON[s.season].n}<small>${s.cleared}/${s.total}</small></button>`).join("")}</div>
+    <div class="path">${sea.levels.map(lvCard).join("")}</div>
+    <p class="disc">過關後會掉落指定的食材；每季最後一關是 Boss，通過就能合成該季的代表茶飲。當季節氣那一關首次過關，會多掉 1 張卡。</p>`;
+  el.querySelectorAll(".tab").forEach(b => b.onclick = () => { S.season = b.dataset.s; loadMap(); });
+  el.querySelectorAll(".lv").forEach(b => b.onclick = () => {
+    if(b.classList.contains("locked")) return toast(b.dataset.why);
+    startLevel(b.dataset.id);
+  });
+}
+function lvCard(l){
+  const cls = ["lv", l.cleared ? "done" : (l.available ? "open" : "locked"), l.is_boss ? "boss" : ""].join(" ");
+  const why = l.locked_reason === "locked_prev" ? "請先通過上一關" : (l.locked_reason === "daily_limit" ? "今天的免費關卡已經玩完，明天再來（Pro 不限）" : "");
+  const date = l.term_date ? l.term_date.slice(5).replace("-", "/") : "";
+  const sub = l.is_boss && l.recipe ? `Boss・通關合成「${esc(l.recipe.name_zh)}」` : `${l.question_count} 題・答對 ${l.pass_threshold} 題過關`;
+  const end = l.cleared ? `<span style="color:var(--gold)">✓ 已通關</span>` : (l.available ? `<span style="color:var(--jade)">開始 ▶</span>` : `<span>🔒</span>`);
+  return `<button class="${cls}" data-id="${l.id}" data-why="${esc(why)}">
+    <div class="no">${l.order}</div>
+    <div><div class="nm">${esc(l.solar_term)}${l.is_current ? '<span class="tag cur">當季</span>' : ""}${l.is_boss ? '<span class="tag boss">BOSS</span>' : ""}</div>
+    <div class="sub">${date} ・ ${sub}</div></div><div class="end">${end}</div></button>`;
+}
+
+// ---------------------------------------------------------------- 答題
+async function startLevel(levelId){
+  loading(true);
+  try {
+    const d = await post("/api/liff/life/level/start", { level_id: levelId });
+    S.quiz = { level: d.level, qs: d.questions, i: 0, results: [], busy: false, hc: null };
+    go("quiz"); renderQuestion();
+  } catch(e){ toast(e.message); if(S.view !== "map") go("map"); }
+  finally { loading(false); }
+}
+function leaveQuiz(){
+  if(S.quiz && confirm("要離開這一關嗎？目前的作答不會保留。")){ S.quiz = null; go("map"); }
+}
+function renderQuestion(){
+  const z = S.quiz, q = z.qs[z.i], el = $("#v-quiz");
+  z.busy = false; z.hc = null;
+  const dots = z.qs.map((_, k) => `<i class="${k < z.results.length ? (z.results[k] ? "on" : "bad") : (k === z.i ? "cur" : "")}"></i>`).join("");
+  let body = "";
+  if(q.type === "hot_cold_sort"){
+    z.hc = { sel:null, placed:{}, zones:q.zones, done:false };
+    body = `<div class="hint">點一下食材，再點它所屬的分類（點已放入的食材可以拿回來）</div>
+      <div class="zones"><div class="zone cold" data-z="cold"><h4>🧊 ${esc(q.zones[0])}</h4><div class="zi"></div></div>
+      <div class="zone hot" data-z="hot"><h4>🔥 ${esc(q.zones[1])}</h4><div class="zi"></div></div></div>
+      <div class="pool" id="pool"></div>
+      <button class="btn primary block" id="hcOk" disabled>確認答案</button>`;
+  } else {
+    const img = q.type === "identify_image" ? `<img class="qimg" src="${imgUrl(q.image)}" alt="">` : "";
+    body = img + q.options.map((o, k) => `<button class="opt" data-v="${esc(o)}"><span class="k">${"ABCD"[k] || k+1}</span><span>${esc(o)}</span></button>`).join("");
+  }
+  el.innerHTML = `
+    <div class="qhead"><button class="x" id="qx" aria-label="離開">✕</button><div class="dots">${dots}</div>
+      <span class="chip">${z.level.solar_term}${z.level.is_boss ? " ‧ Boss" : ""}</span></div>
+    <div class="qtype">第 ${z.i + 1} / ${z.qs.length} 題 ・ ${TYPE_LABEL[q.type] || ""}</div>
+    <div class="qtext">${esc(q.prompt)}</div>
+    <div id="qbody">${body}</div><div id="fb"></div>`;
+  $("#qx").onclick = leaveQuiz;
+  if(q.type === "hot_cold_sort") setupSort(q);
+  else el.querySelectorAll(".opt").forEach(b => b.onclick = () => submitChoice(q, b));
+}
+async function submitChoice(q, btn){
+  const z = S.quiz; if(z.busy) return; z.busy = true;
+  const raw = btn.dataset.v;
+  const answer = q.type === "myth_true_false" ? (raw === "對") : raw;
+  document.querySelectorAll(".opt").forEach(b => b.classList.add("dim"));
+  btn.classList.remove("dim");
+  try {
+    const r = await post("/api/liff/life/level/answer", { level_id: z.level.id, question_id: q.id, answer });
+    document.querySelectorAll(".opt").forEach(b => {
+      const isRight = q.type === "myth_true_false" ? ((b.dataset.v === "對") === r.reveal.correct) : (b.dataset.v === r.reveal.correct);
+      if(isRight){ b.classList.remove("dim"); b.classList.add("right"); }
+    });
+    if(!r.correct) btn.classList.add("wrong");
+    showFeedback(q, r);
+  } catch(e){ toast(e.message); z.busy = false; document.querySelectorAll(".opt").forEach(b => b.classList.remove("dim")); }
+}
+function setupSort(q){
+  const z = S.quiz, h = z.hc, pool = $("#pool");
+  const redraw = () => {
+    pool.innerHTML = q.items.filter(n => !h.placed[n]).map(n => `<button class="itm ${h.sel === n ? "sel" : ""}" data-n="${esc(n)}">${esc(n)}</button>`).join("") || '<span class="tiny">全部分類完囉</span>';
+    ["cold","hot"].forEach(k => {
+      $(`.zone[data-z=${k}] .zi`).innerHTML = q.items.filter(n => h.placed[n] === k).map(n => `<button class="itm" data-n="${esc(n)}" data-in="1">${esc(n)}</button>`).join("");
+    });
+    document.querySelectorAll(".itm").forEach(b => b.onclick = () => {
+      if(h.done) return;
+      const n = b.dataset.n;
+      if(b.dataset.in){ delete h.placed[n]; h.sel = null; } else { h.sel = (h.sel === n ? null : n); }
+      redraw();
+    });
+    $("#hcOk").disabled = Object.keys(h.placed).length < q.items.length;
+  };
+  document.querySelectorAll(".zone").forEach(zn => {
+    zn.onclick = e => { if(h.done || e.target.closest(".itm")) return; if(h.sel){ h.placed[h.sel] = zn.dataset.z; h.sel = null; vib(10); redraw(); } };
+    zn.ondragover = e => e.preventDefault();
+    zn.ondrop = e => { e.preventDefault(); const n = e.dataTransfer.getData("text/plain"); if(n && !h.done){ h.placed[n] = zn.dataset.z; h.sel = null; redraw(); } };
+  });
+  pool.addEventListener("dragstart", e => { const b = e.target.closest(".itm"); if(b) e.dataTransfer.setData("text/plain", b.dataset.n); });
+  redraw();
+  document.querySelectorAll("#pool .itm").forEach(b => b.draggable = true);
+  new MutationObserver(() => document.querySelectorAll("#pool .itm").forEach(b => b.draggable = true)).observe(pool, { childList:true });
+  $("#hcOk").onclick = async () => {
+    if(z.busy) return; z.busy = true; h.done = true;
+    try {
+      const r = await post("/api/liff/life/level/answer", { level_id: z.level.id, question_id: q.id, answer: h.placed });
+      $("#hcOk").style.display = "none";
+      document.querySelectorAll(".itm").forEach(b => { const n = b.dataset.n; if(n in r.reveal.per_item) b.classList.add(r.reveal.per_item[n] ? "ok" : "no"); });
+      showFeedback(q, r);
+    } catch(e){ toast(e.message); z.busy = false; h.done = false; }
+  };
+}
+function showFeedback(q, r){
+  const z = S.quiz;
+  z.results.push(!!r.correct);
+  vib(r.correct ? 15 : [30, 40, 30]);
+  const last = z.i === z.qs.length - 1;
+  let extra = "";
+  if(q.type === "hot_cold_sort" && !r.correct){
+    const wrong = r.reveal.items.filter(it => !r.reveal.per_item[it.name]).map(it => `${esc(it.name)}（${it.answer === "cold" ? "寒涼" : "溫熱"}）`);
+    if(wrong.length) extra = `<p><b>正確分類：</b>${wrong.join("、")}</p>`;
+  }
+  $("#fb").innerHTML = `
+    <div class="fb ${r.correct ? "good" : "bad"}">
+      <img src="${mascotUrl(r.mascot)}" alt="">
+      <div><b>${r.correct ? "答對了！" : "差一點點"}</b>${extra}<p>${esc(r.explanation)}</p></div>
+    </div>
+    <div class="row" style="margin-top:14px;gap:10px">
+      ${(r.shareable && (q.type === "trivia_choice" || q.type === "myth_true_false")) ? `<button class="btn ghost" id="shareQ" style="flex:none">分享冷知識</button>` : ""}
+      <button class="btn primary" style="flex:1" id="nextQ">${last ? "查看結果" : "下一題"}</button>
+    </div>`;
+  const sb = $("#shareQ"); if(sb) sb.onclick = () => shareCard("trivia_card", q.id);
+  $("#nextQ").onclick = last ? finishLevel : () => { z.i++; renderQuestion(); window.scrollTo(0, 0); };
+  document.querySelectorAll(".dots i")[z.results.length - 1]?.classList.add(r.correct ? "on" : "bad");
+  $("#fb").scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+async function finishLevel(){
+  const z = S.quiz; loading(true);
+  try {
+    const r = await post("/api/liff/life/level/complete", { level_id: z.level.id });
+    S.map = null;
+    renderResult(r);
+    go("result");
+    refreshMe().catch(() => {});
+    revealCards();
+  } catch(e){ toast(e.message); }
+  finally { loading(false); }
+}
+
+// ---------------------------------------------------------------- 結果頁
+function renderResult(r){
+  const el = $("#v-result");
+  const lvl = S.quiz.level;
+  const cardsHtml = r.cards.map(c => `
+    <div class="flip"><div>
+      <div class="face back">藥</div>
+      <div class="face">${c.is_new ? '<span class="new">NEW</span>' : '<span class="q">×' + c.quantity + '</span>'}${pic(c)}<b>${esc(c.name_zh.replace(/（.*?）/, ""))}</b></div>
+    </div></div>`).join("");
+  const synth = r.new_recipes.concat(r.new_formulas).map(x => `
+    <div class="synth"><div class="sparkle">✨ ✨ ✨</div>
+      <div class="tiny" style="color:#7A5A00">合成成功！</div><h3>${esc(x.name_zh)}</h3>
+      <button class="btn gold" data-share="${x.kind === "recipe" ? "recipe_unlocked" : "formula_unlocked"}" data-id="${x.id}">分享給朋友</button>
+      <button class="btn ghost" data-open="${x.kind}" data-id="${x.id}" style="margin-left:6px">看圖鑑</button></div>`).join("");
+  const xp = r.xp;
+  const pct = xp.next_xp ? Math.min(100, Math.round(xp.total / xp.next_xp * 100)) : 100;
+  const nextAvail = null;
+  el.innerHTML = `<div class="res">
+    <img class="mascot" src="${mascotUrl(r.mascot)}" alt="">
+    <div class="tiny">${esc(lvl.solar_term)}${r.is_boss ? " ‧ Boss" : ""}</div>
+    <h2>${r.passed ? (r.is_boss ? "Boss 通關！" : "過關！") : "再挑戰一次吧"}</h2>
+    <div class="muted">答對 <b style="color:var(--ink);font-size:18px">${r.correct}</b> / ${r.total} 題（需要 ${r.threshold} 題過關）</div>
+    ${r.season_complete ? `<div class="banner">🎉 完成「${SEASON[r.season].n}」章！</div>` : ""}
+    ${r.cards.length ? `<div class="tiny" style="margin-top:14px">獲得食材 / 藥材</div><div class="cards">${cardsHtml}</div>` : (r.passed && !r.first_clear ? `<div class="why">這一關已經通過，重玩不會再掉落卡片，但可以複習知識。</div>` : "")}
+    ${synth}
+    <div class="xpline"><div class="row spread tiny" style="margin-bottom:5px"><b style="color:var(--ink)">+${xp.gained} XP</b><span>Lv${xp.level} ${esc(xp.level_name)}</span></div>
+      <div class="bar"><i style="width:0%" data-w="${pct}%"></i></div></div>
+    <div class="lvup ${xp.leveled_up ? "on" : ""}">⬆ 升級！Lv${xp.level}「${esc(xp.level_name)}」</div>
+    <div class="row" style="margin-top:18px;gap:10px">
+      <button class="btn ghost" style="flex:1" id="rMap">回地圖</button>
+      <button class="btn primary" style="flex:1" id="rDex">看圖鑑</button>
+    </div>
+    ${!r.passed ? `<button class="btn gold block" id="rRetry" style="margin-top:10px">重新挑戰這一關</button>` : ""}
+    <p class="disc">傳統飲食文化內容，非醫療建議。</p></div>`;
+  $("#rMap").onclick = () => { document.body.classList.remove("focus"); go("map"); };
+  $("#rDex").onclick = () => { document.body.classList.remove("focus"); go("codex"); };
+  const rr = $("#rRetry"); if(rr) rr.onclick = () => { document.body.classList.remove("focus"); startLevel(lvl.id); };
+  el.querySelectorAll("[data-share]").forEach(b => b.onclick = () => shareCard(b.dataset.share, b.dataset.id));
+  el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { document.body.classList.remove("focus"); go("codex", { tab: b.dataset.open === "recipe" ? "recipe" : "formula", open: b.dataset.id }); });
+}
+function revealCards(){
+  document.querySelectorAll("#v-result .bar > i").forEach(i => setTimeout(() => i.style.width = i.dataset.w, 250));
+  document.querySelectorAll("#v-result .flip").forEach((f, k) => setTimeout(() => { f.classList.add("up"); vib(12); }, 500 + k * 450));
+}
+
+// ---------------------------------------------------------------- 圖鑑
+async function loadCodex(opts={}){
+  const el = $("#v-codex");
+  if(opts.tab) S.codexTab = opts.tab;
+  try { S.codex = await get("/api/liff/gm/codex" + (S.track ? "?track=" + S.track : "")); } catch(e){ return; }
+  renderCodex();
+  if(opts.open){ const d = S.codexTab === "herb" ? S.codex.herbs : S.codexTab === "formula" ? S.codex.formulas : S.codex.recipes; const it = d.find(x => x.id === opts.open); if(it) openDetail(S.codexTab, it); }
+}
+function renderCodex(){
+  const el = $("#v-codex"), c = S.codex, t = c.totals;
+  const tabs = [["herb", "藥材食材", `${t.herbs_owned}/${t.herbs}`]];
+  if(S.track !== "life") tabs.push(["formula", "方劑", `${t.formulas_unlocked}/${t.formulas}`]);
+  if(S.track !== "student") tabs.push(["recipe", "茶飲藥膳", `${t.recipes_unlocked}/${t.recipes}`]);
+  if(!tabs.some(x => x[0] === S.codexTab)) S.codexTab = "herb";
+  let body = "";
+  if(S.codexTab === "herb"){
+    body = `<div class="grid">${c.herbs.map(h => `
+      <button class="hc ${h.owned ? "" : "off"}" data-id="${h.id}">${h.owned ? `<span class="qty">×${h.quantity}</span>` : ""}${pic(h)}
+        ${!h.owned && h.tier_locked ? `<div class="lock">Lv${h.tier_min_level} 解鎖</div>` : ""}<b>${esc(h.owned ? h.name_zh.replace(/（.*?）/, "") : "？？？")}</b></button>`).join("")}</div>`;
+  } else {
+    const list = S.codexTab === "formula" ? c.formulas : c.recipes;
+    body = list.map(f => `
+      <button class="fm ${f.unlocked ? "done" : ""}" data-id="${f.id}">
+        <div class="row spread"><span class="nm">${f.unlocked ? "✨ " : ""}${esc(f.name_zh)}</span><span class="tiny">${f.unlocked ? "已解鎖" : f.progress + "/" + f.total}</span></div>
+        <div class="comps">${f.components.map(p => `<span class="cp ${p.owned ? "have" : ""}">${p.owned ? "✓ " : ""}${esc(p.name_zh.replace(/（.*?）/, ""))}</span>`).join("")}</div>
+        <div class="pbar"><i style="width:${Math.round(f.progress / f.total * 100)}%"></i></div></button>`).join("")
+      + `<p class="disc">${S.codexTab === "formula" ? "方劑內容為學習用途，不顯示劑量，非處方。請勿自行抓藥服用，身體不適請諮詢合格中醫師。" : "傳統飲食文化內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。"}</p>`;
+  }
+  el.innerHTML = `<h2>收集圖鑑</h2>
+    <div class="seg" id="trk"><button data-t="" class="${!S.track ? "on" : ""}">全部</button><button data-t="student" class="${S.track === "student" ? "on" : ""}">學生線</button><button data-t="life" class="${S.track === "life" ? "on" : ""}">生活線</button></div>
+    <div class="seg" id="tabsDex">${tabs.map(x => `<button data-k="${x[0]}" class="${S.codexTab === x[0] ? "on" : ""}">${x[1]} ${x[2]}</button>`).join("")}</div>
+    ${body}`;
+  el.querySelectorAll("#trk button").forEach(b => b.onclick = () => { S.track = b.dataset.t || null; loadCodex(); });
+  el.querySelectorAll("#tabsDex button").forEach(b => b.onclick = () => { S.codexTab = b.dataset.k; renderCodex(); });
+  const lst = S.codexTab === "herb" ? c.herbs : S.codexTab === "formula" ? c.formulas : c.recipes;
+  el.querySelectorAll(".hc,.fm").forEach(b => b.onclick = () => openDetail(S.codexTab, lst.find(x => x.id === b.dataset.id)));
+}
+function openSheet(html){ $("#sheetBody").innerHTML = html; $("#sheet").classList.add("on"); }
+function closeSheet(){ $("#sheet").classList.remove("on"); }
+$("#sheet").onclick = e => { if(e.target.id === "sheet") closeSheet(); };
+
+function openDetail(kind, it){
+  if(!it) return;
+  if(kind === "herb"){
+    if(!it.owned){
+      return openSheet(`<h3>？？？</h3><p class="muted">${it.tier_locked ? `達到 <b>Lv${it.tier_min_level}</b> 後，這味藥材才會出現在掉落池中。` : "還沒收集到。多多答題、練習口說與寫作，就有機會掉落。"}</p><button class="btn primary block" onclick="closeSheet()">知道了</button>`);
+    }
+    const d = it.detail || {};
+    openSheet(`<div class="row" style="gap:14px;align-items:flex-start"><div style="width:96px;flex:none;border-radius:12px;overflow:hidden">${pic(it)}</div>
+      <div><h3 style="font-size:21px;margin:0">${esc(it.name_zh)}</h3><div class="tiny">${esc(d.name_pinyin || "")} ・ ${esc(it.name_en || "")}</div>
+      <div class="tiny"><i>${esc(d.name_latin || "")}</i></div><div class="muted" style="margin-top:6px">持有 ×${it.quantity}</div></div></div>
+      ${d.is_toxic ? `<div class="warn">⚠️ ${esc(d.toxicity_note || "有毒或藥性峻烈，須由合格中醫師處方使用。")}</div>` : ""}
+      <dl class="dl"><dt>性</dt><dd>${esc(d.nature || "—")}</dd><dt>味</dt><dd>${esc(d.flavor || "—")}</dd><dt>歸經</dt><dd>${esc((d.meridians || []).join("、") || "—")}</dd>
+      <dt>功效概述</dt><dd>${esc(d.function_summary_zh || "")}</dd></dl>
+      <p class="tiny">圖鑑內容為教科書層級的學習簡述，非醫療建議，也不代表適合任何人自行使用。</p>
+      <button class="btn ghost block" onclick="closeSheet()">關閉</button>`);
+    return;
+  }
+  if(!it.unlocked){
+    return openSheet(`<h3>${esc(it.name_zh)}</h3><p class="muted">還差 ${it.total - it.progress} 味就能合成：</p><div class="comps">${it.components.map(p => `<span class="cp ${p.owned ? "have" : ""}">${p.owned ? "✓ " : ""}${esc(p.name_zh)}</span>`).join("")}</div><button class="btn primary block" onclick="closeSheet()">繼續收集</button>`);
+  }
+  if(kind === "formula"){
+    openSheet(`<h3 style="font-size:22px;margin:0 0 4px">✨ ${esc(it.name_zh)}</h3><div class="tiny">${esc(it.name_en || "")} ・ ${esc(it.source || "")}</div>
+      <p class="muted">${esc(it.function_summary_zh || "")}</p><h3>君臣佐使</h3>
+      ${(it.roles || []).map(r => `<div class="role"><div class="r">${r.role ? ROLE_LABEL[r.role] : "·"}</div><div><b>${esc(r.name_zh)}</b>${r.role ? ` <span class="tiny">${ROLE_NAME[r.role]}</span>` : ""}<div class="muted">${esc((r.role_explanation || "").replace(/^TODO.*/, "角色說明待補"))}</div></div></div>`).join("")}
+      <p class="tiny">學習內容，不顯示劑量，非處方。請勿自行抓藥服用，身體不適請諮詢合格中醫師。</p>
+      <div class="row" style="gap:8px"><button class="btn gold" style="flex:1" id="shD">分享</button><button class="btn ghost" style="flex:1" onclick="closeSheet()">關閉</button></div>`);
+    $("#shD").onclick = () => shareCard("formula_unlocked", it.id);
+  } else {
+    openSheet(`<h3 style="font-size:22px;margin:0 0 4px">🍵 ${esc(it.name_zh)}</h3><div class="tiny">${esc(it.name_en || "")}</div>
+      <div class="comps">${it.components.map(p => `<span class="cp have">${esc(p.name_zh.replace(/（.*?）/, ""))}</span>`).join("")}</div>
+      <p class="muted">${esc(it.traditional_use_zh || "")}</p>
+      ${it.full_recipe_locked ? `<div class="locked-box">🔒 完整食譜與做法是 <b>Pro</b> 內容<br><span class="tiny">Pro 方案即將開放，敬請期待</span></div>` : `<div class="why" style="color:var(--ink)">${esc(it.full_recipe_zh || "")}</div>`}
+      <p class="tiny">${esc(it.caution_zh || "")}</p>
+      <div class="row" style="gap:8px"><button class="btn gold" style="flex:1" id="shD">分享</button><button class="btn ghost" style="flex:1" onclick="closeSheet()">關閉</button></div>`);
+    $("#shD").onclick = () => shareCard("recipe_unlocked", it.id);
+  }
+}
+
+// ---------------------------------------------------------------- 我的
+async function renderMe(){
+  const el = $("#v-me"); const me = await refreshMe();
+  const pct = me.next_xp ? Math.round((me.xp - me.level_floor) / (me.next_xp - me.level_floor) * 100) : 100;
+  el.innerHTML = `<h2>我的進度</h2>
+    <div class="card hero"><img class="mascot" src="${mascotUrl("celebrate")}" alt=""><div class="txt">
+      <div class="tiny">目前等級</div><h1>Lv${me.level} ${esc(me.level_name)}</h1>
+      <div class="row spread tiny" style="margin-bottom:5px"><span>${me.xp}${me.next_xp ? " / " + me.next_xp : ""} XP</span><span>${me.next_xp ? "距離下一級 " + (me.next_xp - me.xp) : "已達最高等級"}</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div></div></div>
+    <div class="stats" style="margin-top:14px">
+      <div class="stat"><b>🔥 ${me.streak_days}</b><span>連續天數</span></div>
+      <div class="stat"><b>${me.new_herbs_today}/${me.new_herbs_cap}</b><span>今日新卡上限</span></div>
+      <div class="stat"><b>${me.plan === "pro" ? "Pro" : "免費"}</b><span>目前方案</span></div></div>
+    <div class="card stack" style="margin-top:14px"><h3 style="margin:0">Pro 方案</h3>
+      <p class="muted" style="margin:0">・節氣關卡 24 關隨時開放、每天不限關數<br>・完整茶飲食譜與做法<br>・口說、寫作不限次數練習<br>・小銅人季節限定造型</p>
+      <p class="tiny" style="margin:0">藥材與食材永遠不能用錢買，卡片都要自己玩出來。Pro 方案即將開放。</p></div>
+    ${Object.keys(me.dev || {}).length ? `<p class="tiny" style="margin-top:12px">開發開關：${esc(JSON.stringify(me.dev))}</p>` : ""}`;
+}
+
+// ---------------------------------------------------------------- 分享
+async function shareCard(type, id){
+  try {
+    const d = await get(`/api/liff/gm/share-card?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+    if(window.liff && liff.isApiAvailable && liff.isApiAvailable("shareTargetPicker") && !DEBUG_MODE){
+      const res = await liff.shareTargetPicker([d.message], { isMultiple:true });
+      post("/api/liff/gm/share-event", { share_type:type, ref_id:id, status: res ? "success" : "cancel" }).catch(()=>{});
+      if(res) toast("已分享給朋友 🎉");
+    } else {
+      const url = "https://liff.line.me/" + LIFF_ID;
+      try { await navigator.clipboard.writeText(url); toast("已複製邀請連結，貼給朋友吧"); } catch(e){ toast("請在 LINE 內開啟才能分享"); }
+      post("/api/liff/gm/share-event", { share_type:type, ref_id:id, status:"fallback" }).catch(()=>{});
+    }
+  } catch(e){ toast(e.message); }
+}
+
+// ---------------------------------------------------------------- 啟動
+function parseDeepLink(){
+  let page = Q.get("page"), track = Q.get("track"), tab = Q.get("tab");
+  const st = Q.get("liff.state");
+  if(st){ try { const q = new URLSearchParams(decodeURIComponent(st).replace(/^\/?\??/, "")); page = page || q.get("page"); track = track || q.get("track"); tab = tab || q.get("tab"); } catch(e){} }
+  return { page, track, tab };
+}
+async function boot(){
+  loading(true);
+  try {
+    if(DEBUG_MODE){ idToken = DEBUG_TOKEN; }
+    else {
+      await liff.init({ liffId: LIFF_ID });
+      if(!liff.isLoggedIn()){ liff.login(); return; }
+      idToken = liff.getIDToken();
+    }
+    await refreshMe();
+    const dl = parseDeepLink();
+    if(dl.track === "student" || dl.track === "life") S.track = dl.track;
+    const view = ({ map:"map", today:"home", home:"home", codex:"codex", me:"me" })[dl.page] || "home";
+    go(view, { tab: dl.tab === "formula" || dl.tab === "recipe" ? dl.tab : undefined });
+  } catch(e){
+    $("#v-home").classList.add("on");
+    $("#v-home").innerHTML = `<div class="card"><h3>無法開啟</h3><p class="muted">請從 LINE 內開啟這個頁面。（${esc(e.message || "LIFF 初始化失敗")}）</p></div>`;
+  } finally { loading(false); }
+}
+boot();
+</script>
+</body>
+</html>

@@ -155,6 +155,17 @@ except ImportError:
         discard_practice as writing_discard_practice,
     )
 
+# 遊戲化（藥材圖鑑／節氣闖關／掉落）：掛接點與路由。import 失敗時只停用遊戲化，不影響原本功能。
+try:
+    try:
+        from api.gm_routes import register as register_gamification
+    except ImportError:
+        from gm_routes import register as register_gamification
+except Exception as _gm_import_err:
+    print(f">>> GM: 遊戲化模組載入失敗，已停用：{_gm_import_err}")
+    register_gamification = None
+gm_hooks = None
+
 # 1. 初始化
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
@@ -536,6 +547,7 @@ _TCM_SYSTEM_PROMPT = """
 2. 嚴禁自行推斷或編造未經證實的療效。若資料庫中無相關記載，請誠實告知。
 3. 避免產生幻覺，不確定的資訊不要提供。
 4. 若使用者提出與中醫無直接關聯的一般性問題（如飲食、生活習慣），可簡短從中醫養生角度給一句建議，再邀請繼續提問。
+5. 【不做診斷】若使用者描述的是自己或他人的症狀、病情，或問「我這樣該吃什麼／用什麼藥」，只提供一般性的中醫知識說明，並建議就醫、諮詢合格中醫師；不可推薦具體的藥材、方劑或茶飲給特定症狀，也不可宣稱療效。
 
 【格式規則——適用於「公布答案」的回合；引導反問的回合請維持 1-2 句話、不要用條列格式】
 - 公布答案時控制在 3-5 個重點以內，每點不超過 2 句話。
@@ -577,6 +589,7 @@ You are a TCM (Traditional Chinese Medicine) academic assistant. When answering 
 2. Never fabricate or infer unverified therapeutic effects. If the information is not in the knowledge base, say so honestly.
 3. Avoid hallucinations — do not provide information you are uncertain about.
 4. If the user asks a general question not directly related to TCM (e.g., food, lifestyle), give one brief suggestion from a TCM wellness perspective, then invite further questions.
+5. [No diagnosis] If the user describes their own or someone else's symptoms or condition, or asks "what should I take/use for this", give only general TCM knowledge and advise seeing a qualified physician or TCM practitioner. Never recommend specific herbs, formulas or teas for a specific symptom, and never claim therapeutic effects.
 
 [Format rules — apply to the "reveal the answer" turn; a guiding-question turn should stay 1-2 plain sentences, no bullet list]
 - When revealing the answer, keep it to 3-5 key points at most, no more than 2 sentences per point.
@@ -1157,6 +1170,11 @@ def liff_quiz_submit():
     if not isinstance(answers, dict):
         return jsonify({"error": "answers 格式錯誤"}), 400
     result = exam_submit_exam(mongo_db, user_id, category, question_ids, answers)
+    # 遊戲化：批改、存紀錄、存錯題之後才結算掉落（達標才抽卡）；失敗不影響原本交卷結果
+    if gm_hooks:
+        gm_payload = gm_hooks.exam(user_id, question_ids, answers, result)
+        if gm_payload is not None:
+            result["gm"] = gm_payload
     return jsonify(result)
 
 
@@ -1313,7 +1331,8 @@ def liff_speaking_summary():
     回傳 {clinical_precision, lexicon_accuracy, cases}（見 speaking_evaluator.summarize_session）。
     對應線框圖「正常交卷才存檔」——這裡同時清掉該 session 在 Redis 裡的 Session Manager 記錄。
     """
-    if not _liff_auth_user_id():
+    user_id = _liff_auth_user_id()
+    if not user_id:
         return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(force=True, silent=True) or {}
     transcript = data.get("transcript") or []
@@ -1323,6 +1342,11 @@ def liff_speaking_summary():
     summary = speaking_build_session_summary(client, transcript)
     if session_id:
         speaking_end_session(redis, session_id)
+    # 遊戲化：有效練習（達最低輪數）才結算 XP 與掉落
+    if gm_hooks and isinstance(summary, dict):
+        gm_payload = gm_hooks.speaking(user_id, transcript, session_id or None)
+        if gm_payload is not None:
+            summary["gm"] = gm_payload
     return jsonify(summary)
 
 
@@ -1371,7 +1395,8 @@ def liff_writing_check():
 @app.route("/api/liff/writing/review", methods=['POST'])
 def liff_writing_review():
     """送出批改：body = {"text": str, "topic_id": str(optional)} → 完整評分＋修正版＋說明。"""
-    if not _liff_auth_user_id():
+    user_id = _liff_auth_user_id()
+    if not user_id:
         return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(force=True, silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -1381,6 +1406,11 @@ def liff_writing_review():
     result = writing_full_review(client, text, topic_id)
     if not result:
         return jsonify({"error": "AI 批改失敗，請再試一次"}), 500
+    # 遊戲化：批改成功且達最低字詞數才結算 XP 與掉落
+    if gm_hooks and isinstance(result, dict):
+        gm_payload = gm_hooks.writing(user_id, text)
+        if gm_payload is not None:
+            result["gm"] = gm_payload
     return jsonify(result)
 
 
@@ -1427,6 +1457,19 @@ def liff_writing_practice_delete(practice_id):
         return jsonify({"error": "unauthorized"}), 401
     removed = writing_discard_practice(mongo_db, user_id, practice_id)
     return jsonify({"removed": removed})
+
+
+# ============================================================
+# 遊戲化：藥材圖鑑／節氣闖關（生活線 LIFF）／掉落／分享
+# ============================================================
+# 邏輯都在 api/gm_*.py（獨立模組，國考／口說／寫作／生活線共用同一套掉落邏輯），
+# 這裡只負責掛上路由，並把 hooks 交給上面三個既有功能呼叫。
+if register_gamification:
+    try:
+        gm_hooks = register_gamification(app, _liff_auth_user_id, mongo_db)
+    except Exception:
+        traceback.print_exc()
+        gm_hooks = None
 
 
 def _run_voice_background(user_id, message_id, base_url, cron_secret):

@@ -1,0 +1,54 @@
+[
+  {
+    "from_formula_id": "gui_zhi_gan_cao_tang",
+    "to_formula_id": "gui_zhi_tang",
+    "added_herb_ids": [
+      "shao_yao",
+      "sheng_jiang",
+      "da_zao"
+    ],
+    "type": "modification"
+  },
+  {
+    "from_formula_id": "si_jun_zi_tang",
+    "to_formula_id": "liu_jun_zi_tang",
+    "added_herb_ids": [
+      "chen_pi",
+      "ban_xia"
+    ],
+    "type": "modification"
+  },
+  {
+    "from_formula_id": "si_jun_zi_tang",
+    "to_formula_id": "ba_zhen_tang",
+    "added_herb_ids": [
+      "shu_di_huang",
+      "dang_gui",
+      "shao_yao",
+      "chuan_xiong"
+    ],
+    "type": "combination",
+    "with_formula_id": "si_wu_tang"
+  },
+  {
+    "from_formula_id": "si_wu_tang",
+    "to_formula_id": "ba_zhen_tang",
+    "added_herb_ids": [
+      "ren_shen",
+      "bai_zhu",
+      "fu_ling",
+      "gan_cao"
+    ],
+    "type": "combination",
+    "with_formula_id": "si_jun_zi_tang"
+  },
+  {
+    "from_formula_id": "ba_zhen_tang",
+    "to_formula_id": "shi_quan_da_bu_tang",
+    "added_herb_ids": [
+      "huang_qi",
+      "rou_gui"
+    ],
+    "type": "modification"
+  }
+]

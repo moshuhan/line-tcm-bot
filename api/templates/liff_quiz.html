@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>中醫國考刷題系統</title>
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="/assets/gm/gm_rewards.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
@@ -228,6 +229,8 @@ tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'on-primary-
           <span>交卷已自動存入 LINE 雲端個人數據庫</span>
         </div>
       </div>
+
+      <div id="results-gm"></div>
 
       <div class="flex flex-col gap-space-sm">
         <div class="flex items-center gap-space-xs px-space-xs">
@@ -764,7 +767,11 @@ function renderResults() {
       <button type="button" class="shrink-0 ml-space-sm px-space-sm py-1 rounded-lg bg-surface-container text-primary font-label-sm text-label-sm">詳解</button>
     </div>
   `).join("") : '<div class="font-body-sm text-on-surface-variant text-center py-6">這次沒有答對的題目</div>';
+  renderGmDrops(lastResult.gm);
 }
+
+// ---------- 遊戲化：藥材圖鑑掉落（後端在批改、存錯題之後結算，達標才抽卡），渲染由共用腳本 /assets/gm/gm_rewards.js 負責
+function renderGmDrops(gm) { GmRewards.render(document.getElementById("results-gm"), gm, { kind: "exam" }); }
 function openAiDrawerFromResult(qid) {
   const r = (lastResult.results || []).find(x => x.id === qid);
   openAiDrawer(qid, r ? { question: r.question, category: r.category, your_answer: r.your_answer, correct_answer: r.correct_answer, is_correct: r.is_correct } : null);

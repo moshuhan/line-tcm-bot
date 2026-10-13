@@ -1,0 +1,117 @@
+[
+  {
+    "id": "gou_qi_ju_hua_cha",
+    "name_zh": "枸杞菊花茶",
+    "name_en": "Goji and Chrysanthemum Tea",
+    "season": "spring",
+    "traditional_use_zh": "春天常見的花草茶搭配，口感清爽，是日常常見的熱飲選擇。",
+    "traditional_use_en": "A refreshing flower tea pairing commonly enjoyed in spring.",
+    "caution_zh": "傳統飲食文化內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。",
+    "caution_en": "Traditional food-culture content, not medical advice. Pregnant women, people with chronic conditions or on medication should consult a physician first.",
+    "full_recipe_zh": "【Pro 食譜】材料：菊花約 5 朵、枸杞約 10 顆。做法：將菊花與枸杞放入杯中，以約 90°C 熱水沖泡 5–10 分鐘即可。可重複回沖 1–2 次。",
+    "full_recipe_en": null,
+    "components": [
+      "gou_qi",
+      "ju_hua"
+    ],
+    "image": "recipes/gou_qi_ju_hua_cha.webp",
+    "emoji": "🍵",
+    "status": "needs_review"
+  },
+  {
+    "id": "lu_dou_tang",
+    "name_zh": "綠豆湯",
+    "name_en": "Mung Bean Soup",
+    "season": "summer",
+    "traditional_use_zh": "夏季常見的甜湯，傳統飲食中常作為夏日飲品。",
+    "traditional_use_en": "A common summer sweet soup in traditional diets.",
+    "caution_zh": "傳統飲食文化內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。",
+    "caution_en": "Traditional food-culture content, not medical advice. Pregnant women, people with chronic conditions or on medication should consult a physician first.",
+    "full_recipe_zh": "【Pro 食譜】材料：綠豆 1 杯、水約 1.2 公升、糖或冰糖適量。做法：綠豆洗淨後浸泡約 1 小時，加水以大火煮滾後轉小火煮約 30–40 分鐘至豆開，依喜好調味。",
+    "full_recipe_en": null,
+    "components": [
+      "lu_dou"
+    ],
+    "image": "recipes/lu_dou_tang.webp",
+    "emoji": "🍵",
+    "status": "needs_review"
+  },
+  {
+    "id": "yin_er_lian_zi_tang",
+    "name_zh": "銀耳蓮子湯",
+    "name_en": "White Fungus and Lotus Seed Soup",
+    "season": "autumn",
+    "traditional_use_zh": "秋天常見的滋潤型甜湯，口感軟滑。",
+    "traditional_use_en": "A soft, moistening sweet soup commonly enjoyed in autumn.",
+    "caution_zh": "傳統飲食文化內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。",
+    "caution_en": "Traditional food-culture content, not medical advice. Pregnant women, people with chronic conditions or on medication should consult a physician first.",
+    "full_recipe_zh": "【Pro 食譜】材料：白木耳 1 朵、蓮子約 20 顆、冰糖適量、水約 1 公升。做法：白木耳泡發後撕成小朵，與蓮子一起加水小火燉煮約 40–60 分鐘至軟糯，加冰糖調味。",
+    "full_recipe_en": null,
+    "components": [
+      "bai_mu_er",
+      "lian_zi"
+    ],
+    "image": "recipes/yin_er_lian_zi_tang.webp",
+    "emoji": "🍵",
+    "status": "needs_review"
+  },
+  {
+    "id": "jiang_zao_cha",
+    "name_zh": "薑棗茶",
+    "name_en": "Ginger and Jujube Tea",
+    "season": "winter",
+    "traditional_use_zh": "冬天常見的暖身飲品，辛甜口味。",
+    "traditional_use_en": "A warming ginger-and-date drink commonly enjoyed in winter.",
+    "caution_zh": "傳統飲食文化內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。",
+    "caution_en": "Traditional food-culture content, not medical advice. Pregnant women, people with chronic conditions or on medication should consult a physician first.",
+    "full_recipe_zh": "【Pro 食譜】材料：生薑約 3 片、紅棗約 5 顆（略切開）、水約 500 毫升。做法：全部放入鍋中，煮滾後轉小火約 15 分鐘。可依口味加黑糖。",
+    "full_recipe_en": null,
+    "components": [
+      "sheng_jiang",
+      "da_zao"
+    ],
+    "image": "recipes/jiang_zao_cha.webp",
+    "emoji": "🍵",
+    "status": "needs_review"
+  },
+  {
+    "id": "si_shen_tang",
+    "name_zh": "四神湯",
+    "name_en": "Si Shen Soup",
+    "season": "any",
+    "traditional_use_zh": "台灣常見的傳統湯品，由茯苓、山藥、蓮子、芡實組成。",
+    "traditional_use_en": "A classic Taiwanese herbal soup made from poria, Chinese yam, lotus seed and euryale seed.",
+    "caution_zh": "傳統飲食文化內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。",
+    "caution_en": "Traditional food-culture content, not medical advice. Pregnant women, people with chronic conditions or on medication should consult a physician first.",
+    "full_recipe_zh": "【Pro 食譜】材料：茯苓、山藥、蓮子、芡實各適量，可搭配豬小腸或豬肚（素食可省略）、水適量。做法：藥材洗淨浸泡後與主料一同加水煮滾，轉小火燉煮至軟爛，鹽調味。",
+    "full_recipe_en": null,
+    "components": [
+      "fu_ling",
+      "shan_yao",
+      "lian_zi",
+      "qian_shi"
+    ],
+    "image": "recipes/si_shen_tang.webp",
+    "emoji": "🍵",
+    "status": "needs_review"
+  },
+  {
+    "id": "hong_zao_gui_yuan_cha",
+    "name_zh": "紅棗桂圓茶",
+    "name_en": "Jujube and Longan Tea",
+    "season": "any",
+    "traditional_use_zh": "常見的暖身甜茶，口味香甜。",
+    "traditional_use_en": "A sweet, warming tea commonly enjoyed in cooler weather.",
+    "caution_zh": "傳統飲食文化內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。",
+    "caution_en": "Traditional food-culture content, not medical advice. Pregnant women, people with chronic conditions or on medication should consult a physician first.",
+    "full_recipe_zh": "【Pro 食譜】材料：紅棗約 5 顆、龍眼肉約 10 顆、水約 500 毫升。做法：全部放入鍋中，煮滾後轉小火約 15–20 分鐘，可依口味調味。",
+    "full_recipe_en": null,
+    "components": [
+      "da_zao",
+      "long_yan_rou"
+    ],
+    "image": "recipes/hong_zao_gui_yuan_cha.webp",
+    "emoji": "🍵",
+    "status": "needs_review"
+  }
+]

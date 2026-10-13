@@ -1,0 +1,1587 @@
+[
+  {
+    "id": "lq_01_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「立春」是二十四節氣中的第幾個節氣？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "第一個",
+        "第六個",
+        "第十二個",
+        "最後一個"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "二十四節氣以「立春」為開端，標示春季的開始，日期多在每年 2 月 3 日至 5 日之間。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_01_2",
+    "type": "myth_true_false",
+    "prompt_zh": "立春一到，天氣就會馬上變暖，不需要再注意保暖。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "立春只是曆法上春季的開始。台灣在 2 月仍常有冷氣團，早晚溫差大，俗話說的「春寒料峭」就是這個意思。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_01_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "西瓜",
+          "answer": "cold"
+        },
+        {
+          "name": "薑",
+          "answer": "hot"
+        },
+        {
+          "name": "綠豆",
+          "answer": "cold"
+        },
+        {
+          "name": "龍眼",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "西瓜、綠豆在傳統上常被歸為偏寒涼；薑、龍眼則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_02_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「雨水」這個節氣的名稱，主要想表達什麼？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "降雨開始增多、天氣逐漸回暖",
+        "一年中最炎熱的時候",
+        "開始降霜",
+        "晝夜長短相等"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "雨水代表降雨逐漸增多，氣溫回升，進入春耕的準備期。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_02_2",
+    "type": "myth_true_false",
+    "prompt_zh": "春天一定要大量進補，越多越好。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "不論哪個季節，進補都強調「適量」與「依個人狀況」。藥食同源的食材也一樣，過量不一定更好。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_02_3",
+    "type": "identify_image",
+    "prompt_zh": "這是哪一種藥材（食材）？",
+    "prompt_en": null,
+    "payload": {
+      "image": "herbs/gan_cao.webp",
+      "options": [
+        "甘草",
+        "黃耆",
+        "人參",
+        "茯苓"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "這是甘草的飲片。甘草在許多方劑裡扮演調和藥性的角色，因此有「國老」之稱。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_03_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「驚蟄」的「蟄」指的是什麼？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "冬眠的動物與蟲類",
+        "一種春天的花",
+        "春天的雷聲",
+        "一種農具"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "「蟄」是蟄伏、冬眠的意思。相傳春雷響起，驚醒了冬眠的蟲類與動物，因此叫「驚蟄」。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_03_2",
+    "type": "myth_true_false",
+    "prompt_zh": "春天吃薑，就一定可以預防感冒。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "薑是常見的日常食材，但沒有任何一種食物可以「保證」預防疾病。身體不適時，請諮詢醫師。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_03_3",
+    "type": "trivia_choice",
+    "prompt_zh": "「杏林」為什麼代表醫界？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "醫生請病人種杏樹",
+        "醫生都住在杏樹林裡",
+        "杏仁是最重要的藥",
+        "杏樹開花時最適合看病"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "相傳三國時的醫生董奉看病不收錢，只請病癒的人種杏樹，多年後成了一片杏林，後人就以「杏林」稱頌醫者。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_04_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「春分」這一天有什麼特色？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "白晝與黑夜長度大約相等",
+        "一年中白晝最長",
+        "一年中白晝最短",
+        "開始下雪"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "春分、秋分時，太陽幾乎直射赤道，全球晝夜長度大約相等。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_04_2",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "梨",
+          "answer": "cold"
+        },
+        {
+          "name": "羊肉",
+          "answer": "hot"
+        },
+        {
+          "name": "苦瓜",
+          "answer": "cold"
+        },
+        {
+          "name": "辣椒",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "梨、苦瓜在傳統上常被歸為偏寒涼；羊肉、辣椒則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_04_3",
+    "type": "trivia_choice",
+    "prompt_zh": "「懸壺濟世」的「壺」是什麼？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "賣藥老翁掛的葫蘆",
+        "裝酒的壺",
+        "煎藥的鍋",
+        "盛水的瓶子"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "相傳典故來自賣藥老翁「壺公」，他在店門口掛著一個葫蘆，後人以「懸壺濟世」形容行醫救人。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_05_1",
+    "type": "trivia_choice",
+    "prompt_zh": "在台灣，清明節前後常見的應景食物是哪一種？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "潤餅",
+        "月餅",
+        "粽子",
+        "年糕"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "台灣清明節前後常見吃潤餅（春捲）與青糰（艾草糰），是常見的節令飲食。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_05_2",
+    "type": "myth_true_false",
+    "prompt_zh": "「藥食同源」的意思是：所有食物都可以拿來當藥治病。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "「藥食同源」指部分食材兼具食用與傳統藥用的特性，並不代表所有食物都能取代醫療。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_05_3",
+    "type": "identify_image",
+    "prompt_zh": "這是哪一種藥材（食材）？",
+    "prompt_en": null,
+    "payload": {
+      "image": "herbs/shao_yao.webp",
+      "options": [
+        "芍藥（白芍）",
+        "當歸",
+        "甘草",
+        "川芎"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "這是芍藥（白芍）的飲片。芍藥在方劑中常與甘草搭配，是「芍藥甘草湯」的主角。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_06_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「穀雨」這個節氣的名稱，常見的說法是什麼意思？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "雨水滋潤、百穀生長",
+        "穀物成熟收割",
+        "開始降霜",
+        "大雪紛飛"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "常見說法是「雨生百穀」，雨水充沛，有利於穀物生長，是春季的最後一個節氣。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_06_2",
+    "type": "myth_true_false",
+    "prompt_zh": "枸杞可以直接泡茶，也常被放進湯品裡。",
+    "prompt_en": null,
+    "payload": {
+      "answer": true
+    },
+    "explanation_zh": "枸杞是常見的藥食同源食材，常用來泡茶、煮湯或入菜。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_06_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "柿子",
+          "answer": "cold"
+        },
+        {
+          "name": "荔枝",
+          "answer": "hot"
+        },
+        {
+          "name": "冬瓜",
+          "answer": "cold"
+        },
+        {
+          "name": "胡椒",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "柿子、冬瓜在傳統上常被歸為偏寒涼；荔枝、胡椒則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_06_4",
+    "type": "identify_image",
+    "prompt_zh": "這是哪一種藥材（食材）？",
+    "prompt_en": null,
+    "payload": {
+      "image": "herbs/ren_shen.webp",
+      "options": [
+        "人參",
+        "黃耆",
+        "當歸",
+        "白朮"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "這是人參。人參是知名的補氣藥材，但並不適合所有人，使用前須由專業中醫師評估。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_06_5",
+    "type": "trivia_choice",
+    "prompt_zh": "《神農本草經》收錄了幾種藥物？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "365 種",
+        "100 種",
+        "1000 種",
+        "24 種"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "傳統說法是收錄 365 種藥物，剛好對應一年的天數。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_07_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「立夏」代表什麼？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "夏季的開始",
+        "一年中最熱的一天",
+        "梅雨結束",
+        "夏天的結束"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "立夏標誌夏季的開始，約在每年 5 月 5 日至 6 日。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_07_2",
+    "type": "myth_true_false",
+    "prompt_zh": "夏天越熱，喝越冰的飲料越好。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "常見的說法是：過度冰冷的飲食可能造成腸胃負擔。飲食還是以適量、均衡為原則。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_07_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "冬瓜",
+          "answer": "cold"
+        },
+        {
+          "name": "荔枝",
+          "answer": "hot"
+        },
+        {
+          "name": "苦瓜",
+          "answer": "cold"
+        },
+        {
+          "name": "榴槤",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "冬瓜、苦瓜在傳統上常被歸為偏寒涼；荔枝、榴槤則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_08_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「小滿」這個名稱，常見的說法是什麼意思？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "麥類等作物的籽粒開始飽滿，但還沒成熟",
+        "一年中雨量最多",
+        "大家都吃得很飽",
+        "開始降霜"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "小滿代表夏熟作物的籽粒開始飽滿但尚未完全成熟，所以是「小滿」而不是「大滿」。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_08_2",
+    "type": "myth_true_false",
+    "prompt_zh": "在傳統飲食中，綠豆湯常被當作夏天的消暑飲品。",
+    "prompt_en": null,
+    "payload": {
+      "answer": true
+    },
+    "explanation_zh": "綠豆性味在傳統上被歸為偏寒涼，綠豆湯是夏季常見的甜湯。（常見說法）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_08_3",
+    "type": "identify_image",
+    "prompt_zh": "這是哪一種藥材（食材）？",
+    "prompt_en": null,
+    "payload": {
+      "image": "herbs/fu_ling.webp",
+      "options": [
+        "茯苓",
+        "山藥",
+        "白朮",
+        "陳皮"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "這是茯苓。茯苓是藥食同源的食材，也是四神湯的組成之一。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_09_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「芒種」的「芒」，指的是什麼？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "稻、麥等作物穗上的細芒",
+        "芒果",
+        "蘆葦",
+        "一種蟲"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "「芒」指稻麥類作物穗上的細芒。芒種時節，是這些有芒作物成熟收割、也是搶種的忙碌時期。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_09_2",
+    "type": "trivia_choice",
+    "prompt_zh": "端午節喝雄黃酒，現代的看法是？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "不建議",
+        "非常安全",
+        "可以天天喝",
+        "能取代藥物"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "雄黃含有砷，有毒。相傳端午飲雄黃酒是民間習俗，但現代並不建議飲用。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_09_3",
+    "type": "myth_true_false",
+    "prompt_zh": "中藥越貴越好。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "藥材的價格和是否適合個人沒有絕對的關係。重點是正確辨識、品質良好，以及依個人狀況由專業人員評估。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_10_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「夏至」在北半球有什麼特色？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "一年中白晝最長",
+        "一年中白晝最短",
+        "晝夜長度相等",
+        "開始降雪"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "夏至是北半球一年中白晝最長的一天，約在每年 6 月 21 日前後。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_10_2",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "薏仁",
+          "answer": "cold"
+        },
+        {
+          "name": "肉桂",
+          "answer": "hot"
+        },
+        {
+          "name": "香蕉",
+          "answer": "cold"
+        },
+        {
+          "name": "韭菜",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "薏仁、香蕉在傳統上常被歸為偏寒涼；肉桂、韭菜則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_10_3",
+    "type": "myth_true_false",
+    "prompt_zh": "藥食同源的食材可以不限量地吃。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "即使是食材，也有適合的份量。過量攝取、搭配不當都可能造成不適，應依個人狀況調整。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_11_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「小暑」之後，天氣通常會？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "進入炎熱的盛夏",
+        "開始轉涼",
+        "開始降霜",
+        "進入梅雨季"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "小暑標示著炎熱天氣的開始，接下來的大暑是一年中最熱的時期之一。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_11_2",
+    "type": "myth_true_false",
+    "prompt_zh": "紅棗是常見的藥食同源食材。",
+    "prompt_en": null,
+    "payload": {
+      "answer": true
+    },
+    "explanation_zh": "紅棗（大棗）在傳統飲食與藥用中都很常見，常用來煮茶、煲湯。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_11_3",
+    "type": "identify_image",
+    "prompt_zh": "這是哪一種藥材（食材）？",
+    "prompt_en": null,
+    "payload": {
+      "image": "herbs/bai_zhu.webp",
+      "options": [
+        "白朮",
+        "茯苓",
+        "山藥",
+        "芍藥"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "這是白朮。白朮是四君子湯的組成之一，傳統上用於健脾。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_12_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「大暑」在一年中通常是？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "最熱的時期之一",
+        "最冷的時期",
+        "晝夜等長",
+        "開始降霜"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "大暑通常在每年 7 月下旬，是一年中最炎熱的時期之一。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_12_2",
+    "type": "myth_true_false",
+    "prompt_zh": "苦瓜很好，所以吃越多越健康。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "任何食物都不建議過量。傳統上苦瓜被歸為偏寒涼，腸胃較敏感的人尤其要注意份量。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_12_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "綠豆",
+          "answer": "cold"
+        },
+        {
+          "name": "生薑",
+          "answer": "hot"
+        },
+        {
+          "name": "小黃瓜",
+          "answer": "cold"
+        },
+        {
+          "name": "肉桂",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "綠豆、小黃瓜在傳統上常被歸為偏寒涼；生薑、肉桂則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_12_4",
+    "type": "trivia_choice",
+    "prompt_zh": "四神湯為什麼叫「四神」？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "由「四臣」諧音而來",
+        "有四位神仙發明",
+        "要煮四個小時",
+        "在四月才能煮"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "常見的說法是原本叫「四臣湯」，台語發音相近，傳著傳著就變成了「四神」。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_12_5",
+    "type": "trivia_choice",
+    "prompt_zh": "宋代的針灸銅人有什麼用途？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "考試用的教具",
+        "祭祀用的神像",
+        "皇宮裝飾品",
+        "藥櫃"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "相傳宋代天聖針灸銅人表面刻有穴位，用來教學與考核針灸穴位——這也是小銅人的身世。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_13_1",
+    "type": "trivia_choice",
+    "prompt_zh": "立秋之後，台灣為什麼還是很熱？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "常見說法叫「秋老虎」",
+        "立秋是錯誤的日期",
+        "因為地球變近了",
+        "因為每年都這樣沒有原因"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "立秋是曆法上秋季的開始，但台灣的炎熱天氣常持續一段時間，俗稱「秋老虎」。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_13_2",
+    "type": "myth_true_false",
+    "prompt_zh": "立秋一到，天氣就會立刻變涼爽。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "節氣是依太陽位置劃分，不一定馬上反映當地氣溫。台灣的立秋時節常仍相當炎熱。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_13_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "柿子",
+          "answer": "cold"
+        },
+        {
+          "name": "栗子",
+          "answer": "hot"
+        },
+        {
+          "name": "蓮藕（生）",
+          "answer": "cold"
+        },
+        {
+          "name": "胡椒",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "柿子、生蓮藕在傳統上常被歸為偏寒涼；栗子、胡椒則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_14_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「處暑」的「處」是什麼意思？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "終止、退去",
+        "居住",
+        "處理",
+        "地方"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "「處」有終止的意思，處暑代表暑熱逐漸消退。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_14_2",
+    "type": "myth_true_false",
+    "prompt_zh": "中藥沒有副作用，所以吃多少都沒關係。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "中藥同樣有適應條件、禁忌與劑量的考量，有些藥材甚至有毒。請務必由合格中醫師評估後使用。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_14_3",
+    "type": "trivia_choice",
+    "prompt_zh": "二十四節氣是依據什麼劃分的？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "太陽在黃道上的位置",
+        "月亮的圓缺",
+        "潮汐變化",
+        "星座位置"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "二十四節氣是依太陽在黃道上的位置，把一年平均分成 24 段，因此和國曆日期大致固定。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_15_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「白露」這個節氣的名稱，常見的說法是什麼意思？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "氣溫下降，夜間水氣凝結成白色露珠",
+        "下了白色的雪",
+        "開始降霜",
+        "月亮變白"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "白露時節，夜間氣溫下降，近地面的水氣凝結成露珠，因此得名。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_15_2",
+    "type": "myth_true_false",
+    "prompt_zh": "甘草在許多中藥方劑裡，常用來調和其他藥材的藥性。",
+    "prompt_en": null,
+    "payload": {
+      "answer": true
+    },
+    "explanation_zh": "甘草在方劑中常扮演調和諸藥的角色，因此有「國老」之稱。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_15_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "絲瓜",
+          "answer": "cold"
+        },
+        {
+          "name": "鴨肉",
+          "answer": "cold"
+        },
+        {
+          "name": "糯米",
+          "answer": "hot"
+        },
+        {
+          "name": "胡椒",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "絲瓜、鴨肉在傳統上常被歸為偏寒涼；糯米、胡椒則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_16_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「秋分」這一天有什麼特色？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "白晝與黑夜長度大約相等",
+        "一年中白晝最長",
+        "一年中白晝最短",
+        "開始降霜"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "秋分和春分一樣，晝夜長度大約相等，過了秋分，白晝會逐漸變短。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_16_2",
+    "type": "myth_true_false",
+    "prompt_zh": "每個人的體質不同，傳統上強調飲食要依個人狀況調整。",
+    "prompt_en": null,
+    "payload": {
+      "answer": true
+    },
+    "explanation_zh": "中醫傳統飲食強調「因人制宜」，同樣的食材不一定適合每個人。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_16_3",
+    "type": "trivia_choice",
+    "prompt_zh": "在台灣，中秋節最常見的應景水果是？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "柚子",
+        "西瓜",
+        "芒果",
+        "蓮霧"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "中秋前後正是柚子的產季，吃柚子、烤肉、賞月是台灣常見的中秋習俗。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_17_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「寒露」的名稱，常見的說法是什麼意思？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "露水更冷、氣溫更低",
+        "一年中最熱",
+        "開始下大雪",
+        "白晝最長"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "寒露比白露的氣溫更低，露水更冷，已經能明顯感覺秋意。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_17_2",
+    "type": "myth_true_false",
+    "prompt_zh": "人參適合所有人長期大量服用。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "人參並不適合所有人，也不是越多越好，使用前請由專業中醫師評估。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_17_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "柚子",
+          "answer": "cold"
+        },
+        {
+          "name": "桂圓",
+          "answer": "hot"
+        },
+        {
+          "name": "白蘿蔔",
+          "answer": "cold"
+        },
+        {
+          "name": "辣椒",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "柚子、白蘿蔔在傳統上常被歸為偏寒涼；桂圓、辣椒則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_18_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「霜降」在二十四節氣中的位置是？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "秋季的最後一個節氣",
+        "冬季的第一個節氣",
+        "春季的開始",
+        "夏季的結束"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "霜降是秋季的最後一個節氣，天氣漸冷，北方開始降霜。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_18_2",
+    "type": "trivia_choice",
+    "prompt_zh": "民間常有「霜降吃柿子」的說法，這是屬於？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "相傳的民間習俗",
+        "法律規定",
+        "現代科學證實的規則",
+        "中藥處方"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "「霜降吃柿子」是流傳的民間說法，並非醫療建議。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_18_3",
+    "type": "myth_true_false",
+    "prompt_zh": "孕婦吃中藥，不需要先諮詢專業人員。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "孕婦使用任何藥物或藥材都應先諮詢合格醫師，有些藥材孕婦需要特別謹慎或避免。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_18_4",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "柿子",
+          "answer": "cold"
+        },
+        {
+          "name": "羊肉",
+          "answer": "hot"
+        },
+        {
+          "name": "梨",
+          "answer": "cold"
+        },
+        {
+          "name": "生薑",
+          "answer": "hot"
+        }
+      ]
+    },
+    "explanation_zh": "柿子、梨在傳統上常被歸為偏寒涼；羊肉、生薑則常被歸為偏溫熱。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_18_5",
+    "type": "identify_image",
+    "prompt_zh": "這是哪一種藥材（食材）？",
+    "prompt_en": null,
+    "payload": {
+      "image": "herbs/gan_cao.webp",
+      "options": [
+        "甘草",
+        "黃耆",
+        "桔梗",
+        "當歸"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "這是甘草。可以對照第二關：同一味藥，換一組選項是不是也認得出來？",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_19_1",
+    "type": "trivia_choice",
+    "prompt_zh": "在台灣，立冬前後常見的民間習俗叫什麼？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "補冬",
+        "賞花",
+        "划龍舟",
+        "放天燈"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "台灣民間有「補冬」習俗，立冬前後會燉煮湯品、進補，是常見的飲食文化。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_19_2",
+    "type": "myth_true_false",
+    "prompt_zh": "冬天進補越多越好。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "進補要看個人體質與身體狀況，過度進補反而可能造成不適。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_19_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "羊肉",
+          "answer": "hot"
+        },
+        {
+          "name": "白蘿蔔",
+          "answer": "cold"
+        },
+        {
+          "name": "薑母鴨",
+          "answer": "hot"
+        },
+        {
+          "name": "柚子",
+          "answer": "cold"
+        }
+      ]
+    },
+    "explanation_zh": "羊肉、薑母鴨在傳統上常被歸為偏溫熱；白蘿蔔、柚子則常被歸為偏寒涼。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_20_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「小雪」在台灣通常會下雪嗎？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "平地幾乎不會",
+        "每年都會下大雪",
+        "只在夏天下",
+        "全島都會下"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "節氣名稱源自黃河流域的氣候，台灣平地在小雪時節幾乎不會下雪。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_20_2",
+    "type": "myth_true_false",
+    "prompt_zh": "喝薑茶可以取代感冒就醫。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "薑茶只是日常飲品，不能取代醫療。身體不適請就醫並諮詢醫師。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_20_3",
+    "type": "trivia_choice",
+    "prompt_zh": "下列哪一項是常見的藥食同源食材？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "紅棗",
+        "巧克力",
+        "洋芋片",
+        "汽水"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "紅棗（大棗）是常見的藥食同源食材，也是薑棗茶的組成之一。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_21_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「大雪」這個名稱，最貼切的說法是？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "北方降雪量增大的時期",
+        "台灣下大雪",
+        "一年中最熱",
+        "晝夜等長"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "節氣名稱源自北方氣候，大雪代表降雪量增多，氣溫進一步下降。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_21_2",
+    "type": "myth_true_false",
+    "prompt_zh": "冬天不流汗，所以不需要補充水分。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "不論季節，身體都需要適量水分，冬天空氣乾燥時同樣要注意補水。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_21_3",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "龍眼",
+          "answer": "hot"
+        },
+        {
+          "name": "白蘿蔔",
+          "answer": "cold"
+        },
+        {
+          "name": "肉桂",
+          "answer": "hot"
+        },
+        {
+          "name": "大白菜",
+          "answer": "cold"
+        }
+      ]
+    },
+    "explanation_zh": "龍眼、肉桂在傳統上常被歸為偏溫熱；白蘿蔔、大白菜則常被歸為偏寒涼。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_22_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「冬至」在北半球有什麼特色？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "一年中白晝最短",
+        "一年中白晝最長",
+        "晝夜長度相等",
+        "開始降霜"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "冬至是北半球一年中白晝最短、黑夜最長的一天，約在每年 12 月 22 日前後。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_22_2",
+    "type": "trivia_choice",
+    "prompt_zh": "台灣冬至最常見的應景食物是？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "湯圓",
+        "粽子",
+        "月餅",
+        "潤餅"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "冬至吃湯圓，象徵團圓，是台灣常見的節氣習俗。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_22_3",
+    "type": "myth_true_false",
+    "prompt_zh": "食物的「寒、熱」屬性，指的是食物的溫度高低。",
+    "prompt_en": null,
+    "payload": {
+      "answer": false
+    },
+    "explanation_zh": "傳統所說的食物「寒涼、溫熱」是指食物在飲食文化中被歸納的屬性，不是吃下去時的溫度。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_23_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「小寒」之後約過多久會到「大寒」？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "約 15 天",
+        "約 3 天",
+        "約 3 個月",
+        "約 1 年"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "二十四節氣之間大約相隔 15 天，小寒之後接著就是大寒。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_23_2",
+    "type": "myth_true_false",
+    "prompt_zh": "紅棗桂圓茶常在冬天被當作暖身的飲品。",
+    "prompt_en": null,
+    "payload": {
+      "answer": true
+    },
+    "explanation_zh": "紅棗桂圓茶是冬季常見的甜茶。（常見說法，並非醫療建議）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_23_3",
+    "type": "identify_image",
+    "prompt_zh": "這是哪一種藥材（食材）？",
+    "prompt_en": null,
+    "payload": {
+      "image": "herbs/fu_ling.webp",
+      "options": [
+        "茯苓",
+        "山藥",
+        "白朮",
+        "陳皮"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "再認一次茯苓。茯苓和山藥、蓮子、芡實一起，組成了四神湯。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_24_1",
+    "type": "trivia_choice",
+    "prompt_zh": "「大寒」在二十四節氣中的位置是？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "最後一個節氣",
+        "第一個節氣",
+        "秋季的開始",
+        "夏季的結束"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "大寒是二十四節氣的最後一個節氣，過了大寒就是立春，又開始新的一年。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_24_2",
+    "type": "trivia_choice",
+    "prompt_zh": "二十四節氣是從哪一個節氣開始算起的？",
+    "prompt_en": null,
+    "payload": {
+      "options": [
+        "立春",
+        "冬至",
+        "春分",
+        "立夏"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "傳統上二十四節氣以「立春」為起點，大寒為終點，周而復始。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_24_3",
+    "type": "myth_true_false",
+    "prompt_zh": "藥食同源的食材，仍然要依個人狀況食用。",
+    "prompt_en": null,
+    "payload": {
+      "answer": true
+    },
+    "explanation_zh": "即使是食材，也有適不適合個人的問題。有疑問時，請諮詢專業中醫師。",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_24_4",
+    "type": "hot_cold_sort",
+    "prompt_zh": "把食材拖到傳統上常見的性味分類：寒涼 或 溫熱？",
+    "prompt_en": null,
+    "payload": {
+      "zones": [
+        "寒涼",
+        "溫熱"
+      ],
+      "items": [
+        {
+          "name": "薑",
+          "answer": "hot"
+        },
+        {
+          "name": "紅棗",
+          "answer": "hot"
+        },
+        {
+          "name": "白蘿蔔",
+          "answer": "cold"
+        },
+        {
+          "name": "綠豆",
+          "answer": "cold"
+        }
+      ]
+    },
+    "explanation_zh": "薑、紅棗在傳統上常被歸為偏溫熱；白蘿蔔、綠豆則常被歸為偏寒涼。（傳統食物性味的常見分類，「寒熱」指食物的屬性，不是溫度高低；也不代表每個人都適合，體質與身體狀況不同，請依個人情形調整。）",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  },
+  {
+    "id": "lq_24_5",
+    "type": "identify_image",
+    "prompt_zh": "這是哪一種藥材（食材）？",
+    "prompt_en": null,
+    "payload": {
+      "image": "herbs/ren_shen.webp",
+      "options": [
+        "人參",
+        "黃耆",
+        "當歸",
+        "白朮"
+      ],
+      "answer_index": 0
+    },
+    "explanation_zh": "最後再認一次人參。恭喜你完成了一整年的節氣旅程！",
+    "explanation_en": null,
+    "is_shareable": true,
+    "status": "ok"
+  }
+]

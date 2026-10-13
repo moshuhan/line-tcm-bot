@@ -104,6 +104,9 @@
 | 考題 | `2011870208-ET66KFq7` | `/liff/quiz` |
 | 口說 | `2011870208-KNn6vb4B` | `/liff/speaking` |
 | 寫作 | `2011870208-i3BoQwad` | `/liff/writing` |
+| 生活（節氣闖關、藥材圖鑑） | `2011870208-kD6N9oKn` | `/liff/life` |
+
+> 生活線與藥材圖鑑／掉落／合成等遊戲化功能已實作：規格見 `docs/tcm-gamification-spec-v2.1.md`，實作說明與操作（開發開關、上線設定、測試）見 `docs/gm-implementation-notes.md`。
 
 三個 `.html` 檔案裡的 `LIFF_ID` 常數、本機 `.env` 的 `LIFF_CHANNEL_ID` 都已經填好正式值。
 
