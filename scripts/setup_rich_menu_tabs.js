@@ -9,8 +9,8 @@
  * 不想動到正式帳號時，先用 `--dry-run` 看會做什麼：node scripts/setup_rich_menu_tabs.js --dry-run
  *
  * 版面（2500×1686，需與 make_rich_menu_placeholders.py 一致）：
- *   y 0–200   分頁列：左半「學生」、右半「生活」
- *   y 200–1686 2×2 按鈕，每格 1250×743
+ *   y 0–170   分頁列：左半「學生」、右半「生活」
+ *   y 170–1686 2×2 按鈕：第一列 y 170–887、第二列 y 887–1686，每格寬 1250
  */
 const line = require('@line/bot-sdk');
 const dotenv = require('dotenv');
@@ -35,12 +35,15 @@ const LIFF = {
 
 const ALIAS = { life: 'richmenu-alias-life', student: 'richmenu-alias-student' };
 const NAME = { life: 'GM_life', student: 'GM_student' };
-const W = 2500, H = 1686, TAB_H = 200, CW = W / 2, CH = (H - TAB_H) / 2;
+// 觸控範圍需與 scripts/compose_rich_menu.py 的版面一致：分頁列 y 0–170；第一列 y 170–887、第二列 y 887–1686
+const W = 2500, H = 1686, TAB_H = 170, ROW_SPLIT = 887, CW = W / 2;
+const ROWS = [{ y: TAB_H, h: ROW_SPLIT - TAB_H }, { y: ROW_SPLIT, h: H - ROW_SPLIT }];
 
 const liffUri = (id, query) => `https://liff.line.me/${id}${query ? '?' + query : ''}`;
 
 function cell(i, action) {
-    return { bounds: { x: (i % 2) * CW, y: TAB_H + Math.floor(i / 2) * CH, width: CW, height: CH }, action };
+    const row = ROWS[Math.floor(i / 2)];
+    return { bounds: { x: (i % 2) * CW, y: row.y, width: CW, height: row.h }, action };
 }
 
 function tabs() {
@@ -95,9 +98,16 @@ async function removeOld() {
 async function main() {
     const images = {};
     for (const key of Object.keys(MENUS)) {
-        const p = path.join(__dirname, '..', 'assets', 'rich_menu', `${key}.png`);
+        // 優先用正式設計圖 .jpg（scripts/compose_rich_menu.py 產生，LINE 限制 1MB），沒有再用佔位 .png
+        const dir = path.join(__dirname, '..', 'assets', 'rich_menu');
+        const jpg = path.join(dir, `${key}.jpg`), png = path.join(dir, `${key}.png`);
+        const p = fs.existsSync(jpg) ? jpg : png;
         if (!fs.existsSync(p)) {
-            console.error(`找不到圖片 ${p}，請先執行：python scripts/make_rich_menu_placeholders.py`);
+            console.error(`找不到圖片 ${jpg}（或 ${png}），請先執行：python scripts/compose_rich_menu.py 或 python scripts/make_rich_menu_placeholders.py`);
+            process.exit(1);
+        }
+        if (fs.statSync(p).size > 1024 * 1024) {
+            console.error(`${p} 超過 LINE 的 1MB 限制`);
             process.exit(1);
         }
         images[key] = p;
@@ -115,7 +125,7 @@ async function main() {
     const ids = {};
     for (const [key, menu] of Object.entries(MENUS)) {
         ids[key] = await client.createRichMenu(menu);
-        await client.setRichMenuImage(ids[key], fs.readFileSync(images[key]), 'image/png');
+        await client.setRichMenuImage(ids[key], fs.readFileSync(images[key]), images[key].endsWith('.jpg') ? 'image/jpeg' : 'image/png');
         await client.createRichMenuAlias(ids[key], ALIAS[key]);
         console.log(`已建立 ${menu.name} -> ${ids[key]}（alias ${ALIAS[key]}）`);
     }

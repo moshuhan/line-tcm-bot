@@ -14,7 +14,7 @@ import os
 
 from PIL import Image, ImageDraw, ImageFont
 
-W, H, TAB_H = 2500, 1686, 200
+W, H, TAB_H, ROW_SPLIT = 2500, 1686, 170, 887
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "rich_menu")
 
 FONT_CANDIDATES = [
@@ -65,9 +65,12 @@ def build(name, spec):
         d.rectangle(box, fill=INK if active else (231, 220, 190))
         center(d, box, label, font(86), (241, 223, 166) if active else (110, 96, 72))
     # 2x2 按鈕
-    cw, ch = W // 2, (H - TAB_H) // 2
+    cw = W // 2
+    rows = [(TAB_H, ROW_SPLIT), (ROW_SPLIT, H)]
     for i, (title, sub, color) in enumerate(spec["cells"]):
-        x, y = (i % 2) * cw, TAB_H + (i // 2) * ch
+        y, y_end = rows[i // 2]
+        ch = y_end - y
+        x = (i % 2) * cw
         pad = 18
         box = (x + pad, y + pad, x + cw - pad, y + ch - pad)
         d.rounded_rectangle(box, radius=48, fill=color)
