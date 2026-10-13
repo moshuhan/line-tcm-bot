@@ -260,8 +260,10 @@ tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'on-primary-
       <span class="material-symbols-outlined text-outline text-[20px]">search</span>
       <input id="mistakes-search" type="text" oninput="renderMistakes()" placeholder="搜尋題目關鍵字..." class="bg-transparent font-body-sm text-body-sm text-on-surface outline-none w-full placeholder:text-outline">
     </div>
-    <div class="flex flex-wrap gap-1.5" id="mistakes-category-pills"></div>
-    <div class="flex flex-wrap gap-1.5" id="mistakes-concept-pills"></div>
+    <div class="grid grid-cols-2 gap-space-sm">
+      <div id="mistakes-category-pills"></div>
+      <div id="mistakes-concept-pills"></div>
+    </div>
     <div class="flex flex-col gap-space-sm" id="mistakes-list"></div>
     <div id="mistakes-empty" class="font-body-sm text-on-surface-variant text-center py-16" style="display:none;">目前沒有標記的錯題</div>
   </div>
@@ -781,16 +783,29 @@ function openAiDrawerFromResult(qid) {
 async function loadMistakes() {
   const data = await apiGet("/api/liff/quiz/wrong-questions");
   wrongList = data.questions || [];
-  const pillsBox = document.getElementById("mistakes-category-pills");
-  const cats = ["全部章節", ...Array.from(new Set(wrongList.map(q => q.category).filter(Boolean)))];
-  pillsBox.innerHTML = cats.map(c => `
-    <button type="button" class="cat-pill px-space-sm py-1 rounded-full font-label-sm text-label-sm ${((c === "全部章節" && !mistakesActiveCategory) || c === mistakesActiveCategory) ? "bg-primary text-on-primary" : "bg-surface-container-lowest text-on-surface"}" onclick="setMistakesCategory('${c === "全部章節" ? "" : escapeHtml(c)}')">${escapeHtml(c)}</button>
-  `).join("");
-  const conceptPillsBox = document.getElementById("mistakes-concept-pills");
-  const concepts = ["全部考點", ...Array.from(new Set(wrongList.flatMap(q => q.concepts || []).filter(Boolean)))];
-  conceptPillsBox.innerHTML = concepts.length > 1 ? concepts.map(c => `
-    <button type="button" class="concept-pill px-space-sm py-1 rounded-full border font-label-sm text-label-sm ${((c === "全部考點" && !mistakesActiveConcept) || c === mistakesActiveConcept) ? "bg-tertiary-fixed border-tertiary-fixed text-on-tertiary-fixed" : "bg-transparent border-outline-variant text-on-surface-variant"}" onclick="setMistakesConcept('${c === "全部考點" ? "" : escapeHtml(c)}')">${escapeHtml(c)}</button>
-  `).join("") : "";
+  // 章節與考點都改成下拉選單（考點標籤有上百個，用標籤牆會塞滿整個畫面）
+  const SELECT_CLS = "w-full h-11 rounded-xl bg-surface-container-lowest border border-outline-variant px-3 font-label-md text-label-md text-on-surface shadow-sm outline-none";
+  const countBy = (list, pick) => {
+    const m = new Map();
+    list.forEach(q => pick(q).forEach(v => { if (v) m.set(v, (m.get(v) || 0) + 1); }));
+    return Array.from(m.entries()).sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0], "zh-Hant"));
+  };
+  const catRows = countBy(wrongList, q => [q.category]);
+  if (mistakesActiveCategory && !catRows.some(r => r[0] === mistakesActiveCategory)) mistakesActiveCategory = "";
+  document.getElementById("mistakes-category-pills").innerHTML = `
+    <select class="${SELECT_CLS}" aria-label="章節" onchange="setMistakesCategory(this.value)">
+      <option value="">全部章節（${wrongList.length}）</option>
+      ${catRows.map(([c, n]) => `<option value="${escapeHtml(c)}" ${c === mistakesActiveCategory ? "selected" : ""}>${escapeHtml(c)}（${n}）</option>`).join("")}
+    </select>`;
+  // 考點選項只列出目前章節底下有的，數量多的排前面
+  const inCat = mistakesActiveCategory ? wrongList.filter(q => q.category === mistakesActiveCategory) : wrongList;
+  const conceptRows = countBy(inCat, q => q.concepts || []);
+  if (mistakesActiveConcept && !conceptRows.some(r => r[0] === mistakesActiveConcept)) mistakesActiveConcept = "";
+  document.getElementById("mistakes-concept-pills").innerHTML = conceptRows.length ? `
+    <select class="${SELECT_CLS}" aria-label="考點" onchange="setMistakesConcept(this.value)">
+      <option value="">全部考點（${conceptRows.length}）</option>
+      ${conceptRows.map(([c, n]) => `<option value="${escapeHtml(c)}" ${c === mistakesActiveConcept ? "selected" : ""}>${escapeHtml(c)}（${n}）</option>`).join("")}
+    </select>` : "";
   renderMistakes();
 }
 function setMistakesCategory(c) { mistakesActiveCategory = c; loadMistakes(); }
