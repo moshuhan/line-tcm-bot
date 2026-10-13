@@ -340,7 +340,7 @@ const LIFF_ID = "2011870208-ET66KFq7";
 // 本機 ngrok 預覽用：網址加 ?debug=1 就跳過真的 LINE 登入。這個 token 要跟後端
 // LIFF_DEBUG_TOKEN 環境變數一致，正式站不會設這個變數，外流也連不進線上 API。
 const DEBUG_MODE = new URLSearchParams(location.search).get("debug") === "1";
-const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
+const DEBUG_TOKEN = "__LIFF_DEBUG_TOKEN__";   // 由後端在 LIFF_DEBUG_TOKEN 環境變數有設定時才填入（正式站為空字串）
 // 錄 demo 影片用：網址加 ?demo=1，整個頁面吃假資料，不打真的 API、不需要登入。
 const DEMO_MODE = new URLSearchParams(location.search).get("demo") === "1";
 

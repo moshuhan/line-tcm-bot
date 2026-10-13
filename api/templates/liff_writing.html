@@ -160,7 +160,7 @@
 <script>
 const LIFF_ID = "2011870208-i3BoQwad";
 const DEBUG_MODE = new URLSearchParams(location.search).get("debug") === "1";
-const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
+const DEBUG_TOKEN = "__LIFF_DEBUG_TOKEN__";   // 由後端在 LIFF_DEBUG_TOKEN 環境變數有設定時才填入（正式站為空字串）
 
 let idToken = null;
 let topics = {};

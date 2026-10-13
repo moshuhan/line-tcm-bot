@@ -1094,6 +1094,7 @@ def liff_quiz_page():
         path = os.path.join(os.path.dirname(__file__), "templates", "liff_quiz.html")
         with open(path, "r", encoding="utf-8") as f:
             html = f.read()
+        html = html.replace("__LIFF_DEBUG_TOKEN__", os.getenv("LIFF_DEBUG_TOKEN", "").strip())
         return Response(html, mimetype="text/html")
     except Exception:
         traceback.print_exc()
@@ -1261,6 +1262,7 @@ def liff_speaking_page():
         path = os.path.join(os.path.dirname(__file__), "templates", "liff_speaking.html")
         with open(path, "r", encoding="utf-8") as f:
             html = f.read()
+        html = html.replace("__LIFF_DEBUG_TOKEN__", os.getenv("LIFF_DEBUG_TOKEN", "").strip())
         return Response(html, mimetype="text/html")
     except Exception:
         traceback.print_exc()
@@ -1364,6 +1366,7 @@ def liff_writing_page():
         path = os.path.join(os.path.dirname(__file__), "templates", "liff_writing.html")
         with open(path, "r", encoding="utf-8") as f:
             html = f.read()
+        html = html.replace("__LIFF_DEBUG_TOKEN__", os.getenv("LIFF_DEBUG_TOKEN", "").strip())
         return Response(html, mimetype="text/html")
     except Exception:
         traceback.print_exc()

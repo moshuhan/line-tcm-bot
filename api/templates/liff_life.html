@@ -233,7 +233,7 @@ const LIFF_ID = (function(){ const v = "__LIFE_LIFF_ID__"; return v.indexOf("__"
 const Q = new URLSearchParams(location.search);
 // 本機預覽：網址加 ?debug=1 跳過 LINE 登入（需後端設定 LIFF_DEBUG_TOKEN，正式站不會設）
 const DEBUG_MODE = Q.get("debug") === "1";
-const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
+const DEBUG_TOKEN = "__LIFF_DEBUG_TOKEN__";   // 由後端在 LIFF_DEBUG_TOKEN 環境變數有設定時才填入（正式站為空字串）
 const MASCOT_OUTFIT = "";   // 之後換裝：assets/mascot/{outfit}/{state}.webp
 const SEASON = { spring:{n:"春",c:"var(--spring)"}, summer:{n:"夏",c:"var(--summer)"}, autumn:{n:"秋",c:"var(--autumn)"}, winter:{n:"冬",c:"var(--winter)"} };
 const SEASON_ORDER = ["spring","summer","autumn","winter"];

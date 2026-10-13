@@ -100,6 +100,7 @@ def register(app, get_user_id, db):
             with open(os.path.join(_TEMPLATES, "liff_life.html"), "r", encoding="utf-8") as f:
                 html = f.read()
             html = html.replace("__LIFE_LIFF_ID__", LIFE_LIFF_ID)
+            html = html.replace("__LIFF_DEBUG_TOKEN__", os.getenv("LIFF_DEBUG_TOKEN", "").strip())
             return Response(html, mimetype="text/html")
         except Exception:
             traceback.print_exc()
