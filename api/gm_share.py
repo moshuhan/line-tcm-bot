@@ -46,8 +46,46 @@ def _bubble(base_url, liff_url, title, lines, note, hero_state="celebrate", eyeb
     }
 
 
-def build_flex(kind, ref_id, base_url, liff_url):
-    """回傳 (altText, bubble) 或 None（找不到對應內容）。kind: formula_unlocked | recipe_unlocked | trivia_card。"""
+REQUEST_NOTE = "學習內容，非處方。只能贈送自己重複的藥材，不會減少你的進度。"
+PROGRESS_NOTE = "分享的只有遊戲成就，不含任何個人資料或對話內容。"
+SEASON_NAME = {"spring": "春", "summer": "夏", "autumn": "秋", "winter": "冬"}
+
+
+def build_request_flex(req, base_url, liff_base_url):
+    """求藥卡：朋友點「送他一味 X」會開啟生活線 LIFF 的送藥頁（帶求藥卡 id）。"""
+    herb = C.herbs().get(req["herb_id"])
+    f = C.formulas().get(req["formula_id"])
+    if not herb or not f:
+        return None
+    hname = herb["name_zh"].replace("（", "(").split("(")[0]
+    title = f"救命！我只差一味「{hname}」"
+    lines = [f"就能合成「{f['name_zh']}」，幫幫我！", "只要送我一張你重複的就可以了 🙏"]
+    uri = f"{liff_base_url}?page=gift&req={req['id']}"
+    bubble = _bubble(base_url, uri, title, lines, REQUEST_NOTE, hero_state="ouch",
+                     eyebrow="岐黃 AI · 求藥", button=f"送他一味{hname}")
+    return (f"我只差一味「{hname}」就能合成「{f['name_zh']}」，幫幫我！", bubble)
+
+
+def build_flex(kind, ref_id, base_url, liff_url, ctx=None):
+    """回傳 (altText, bubble) 或 None（找不到對應內容）。
+    kind: formula_unlocked | recipe_unlocked | trivia_card | progress_card | season_complete。ctx：額外資料（戰績卡用）。"""
+    if kind == "progress_card":
+        me = ctx or {}
+        lines = [f"收集藥材食材 {me.get('herbs_owned', 0)}/{me.get('herbs_total', 0)} 味",
+                 f"方劑茶飲 {me.get('formulas_unlocked', 0) + me.get('recipes_unlocked', 0)}/"
+                 f"{me.get('formulas_total', 0) + me.get('recipes_total', 0)} 個",
+                 f"節氣關卡 {me.get('levels_cleared', 0)}/{me.get('levels_total', 0)}　連續 {me.get('streak_days', 0)} 天"]
+        title = f"我是 Lv{me.get('level', 1)}「{me.get('level_name', '')}」"
+        return (f"{title}，來挑戰看看！", _bubble(base_url, liff_url, title, lines, PROGRESS_NOTE,
+                                                hero_state="happy", eyebrow="岐黃 AI · 我的戰績", button="我也要玩"))
+    if kind == "season_complete":
+        name = SEASON_NAME.get(ref_id)
+        if not name:
+            return None
+        title = f"我完成了「{name}」章！"
+        lines = [f"通過了{name}季 6 個節氣關卡，還合成了這一季的代表茶飲。"]
+        return (title, _bubble(base_url, liff_url, title, lines, TRIVIA_NOTE, hero_state="celebrate",
+                               eyebrow="岐黃 AI · 節氣闖關", button="我也要挑戰"))
     if kind == "formula_unlocked":
         f = C.formulas().get(ref_id)
         if not f:

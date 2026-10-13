@@ -91,5 +91,10 @@
     "share_bonus_daily_cap": 2
   },
   "exam_xp_daily_cap": 600,
-  "practice_xp_daily_cap": 120
+  "practice_xp_daily_cap": 120,
+  "request": {
+    "expire_hours": 72,
+    "max_open": 3,
+    "gift_reward_daily_cap": 2
+  }
 }

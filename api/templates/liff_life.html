@@ -214,6 +214,8 @@
   <section class="view" id="v-codex"></section>
   <!-- ME -->
   <section class="view" id="v-me"></section>
+  <!-- GIFT（朋友點求藥卡進來） -->
+  <section class="view" id="v-gift"></section>
 </div>
 
 <nav class="bottom"><div class="in">
@@ -261,6 +263,7 @@ function pic(item, cls="pic"){ // 有圖用圖，沒有就用 emoji 底卡
 async function api(path, opts={}){
   const headers = { "Content-Type":"application/json" };
   if(idToken) headers["Authorization"] = "Bearer " + idToken;
+  if(DEBUG_MODE && Q.get("as")) headers["X-Debug-User"] = Q.get("as");
   let res;
   try { res = await fetch(path, { method: opts.method || "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined }); }
   catch(e){ toast("網路不穩，請再試一次"); throw e; }
@@ -284,6 +287,7 @@ function go(view, opts={}){
   else if(view === "map") loadMap();
   else if(view === "codex") loadCodex(opts);
   else if(view === "me") renderMe();
+  else if(view === "gift") renderGift(opts.req);
 }
 document.querySelectorAll("nav.bottom button").forEach(b => b.onclick = () => go(b.dataset.go));
 
@@ -306,7 +310,12 @@ async function renderHome(){
   const nextLv = m ? m.seasons.flatMap(s => s.levels).find(l => l.available && !l.cleared) : null;
   const sea = cur ? SEASON[cur.season] : SEASON.spring;
   const hello = me.streak_active_today ? "今天已經打卡囉！" : (me.streak_days ? "連續 " + me.streak_days + " 天，今天也來一關吧" : "歡迎來到岐黃節氣闖關");
-  el.innerHTML = `
+  const notices = (me.notices || []).filter(n => n.type === "gift").map(n => `
+    <div class="synth" style="margin:0 0 12px"><div class="sparkle">🎁</div>
+      <div class="tiny" style="color:#7A5A00">朋友送來了禮物</div><h3>「${esc((n.herb_name || "").replace(/（.*?）/, ""))}」</h3>
+      ${(n.unlocked || []).length ? `<div class="muted" style="color:#5A4300">你因此合成了新的方劑！</div>` : ""}
+      <button class="btn gold" data-seen="1">收下，太棒了</button></div>`).join("");
+  el.innerHTML = notices + `
     <div class="card hero">
       <img class="mascot" src="${mascotUrl("happy")}" alt="小銅人">
       <div class="txt">
@@ -335,6 +344,7 @@ async function renderHome(){
     </div>
     <p class="disc">本頁為傳統文化與飲食常識的學習內容，非醫療建議。孕婦、慢性病或正在服藥者，請先諮詢醫師。</p>`;
   $("#goPlay").onclick = () => nextLv ? startLevel(nextLv.id) : go("map");
+  el.querySelectorAll("[data-seen]").forEach(b => b.onclick = async () => { try { await post("/api/liff/gm/notices/seen", {}); } catch(e){} S.me = null; renderHome(); });
 }
 
 // ---------------------------------------------------------------- 地圖
@@ -522,7 +532,7 @@ function renderResult(r){
     <div class="tiny">${esc(lvl.solar_term)}${r.is_boss ? " ‧ Boss" : ""}</div>
     <h2>${r.passed ? (r.is_boss ? "Boss 通關！" : "過關！") : "再挑戰一次吧"}</h2>
     <div class="muted">答對 <b style="color:var(--ink);font-size:18px">${r.correct}</b> / ${r.total} 題（需要 ${r.threshold} 題過關）</div>
-    ${r.season_complete ? `<div class="banner">🎉 完成「${SEASON[r.season].n}」章！</div>` : ""}
+    ${r.season_complete ? `<div class="banner">🎉 完成「${SEASON[r.season].n}」章！<div style="margin-top:8px"><button class="btn gold" data-share="season_complete" data-id="${r.season}">分享本章成就</button></div></div>` : ""}
     ${r.cards.length ? `<div class="tiny" style="margin-top:14px">獲得食材 / 藥材</div><div class="cards">${cardsHtml}</div>` : (r.passed && !r.first_clear ? `<div class="why">這一關已經通過，重玩不會再掉落卡片，但可以複習知識。</div>` : "")}
     ${synth}
     <div class="xpline"><div class="row spread tiny" style="margin-bottom:5px"><b style="color:var(--ink)">+${xp.gained} XP</b><span>Lv${xp.level} ${esc(xp.level_name)}</span></div>
@@ -604,7 +614,13 @@ function openDetail(kind, it){
     return;
   }
   if(!it.unlocked){
-    return openSheet(`<h3>${esc(it.name_zh)}</h3><p class="muted">還差 ${it.total - it.progress} 味就能合成：</p><div class="comps">${it.components.map(p => `<span class="cp ${p.owned ? "have" : ""}">${p.owned ? "✓ " : ""}${esc(p.name_zh)}</span>`).join("")}</div><button class="btn primary block" onclick="closeSheet()">繼續收集</button>`);
+    const oneLeft = kind === "formula" && it.total - it.progress === 1;
+    const missingName = (it.components.find(p => !p.owned) || {}).name_zh || "";
+    openSheet(`<h3>${esc(it.name_zh)}</h3><p class="muted">還差 ${it.total - it.progress} 味就能合成：</p><div class="comps">${it.components.map(p => `<span class="cp ${p.owned ? "have" : ""}">${p.owned ? "✓ " : ""}${esc(p.name_zh)}</span>`).join("")}</div>
+      ${oneLeft ? `<div class="why">只差「${esc(missingName.replace(/（.*?）/, ""))}」了！可以請朋友送你一張他重複的 🙏</div><button class="btn gold block" id="reqBtn" style="margin-bottom:10px">🙏 向朋友求藥</button>` : ""}
+      <button class="btn primary block" onclick="closeSheet()">繼續收集</button>`);
+    const rb = $("#reqBtn"); if(rb) rb.onclick = () => requestHerb(it.id);
+    return;
   }
   if(kind === "formula"){
     openSheet(`<h3 style="font-size:22px;margin:0 0 4px">✨ ${esc(it.name_zh)}</h3><div class="tiny">${esc(it.name_en || "")} ・ ${esc(it.source || "")}</div>
@@ -637,34 +653,95 @@ async function renderMe(){
       <div class="stat"><b>🔥 ${me.streak_days}</b><span>連續天數</span></div>
       <div class="stat"><b>${me.new_herbs_today}/${me.new_herbs_cap}</b><span>今日新卡上限</span></div>
       <div class="stat"><b>${me.plan === "pro" ? "Pro" : "免費"}</b><span>目前方案</span></div></div>
+    <button class="btn gold block" id="shareProgress" style="margin-top:14px">分享我的戰績</button>
     <div class="card stack" style="margin-top:14px"><h3 style="margin:0">Pro 方案</h3>
       <p class="muted" style="margin:0">・節氣關卡 24 關隨時開放、每天不限關數<br>・完整茶飲食譜與做法<br>・口說、寫作不限次數練習<br>・小銅人季節限定造型</p>
       <p class="tiny" style="margin:0">藥材與食材永遠不能用錢買，卡片都要自己玩出來。Pro 方案即將開放。</p></div>
     ${Object.keys(me.dev || {}).length ? `<p class="tiny" style="margin-top:12px">開發開關：${esc(JSON.stringify(me.dev))}</p>` : ""}`;
+  $("#shareProgress").onclick = () => shareCard("progress_card", "");
 }
 
 // ---------------------------------------------------------------- 分享
+async function sendShare(message, type, id, link){
+  if(window.liff && liff.isApiAvailable && liff.isApiAvailable("shareTargetPicker") && !DEBUG_MODE){
+    const res = await liff.shareTargetPicker([message], { isMultiple:true });
+    post("/api/liff/gm/share-event", { share_type:type, ref_id:id, status: res ? "success" : "cancel" }).catch(()=>{});
+    if(res) toast("已分享給朋友 🎉");
+    return !!res;
+  }
+  const url = link || ("https://liff.line.me/" + LIFF_ID);
+  try { await navigator.clipboard.writeText(url); toast("已複製連結，貼給朋友吧"); } catch(e){ toast("請在 LINE 內開啟才能分享"); }
+  post("/api/liff/gm/share-event", { share_type:type, ref_id:id, status:"fallback" }).catch(()=>{});
+  return false;
+}
 async function shareCard(type, id){
   try {
-    const d = await get(`/api/liff/gm/share-card?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
-    if(window.liff && liff.isApiAvailable && liff.isApiAvailable("shareTargetPicker") && !DEBUG_MODE){
-      const res = await liff.shareTargetPicker([d.message], { isMultiple:true });
-      post("/api/liff/gm/share-event", { share_type:type, ref_id:id, status: res ? "success" : "cancel" }).catch(()=>{});
-      if(res) toast("已分享給朋友 🎉");
-    } else {
-      const url = "https://liff.line.me/" + LIFF_ID;
-      try { await navigator.clipboard.writeText(url); toast("已複製邀請連結，貼給朋友吧"); } catch(e){ toast("請在 LINE 內開啟才能分享"); }
-      post("/api/liff/gm/share-event", { share_type:type, ref_id:id, status:"fallback" }).catch(()=>{});
-    }
+    const d = await get(`/api/liff/gm/share-card?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id || "")}`);
+    await sendShare(d.message, type, id);
   } catch(e){ toast(e.message); }
+}
+// 求藥：產生一張求藥卡（72 小時內有效），用好友選擇器丟給朋友
+async function requestHerb(formulaId){
+  try {
+    const d = await post("/api/liff/gm/request", { formula_id: formulaId });
+    await sendShare(d.message, "herb_request", d.request.id, `https://liff.line.me/${LIFF_ID}?page=gift&req=${d.request.id}`);
+  } catch(e){ toast(e.message); }
+}
+
+// ---------------------------------------------------------------- 送藥頁（朋友點求藥卡進來）
+async function renderGift(reqId){
+  const el = $("#v-gift");
+  if(!reqId){ el.innerHTML = `<div class="card"><h3>找不到求藥卡</h3><p class="muted">連結好像不完整，請朋友再傳一次。</p><button class="btn primary block" onclick="go('home')">回首頁</button></div>`; return; }
+  el.innerHTML = `<div class="card muted">讀取求藥卡…</div>`;
+  let v;
+  try { v = await get("/api/liff/gm/request/" + encodeURIComponent(reqId)); }
+  catch(e){ el.innerHTML = `<div class="card"><h3>無法開啟求藥卡</h3><p class="muted">${esc(e.message)}</p><button class="btn primary block" onclick="go('home')">回首頁</button></div>`; return; }
+  const name = (v.herb.name_zh || "").replace(/（.*?）/, "");
+  const head = `<div class="res"><img class="mascot" src="${mascotUrl("ouch")}" alt="">
+    <div class="tiny">岐黃 AI · 求藥</div>
+    <h2>朋友只差一味「${esc(name)}」</h2>
+    <div class="muted">就能合成「${esc(v.formula.name_zh)}」，幫幫他！</div>
+    <div class="cards" style="margin:16px 0"><div class="flip up"><div><div class="face">${pic(v.herb)}<b>${esc(name)}</b></div></div></div></div>`;
+  const msgs = {
+    mine: "這是你發出的求藥卡，等朋友來送藥吧。",
+    no_spare: `你目前沒有多的「${esc(name)}」可以送（只能送<b>重複</b>的那張，不會減少你的進度）。多闖關、多答題，收集到重複的再來幫朋友吧！`,
+    fulfilled: "這張求藥卡已經被其他朋友幫忙囉，謝謝你的心意！",
+    closed_owned: "朋友已經有這味藥了，謝謝你！", already_owned: "朋友已經有這味藥了，謝謝你！",
+    expired: "這張求藥卡已經過期了。"
+  };
+  if(v.can_give){
+    el.innerHTML = head + `<div class="why">你有 <b>×${v.you_have}</b>，可以送出 1 張重複的給朋友。送出後你也會收到一份感謝禮 🎁</div>
+      <button class="btn gold block" id="giveBtn">送他一味「${esc(name)}」</button>
+      <p class="disc">學習內容，非處方。只能贈送自己重複的藥材，不會減少你的進度。</p></div>`;
+    $("#giveBtn").onclick = async () => {
+      const b = $("#giveBtn"); b.disabled = true;
+      try { renderGiftDone(await post("/api/liff/gm/request/" + encodeURIComponent(reqId) + "/fulfill"), v, name); }
+      catch(e){ toast(e.message); b.disabled = false; renderGift(reqId); }
+    };
+  } else {
+    const extra = v.reason === "mine" ? `<button class="btn ghost block" id="reShare" style="margin-top:10px">再分享一次求藥卡</button>` : `<button class="btn primary block" id="goPlay2" style="margin-top:10px">去闖關收集</button>`;
+    el.innerHTML = head + `<div class="why">${msgs[v.reason] || "這張求藥卡目前無法送藥。"}</div>${extra}</div>`;
+    const rs = $("#reShare"); if(rs) rs.onclick = () => requestHerb(v.formula.id);
+    const gp = $("#goPlay2"); if(gp) gp.onclick = () => go("map");
+  }
+}
+function renderGiftDone(r, v, name){
+  const el = $("#v-gift");
+  const card = r.reward ? `<div class="tiny" style="margin-top:14px">感謝禮</div><div class="cards"><div class="flip up"><div><div class="face">${r.reward.is_new ? '<span class="new">NEW</span>' : '<span class="q">×' + r.reward.quantity + '</span>'}${pic(r.reward)}<b>${esc((r.reward.name_zh || "").replace(/（.*?）/, ""))}</b></div></div></div></div>` : `<div class="why">今天的感謝禮已經領滿囉，明天再幫朋友還有。</div>`;
+  const unlocked = (r.requester_unlocked || []).map(f => `<div class="banner">🎉 朋友成功合成了「${esc(f.name_zh)}」！</div>`).join("");
+  const mine = (r.your_new_formulas || []).map(f => `<div class="synth"><div class="sparkle">✨</div><div class="tiny" style="color:#7A5A00">你也合成了</div><h3>${esc(f.name_zh)}</h3></div>`).join("");
+  el.innerHTML = `<div class="res"><img class="mascot" src="${mascotUrl("celebrate")}" alt="">
+    <h2>謝謝你幫了朋友！</h2><div class="muted">你送出了 1 張「${esc(name)}」</div>${unlocked}${card}${mine}
+    <div class="row" style="margin-top:18px;gap:10px"><button class="btn ghost" style="flex:1" onclick="go('home')">回首頁</button><button class="btn primary" style="flex:1" onclick="go('codex')">看圖鑑</button></div></div>`;
+  vib(20); refreshMe().catch(() => {});
 }
 
 // ---------------------------------------------------------------- 啟動
 function parseDeepLink(){
-  let page = Q.get("page"), track = Q.get("track"), tab = Q.get("tab");
+  let page = Q.get("page"), track = Q.get("track"), tab = Q.get("tab"), req = Q.get("req"), open = Q.get("open");
   const st = Q.get("liff.state");
-  if(st){ try { const q = new URLSearchParams(decodeURIComponent(st).replace(/^\/?\??/, "")); page = page || q.get("page"); track = track || q.get("track"); tab = tab || q.get("tab"); } catch(e){} }
-  return { page, track, tab };
+  if(st){ try { const q = new URLSearchParams(decodeURIComponent(st).replace(/^\/?\??/, "")); page = page || q.get("page"); track = track || q.get("track"); tab = tab || q.get("tab"); req = req || q.get("req"); open = open || q.get("open"); } catch(e){} }
+  return { page, track, tab, req, open };
 }
 async function boot(){
   loading(true);
@@ -678,8 +755,8 @@ async function boot(){
     await refreshMe();
     const dl = parseDeepLink();
     if(dl.track === "student" || dl.track === "life") S.track = dl.track;
-    const view = ({ map:"map", today:"home", home:"home", codex:"codex", me:"me" })[dl.page] || "home";
-    go(view, { tab: dl.tab === "formula" || dl.tab === "recipe" ? dl.tab : undefined });
+    const view = ({ map:"map", today:"home", home:"home", codex:"codex", me:"me", gift:"gift" })[dl.page] || "home";
+    go(view, { tab: dl.tab === "formula" || dl.tab === "recipe" ? dl.tab : undefined, open: dl.open || undefined, req: dl.req || undefined });
   } catch(e){
     $("#v-home").classList.add("on");
     $("#v-home").innerHTML = `<div class="card"><h3>無法開啟</h3><p class="muted">請從 LINE 內開啟這個頁面。（${esc(e.message || "LIFF 初始化失敗")}）</p></div>`;

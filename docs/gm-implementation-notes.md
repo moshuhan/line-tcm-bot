@@ -83,6 +83,27 @@ node scripts/setup_rich_menu_tabs.js              # 正式建立（可重複執�
 
 **MongoDB**：第一次啟動會自動建 `gm_users.user_id` 唯一索引。資料在 `gm_users`（每人一份文件）與 `gm_events`（分享事件）。
 
-## 6. 還沒做（規格的 Phase 2 與之後）
+## 6. 分享與求藥
 
-`ref_code`／`Referral`（要先實測 LIFF → 加好友是否保留參數）、`herb_request` 求藥、`season_complete` 分享卡、分享換 AI 額度與額度限制（`entitlements.ai_daily_quota` 已預留、尚未套用到 AI 詳解）、勳章、付費牆與金流、小銅人換裝與動畫、IG／Threads 站外分享、配伍禁忌互動、各藥材食材與方劑茶飲插圖。
+分享卡（LIFF `shareTargetPicker` + Flex，由後端組好、前端直接送出；分享本身由使用者以自己的名義送出）：
+
+| 卡片 | 入口 |
+|---|---|
+| `formula_unlocked` / `recipe_unlocked` | 合成成功畫面、圖鑑詳情；國考結果頁的「看方劑並分享」會直接開啟該方劑詳情 |
+| `trivia_card` | 冷知識／迷思題答完的解說卡 |
+| `season_complete` | 通關一整季後的結果頁（後端會檢查真的全通關） |
+| `progress_card` | 「我的」頁的「分享我的戰績」 |
+| `herb_request` | 圖鑑裡「只差一味」的方劑，詳情頁的「向朋友求藥」 |
+
+**求藥流程**（`gm_requests` 集合；規則放在 `data/gm/config.json` 的 `request`）：
+1. 方劑「只差一味」才能發求藥卡，72 小時內有效；同一方劑沿用同一張；同時最多 3 張未過期的卡。
+2. 朋友點卡片按鈕 → 生活線 LIFF `?page=gift&req=<id>` → 看到對方缺哪一味。**只能送自己重複的（數量 >= 2）**，不會減少進度。
+3. 送出：先扣送藥人的 → 原子地搶下求藥卡（只有一人成功，搶輸會退還）→ 求藥人收到藥、自動合成、留一則通知 → 送藥人另得一張隨機感謝禮（每日上限 `gift_reward_daily_cap`）。
+4. 求藥人下次開首頁會看到「朋友送來了禮物」橫幅，按「收下」才消失。
+5. 不能自己送自己、卡片過期或已被送過、對方已經有這味藥，都會擋下並給友善說明。
+
+本機測試兩個人互動：`?debug=1&as=alice`、`?debug=1&as=bob`（前端會帶 `X-Debug-User`，只有後端設了 `LIFF_DEBUG_TOKEN` 時才生效，正式站不會）。
+
+## 7. 還沒做（規格的 Phase 2 與之後）
+
+`ref_code`／`Referral` 邀請獎勵（要先實測 LIFF → 加好友是否保留參數；目前新朋友開求藥卡只能在自己已有重複藥材時幫忙，沒有「新朋友加入雙方各得一張」）、分享換 AI 額度與額度限制（`entitlements.ai_daily_quota` 已預留、尚未套用到 AI 詳解）、勳章、付費牆與金流、小銅人換裝與動畫、IG／Threads 站外分享圖、配伍禁忌互動、各藥材食材與方劑茶飲插圖。

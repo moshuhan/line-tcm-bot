@@ -13,6 +13,7 @@
 import hashlib
 import json
 import random
+import secrets
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -58,12 +59,13 @@ def new_doc(uid):
         "plan": "free", "pro_expires_at": None,
         "primary_track": None,
         "first_exam_submitted": False,
-        "counters": {"date": None, "exam_drop_submissions": 0, "exam_xp": 0, "practice_xp": 0, "new_herbs": 0,
+        "counters": {"date": None, "exam_drop_submissions": 0, "exam_xp": 0, "practice_xp": 0, "gift_rewards": 0, "new_herbs": 0,
                      "life_attempt_levels": [], "speaking_practices": 0, "writing_practices": 0},
         "herbs": {}, "formulas": {}, "recipes": {},
         "life": {"cleared": {}},
         "attempt": None,
         "settled": {},
+        "notices": [],
         "activity": {},
         "dev": {},
         "created_at": _iso(now_utc()),
@@ -73,7 +75,7 @@ def new_doc(uid):
 def roll_daily(doc, today_s):
     c = doc.setdefault("counters", {})
     if c.get("date") != today_s:
-        c.update({"date": today_s, "exam_drop_submissions": 0, "exam_xp": 0, "practice_xp": 0, "new_herbs": 0,
+        c.update({"date": today_s, "exam_drop_submissions": 0, "exam_xp": 0, "practice_xp": 0, "gift_rewards": 0, "new_herbs": 0,
                   "life_attempt_levels": [], "speaking_practices": 0, "writing_practices": 0})
 
 
@@ -564,6 +566,7 @@ def me_summary(doc, now=None):
             "levels_cleared": len(_cleared(doc)), "levels_total": len(C.levels()),
             "new_herbs_today": int(doc["counters"].get("new_herbs", 0)),
             "new_herbs_cap": int(C.config().get("daily_distinct_new_herb_cap", 7)),
+            "notices": [n for n in (doc.get("notices") or []) if not n.get("seen")],
             "dev": {k: v for k, v in (doc.get("dev") or {}).items() if v}}
 
 
@@ -720,6 +723,160 @@ class GmService:
             self.store.reset_user(uid)
             return {"reset": True}
         return self._update(uid, lambda d: dev_apply(d, action, params, now))
+
+    # ------------------------------------------------------------ 求藥（向朋友求一味藥）
+    def _expired(self, req, now):
+        exp = _parse_iso(req.get("expires_at"))
+        return bool(exp and now > exp)
+
+    def request_create(self, uid, formula_id, now=None):
+        """方劑「只差一味」時發一張求藥卡（72 小時內有效）。同一方劑已有未過期的卡就直接沿用。"""
+        now = now or now_utc()
+        cfg = C.config().get("request", {})
+        f = C.formulas().get(formula_id)
+        if not f:
+            raise GmError("no_formula", "找不到這個方劑", 404)
+        doc = self._read(uid)
+        if formula_id in (doc.get("formulas") or {}):
+            raise GmError("already_unlocked", "這個方劑你已經合成了")
+        owned = _owned(doc)
+        missing = [c["herb_id"] for c in f["components"] if c["herb_id"] not in owned]
+        if len(missing) != 1:
+            raise GmError("not_one_missing", "只差一味藥的時候才能向朋友求藥")
+        herb_id = missing[0]
+        opens = []
+        for r in self.store.list_requests(uid, "open"):
+            if self._expired(r, now):
+                self.store.update_request(r["id"], {"status": "expired"})
+            else:
+                opens.append(r)
+        for r in opens:
+            if r["herb_id"] == herb_id and r["formula_id"] == formula_id:
+                return r
+        if len(opens) >= int(cfg.get("max_open", 3)):
+            raise GmError("too_many", "你已經有好幾張求藥卡在等朋友回應了，先等等吧", 429)
+        req = {"id": secrets.token_urlsafe(8), "requester": uid, "herb_id": herb_id, "formula_id": formula_id,
+               "status": "open", "created_at": _iso(now),
+               "expires_at": _iso(now + timedelta(hours=int(cfg.get("expire_hours", 72)))),
+               "fulfilled_by": None}
+        self.store.create_request(req)
+        return req
+
+    def request_view(self, uid, req_id, now=None):
+        """朋友點進求藥卡時看到的資訊：誰要什麼藥、你有沒有多的可以送。不洩漏對方的任何個人資料。"""
+        now = now or now_utc()
+        req = self.store.get_request(req_id)
+        if not req:
+            raise GmError("no_request", "找不到這張求藥卡", 404)
+        status = req["status"]
+        if status == "open" and self._expired(req, now):
+            status = "expired"
+        herb = C.herbs()[req["herb_id"]]
+        f = C.formulas()[req["formula_id"]]
+        doc = self._read(uid)
+        qty = int(((doc.get("herbs") or {}).get(req["herb_id"]) or {}).get("quantity", 0))
+        is_mine = req["requester"] == uid
+        if status == "open" and not is_mine:
+            rdoc = self._read(req["requester"])
+            if req["herb_id"] in _owned(rdoc):
+                status = "already_owned"
+        can_give = status == "open" and not is_mine and qty >= 2
+        reason = None
+        if not can_give:
+            reason = "mine" if is_mine else (status if status != "open" else "no_spare")
+        return {"id": req_id, "status": status, "is_mine": is_mine, "herb": C.herb_brief(herb),
+                "formula": {"id": f["id"], "name_zh": f["name_zh"]}, "you_have": qty, "can_give": can_give,
+                "reason": reason, "expires_at": req["expires_at"]}
+
+    def request_fulfill(self, uid, req_id, now=None, rng=None):
+        """朋友送藥：只能送自己『重複的』那張。送出的人扣 1、求藥的人得 1，送的人另得一張感謝禮（每日有上限）。"""
+        now = now or now_utc()
+        rng = rng or random
+        req = self.store.get_request(req_id)
+        if not req:
+            raise GmError("no_request", "找不到這張求藥卡", 404)
+        if req["requester"] == uid:
+            raise GmError("self", "這是你自己的求藥卡，要請朋友來送喔")
+        if req["status"] != "open":
+            raise GmError("closed", "這張求藥卡已經被其他朋友幫忙了")
+        if self._expired(req, now):
+            self.store.update_request(req_id, {"status": "expired"})
+            raise GmError("expired", "這張求藥卡已經過期了")
+        herb_id = req["herb_id"]
+        rdoc = self._read(req["requester"])
+        if herb_id in _owned(rdoc):
+            self.store.update_request(req_id, {"status": "closed_owned"})
+            raise GmError("already_owned", "對方已經有這味藥了，謝謝你的心意")
+
+        def give(d):
+            e = (d.get("herbs") or {}).get(herb_id)
+            if not e or int(e.get("quantity", 0)) < 2:
+                raise GmError("no_spare", "你沒有多的這味藥可以送（只能送重複的）")
+            e["quantity"] = int(e["quantity"]) - 1
+            return True
+
+        def refund(d):
+            d["herbs"][herb_id]["quantity"] = int(d["herbs"].get(herb_id, {}).get("quantity", 0)) + 1
+            return True
+
+        self._update(uid, give)                                   # 1. 先扣送藥人的（沒有多的就直接失敗，什麼都沒動）
+        claimed = self.store.claim_request(req_id, {"fulfilled_by": uid, "fulfilled_at": _iso(now)})
+        if not claimed:                                           # 2. 原子地搶下這張求藥卡；搶輸了就退還
+            self._update(uid, refund)
+            raise GmError("closed", "這張求藥卡剛剛被其他朋友幫忙了")
+
+        def receive(d):                                           # 3. 求藥的人收到藥、自動合成、留一則通知
+            roll_daily(d, str(C.today_taipei(now)))
+            grant_herb(d, herb_id, "gift", now)
+            new_f, new_r = check_synthesis(d, now)
+            d.setdefault("notices", []).append({
+                "id": req_id, "type": "gift", "herb_id": herb_id, "herb_name": C.herbs()[herb_id]["name_zh"],
+                "formula_id": req["formula_id"], "unlocked": new_f, "at": _iso(now), "seen": False})
+            d["notices"] = d["notices"][-20:]
+            return new_f
+
+        try:
+            requester_new_f = self._update(req["requester"], receive)
+        except Exception:
+            self.store.update_request(req_id, {"status": "open", "fulfilled_by": None})
+            self._update(uid, refund)
+            raise
+
+        cap = int(C.config().get("request", {}).get("gift_reward_daily_cap", 2))
+
+        def reward(d):                                            # 4. 送藥人的感謝禮（隨機一張，每日上限）
+            roll_daily(d, str(C.today_taipei(now)))
+            card = None
+            if int(d["counters"].get("gift_rewards", 0)) < cap:
+                d["counters"]["gift_rewards"] = int(d["counters"].get("gift_rewards", 0)) + 1
+                hid = draw_one(d, None, rng)
+                if hid:
+                    card = grant_herb(d, hid, "gift_reward", now)
+            new_f, _ = check_synthesis(d, now)
+            return card, new_f
+
+        card, my_new_f = self._update(uid, reward)
+        try:
+            self.store.log_event({"user_id": uid, "type": "gift", "ref_id": req_id, "herb_id": herb_id,
+                                  "to": req["requester"], "at": _iso(now)})
+        except Exception:
+            pass
+        return {"ok": True, "gave": C.herb_brief(C.herbs()[herb_id]), "reward": card,
+                "your_new_formulas": [_formula_brief(i) for i in my_new_f],
+                "requester_unlocked": [_formula_brief(i) for i in requester_new_f]}
+
+    def notices_seen(self, uid):
+        def f(d):
+            for n in d.get("notices") or []:
+                n["seen"] = True
+            return True
+        return self._update(uid, f)
+
+    def season_done(self, uid, season):
+        d = self._read(uid)
+        cleared = _cleared(d)
+        lvs = [x for x in C.levels() if x["season"] == season]
+        return bool(lvs) and all(x["id"] in cleared for x in lvs)
 
     def owns(self, uid, kind, ref_id):
         d = self._read(uid)
