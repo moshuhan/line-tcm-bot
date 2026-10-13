@@ -1,0 +1,14 @@
+[
+  {
+    "herb_a": "gan_cao",
+    "herb_b": "甘遂",
+    "type": "eighteen_antagonisms",
+    "explanation": "十八反：甘草反甘遂、大戟、海藻、芫花。（甘遂等未收錄於本階段圖鑑，僅供日後教學使用）"
+  },
+  {
+    "herb_a": "fu_zi",
+    "herb_b": "ban_xia",
+    "type": "eighteen_antagonisms",
+    "explanation": "十八反：烏頭類（含附子）反半夏、瓜蔞、貝母、白蘞、白及。"
+  }
+]

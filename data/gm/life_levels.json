@@ -1,0 +1,421 @@
+[
+  {
+    "id": "life_01",
+    "order": 1,
+    "solar_term": "立春",
+    "season": "spring",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_01_1",
+      "lq_01_2",
+      "lq_01_3"
+    ],
+    "drop_herb_ids": [
+      "ju_hua"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_02",
+    "order": 2,
+    "solar_term": "雨水",
+    "season": "spring",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_02_1",
+      "lq_02_2",
+      "lq_02_3"
+    ],
+    "drop_herb_ids": [
+      "gou_qi"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_03",
+    "order": 3,
+    "solar_term": "驚蟄",
+    "season": "spring",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_03_1",
+      "lq_03_2",
+      "lq_03_3"
+    ],
+    "drop_herb_ids": [
+      "sheng_jiang"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_04",
+    "order": 4,
+    "solar_term": "春分",
+    "season": "spring",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_04_1",
+      "lq_04_2",
+      "lq_04_3"
+    ],
+    "drop_herb_ids": [
+      "fu_ling"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_05",
+    "order": 5,
+    "solar_term": "清明",
+    "season": "spring",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_05_1",
+      "lq_05_2",
+      "lq_05_3"
+    ],
+    "drop_herb_ids": [
+      "shan_yao"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_06",
+    "order": 6,
+    "solar_term": "穀雨",
+    "season": "spring",
+    "is_boss": true,
+    "pass_threshold": 4,
+    "question_ids": [
+      "lq_06_1",
+      "lq_06_2",
+      "lq_06_3",
+      "lq_06_4",
+      "lq_06_5"
+    ],
+    "drop_herb_ids": [
+      "gou_qi",
+      "ju_hua"
+    ],
+    "unlock_recipe_id": "gou_qi_ju_hua_cha"
+  },
+  {
+    "id": "life_07",
+    "order": 7,
+    "solar_term": "立夏",
+    "season": "summer",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_07_1",
+      "lq_07_2",
+      "lq_07_3"
+    ],
+    "drop_herb_ids": [
+      "lu_dou"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_08",
+    "order": 8,
+    "solar_term": "小滿",
+    "season": "summer",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_08_1",
+      "lq_08_2",
+      "lq_08_3"
+    ],
+    "drop_herb_ids": [
+      "lian_zi"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_09",
+    "order": 9,
+    "solar_term": "芒種",
+    "season": "summer",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_09_1",
+      "lq_09_2",
+      "lq_09_3"
+    ],
+    "drop_herb_ids": [
+      "qian_shi"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_10",
+    "order": 10,
+    "solar_term": "夏至",
+    "season": "summer",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_10_1",
+      "lq_10_2",
+      "lq_10_3"
+    ],
+    "drop_herb_ids": [
+      "da_zao"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_11",
+    "order": 11,
+    "solar_term": "小暑",
+    "season": "summer",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_11_1",
+      "lq_11_2",
+      "lq_11_3"
+    ],
+    "drop_herb_ids": [
+      "bai_mu_er"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_12",
+    "order": 12,
+    "solar_term": "大暑",
+    "season": "summer",
+    "is_boss": true,
+    "pass_threshold": 4,
+    "question_ids": [
+      "lq_12_1",
+      "lq_12_2",
+      "lq_12_3",
+      "lq_12_4",
+      "lq_12_5"
+    ],
+    "drop_herb_ids": [
+      "lu_dou"
+    ],
+    "unlock_recipe_id": "lu_dou_tang"
+  },
+  {
+    "id": "life_13",
+    "order": 13,
+    "solar_term": "立秋",
+    "season": "autumn",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_13_1",
+      "lq_13_2",
+      "lq_13_3"
+    ],
+    "drop_herb_ids": [
+      "bai_mu_er"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_14",
+    "order": 14,
+    "solar_term": "處暑",
+    "season": "autumn",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_14_1",
+      "lq_14_2",
+      "lq_14_3"
+    ],
+    "drop_herb_ids": [
+      "long_yan_rou"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_15",
+    "order": 15,
+    "solar_term": "白露",
+    "season": "autumn",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_15_1",
+      "lq_15_2",
+      "lq_15_3"
+    ],
+    "drop_herb_ids": [
+      "shan_yao"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_16",
+    "order": 16,
+    "solar_term": "秋分",
+    "season": "autumn",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_16_1",
+      "lq_16_2",
+      "lq_16_3"
+    ],
+    "drop_herb_ids": [
+      "gou_qi"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_17",
+    "order": 17,
+    "solar_term": "寒露",
+    "season": "autumn",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_17_1",
+      "lq_17_2",
+      "lq_17_3"
+    ],
+    "drop_herb_ids": [
+      "lian_zi"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_18",
+    "order": 18,
+    "solar_term": "霜降",
+    "season": "autumn",
+    "is_boss": true,
+    "pass_threshold": 4,
+    "question_ids": [
+      "lq_18_1",
+      "lq_18_2",
+      "lq_18_3",
+      "lq_18_4",
+      "lq_18_5"
+    ],
+    "drop_herb_ids": [
+      "bai_mu_er",
+      "lian_zi"
+    ],
+    "unlock_recipe_id": "yin_er_lian_zi_tang"
+  },
+  {
+    "id": "life_19",
+    "order": 19,
+    "solar_term": "立冬",
+    "season": "winter",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_19_1",
+      "lq_19_2",
+      "lq_19_3"
+    ],
+    "drop_herb_ids": [
+      "sheng_jiang"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_20",
+    "order": 20,
+    "solar_term": "小雪",
+    "season": "winter",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_20_1",
+      "lq_20_2",
+      "lq_20_3"
+    ],
+    "drop_herb_ids": [
+      "da_zao"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_21",
+    "order": 21,
+    "solar_term": "大雪",
+    "season": "winter",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_21_1",
+      "lq_21_2",
+      "lq_21_3"
+    ],
+    "drop_herb_ids": [
+      "long_yan_rou"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_22",
+    "order": 22,
+    "solar_term": "冬至",
+    "season": "winter",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_22_1",
+      "lq_22_2",
+      "lq_22_3"
+    ],
+    "drop_herb_ids": [
+      "fu_ling"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_23",
+    "order": 23,
+    "solar_term": "小寒",
+    "season": "winter",
+    "is_boss": false,
+    "pass_threshold": 2,
+    "question_ids": [
+      "lq_23_1",
+      "lq_23_2",
+      "lq_23_3"
+    ],
+    "drop_herb_ids": [
+      "qian_shi"
+    ],
+    "unlock_recipe_id": null
+  },
+  {
+    "id": "life_24",
+    "order": 24,
+    "solar_term": "大寒",
+    "season": "winter",
+    "is_boss": true,
+    "pass_threshold": 4,
+    "question_ids": [
+      "lq_24_1",
+      "lq_24_2",
+      "lq_24_3",
+      "lq_24_4",
+      "lq_24_5"
+    ],
+    "drop_herb_ids": [
+      "sheng_jiang",
+      "da_zao"
+    ],
+    "unlock_recipe_id": "jiang_zao_cha"
+  }
+]

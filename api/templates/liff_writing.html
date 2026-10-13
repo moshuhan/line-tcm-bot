@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
 <title>中醫寫作教練</title>
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="/assets/gm/gm_rewards.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
@@ -159,7 +160,7 @@
 <script>
 const LIFF_ID = "2011870208-i3BoQwad";
 const DEBUG_MODE = new URLSearchParams(location.search).get("debug") === "1";
-const DEBUG_TOKEN = "a2i4s9Op3RsVegplYqnjr28RD4m2Ymrb";
+const DEBUG_TOKEN = "__LIFF_DEBUG_TOKEN__";   // 由後端在 LIFF_DEBUG_TOKEN 環境變數有設定時才填入（正式站為空字串）
 
 let idToken = null;
 let topics = {};
@@ -357,6 +358,7 @@ async function submitReview() {
   }
   lastReviewResult = res;
   renderReview(res);
+  { const panel = document.getElementById("review-panel"); const gmBox = document.createElement("div"); panel.insertBefore(gmBox, panel.firstChild); GmRewards.render(gmBox, res.gm, { kind: "writing" }); }
 }
 
 function renderReview(r) {
@@ -395,7 +397,7 @@ function renderReview(r) {
 async function adoptCorrected() {
   if (!lastReviewResult || !lastReviewResult.corrected) return;
   const res = await apiPost("/api/liff/writing/save", {
-    text: lastReviewResult.corrected, topic_id: currentTopicId, kind: "reviewed", review: lastReviewResult,
+    text: lastReviewResult.corrected, topic_id: currentTopicId, kind: "reviewed", review: (({ gm, ...rest }) => rest)(lastReviewResult),
   });
   if (res.error) { alert("儲存失敗：" + res.error); return; }
   const editor = document.getElementById("editor");

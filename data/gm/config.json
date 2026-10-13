@@ -1,0 +1,95 @@
+{
+  "timezone_offset_hours": 8,
+  "levels": [
+    {
+      "lv": 1,
+      "name": "採藥童子",
+      "xp": 0
+    },
+    {
+      "lv": 2,
+      "name": "抓藥學徒",
+      "xp": 300
+    },
+    {
+      "lv": 3,
+      "name": "藥櫃夥計",
+      "xp": 800
+    },
+    {
+      "lv": 4,
+      "name": "坐堂學徒",
+      "xp": 1800
+    },
+    {
+      "lv": 5,
+      "name": "鈴醫",
+      "xp": 3000
+    },
+    {
+      "lv": 6,
+      "name": "郎中",
+      "xp": 4500
+    },
+    {
+      "lv": 7,
+      "name": "坐堂醫",
+      "xp": 6500
+    },
+    {
+      "lv": 8,
+      "name": "名醫",
+      "xp": 10000
+    },
+    {
+      "lv": 9,
+      "name": "御醫",
+      "xp": 15000
+    },
+    {
+      "lv": 10,
+      "name": "國醫",
+      "xp": 22000
+    }
+  ],
+  "xp": {
+    "correct": 10,
+    "wrong": 2,
+    "speaking_practice": 30,
+    "writing_practice": 30,
+    "streak_daily": 20,
+    "life_clear": 20
+  },
+  "unlock_tier_min_level": {
+    "beginner": 1,
+    "intermediate": 4,
+    "advanced": 7
+  },
+  "exam_drop": {
+    "min_questions": 10,
+    "min_score": 60,
+    "draws": 3,
+    "submissions_per_day": 3,
+    "first_submit_herb": "gan_cao",
+    "dedupe_window_sec": 600
+  },
+  "practice_drop": {
+    "speaking_min_turns": 5,
+    "writing_min_words": 50,
+    "free_guaranteed_per_day": 1,
+    "extra_practice_rate": 0.5
+  },
+  "daily_distinct_new_herb_cap": 7,
+  "near_complete_weight_multiplier": 2,
+  "life": {
+    "free_levels_per_day": 1,
+    "solar_bonus_extra_drops": 1
+  },
+  "quota": {
+    "free_ai_daily": 10,
+    "share_bonus": 2,
+    "share_bonus_daily_cap": 2
+  },
+  "exam_xp_daily_cap": 600,
+  "practice_xp_daily_cap": 120
+}

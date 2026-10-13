@@ -1,0 +1,947 @@
+[
+  {
+    "id": "gan_cao",
+    "name_zh": "甘草",
+    "name_pinyin": "Gān Cǎo",
+    "name_en": "Licorice Root",
+    "name_latin": "Glycyrrhiza uralensis",
+    "nature": "平",
+    "flavor": "甘",
+    "meridians": [
+      "心",
+      "肺",
+      "脾",
+      "胃"
+    ],
+    "function_summary_zh": "補脾益氣、祛痰止咳、緩急止痛、調和諸藥。方劑中常作為調和藥性的使藥，故有「國老」之稱。",
+    "function_summary_en": "Tonifies the spleen and qi, relieves cough, eases spasm and pain, and harmonizes other herbs in a formula. Nicknamed the Elder Statesman.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam",
+      "speaking",
+      "writing"
+    ],
+    "drop_weight": 3,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/gan_cao.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "shao_yao",
+    "name_zh": "芍藥（白芍）",
+    "name_pinyin": "Sháo Yào",
+    "name_en": "White Peony Root",
+    "name_latin": "Paeonia lactiflora",
+    "nature": "微寒",
+    "flavor": "苦、酸",
+    "meridians": [
+      "肝",
+      "脾"
+    ],
+    "function_summary_zh": "養血調經、斂陰止汗、柔肝止痛、平抑肝陽。",
+    "function_summary_en": "Nourishes blood, astringes yin, softens the liver and relieves pain.",
+    "shennong_grade": "middle",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam"
+    ],
+    "drop_weight": 3,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/shao_yao.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "ren_shen",
+    "name_zh": "人參",
+    "name_pinyin": "Rén Shēn",
+    "name_en": "Ginseng",
+    "name_latin": "Panax ginseng",
+    "nature": "微溫",
+    "flavor": "甘、微苦",
+    "meridians": [
+      "脾",
+      "肺",
+      "心",
+      "腎"
+    ],
+    "function_summary_zh": "大補元氣、補脾益肺、生津養血、安神益智。",
+    "function_summary_en": "Strongly tonifies original qi, supplements spleen and lung, generates fluids and calms the mind.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam"
+    ],
+    "drop_weight": 3,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/ren_shen.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "fu_ling",
+    "name_zh": "茯苓",
+    "name_pinyin": "Fú Líng",
+    "name_en": "Poria (Hoelen)",
+    "name_latin": "Poria cocos",
+    "nature": "平",
+    "flavor": "甘、淡",
+    "meridians": [
+      "心",
+      "肺",
+      "脾",
+      "腎"
+    ],
+    "function_summary_zh": "利水滲濕、健脾、寧心。也是常見的藥食同源食材。",
+    "function_summary_en": "Promotes urination, drains dampness, strengthens the spleen and calms the heart. Also a common food-medicine ingredient.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student",
+      "life"
+    ],
+    "drop_modules": [
+      "speaking"
+    ],
+    "drop_weight": 3,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "⚪",
+    "image": "herbs/fu_ling.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "bai_zhu",
+    "name_zh": "白朮",
+    "name_pinyin": "Bái Zhú",
+    "name_en": "White Atractylodes Rhizome",
+    "name_latin": "Atractylodes macrocephala",
+    "nature": "溫",
+    "flavor": "苦、甘",
+    "meridians": [
+      "脾",
+      "胃"
+    ],
+    "function_summary_zh": "健脾益氣、燥濕利水、止汗、安胎。",
+    "function_summary_en": "Strengthens the spleen and qi, dries dampness, promotes urination and stops sweating.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "writing"
+    ],
+    "drop_weight": 3,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/bai_zhu.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "gui_zhi",
+    "name_zh": "桂枝",
+    "name_pinyin": "Guì Zhī",
+    "name_en": "Cinnamon Twig",
+    "name_latin": "Cinnamomum cassia",
+    "nature": "溫",
+    "flavor": "辛、甘",
+    "meridians": [
+      "心",
+      "肺",
+      "膀胱"
+    ],
+    "function_summary_zh": "發汗解肌、溫通經脈、助陽化氣、平衝降逆。",
+    "function_summary_en": "Induces sweating to release the muscle layer, warms and frees the channels, assists yang qi transformation.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/gui_zhi.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "dang_gui",
+    "name_zh": "當歸",
+    "name_pinyin": "Dāng Guī",
+    "name_en": "Chinese Angelica Root",
+    "name_latin": "Angelica sinensis",
+    "nature": "溫",
+    "flavor": "甘、辛",
+    "meridians": [
+      "肝",
+      "心",
+      "脾"
+    ],
+    "function_summary_zh": "補血活血、調經止痛、潤腸通便。",
+    "function_summary_en": "Tonifies and invigorates blood, regulates menstruation, relieves pain and moistens the intestines.",
+    "shennong_grade": "middle",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/dang_gui.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "jie_geng",
+    "name_zh": "桔梗",
+    "name_pinyin": "Jié Gěng",
+    "name_en": "Platycodon Root",
+    "name_latin": "Platycodon grandiflorus",
+    "nature": "平",
+    "flavor": "苦、辛",
+    "meridians": [
+      "肺"
+    ],
+    "function_summary_zh": "宣肺、利咽、祛痰、排膿。",
+    "function_summary_en": "Diffuses lung qi, soothes the throat, resolves phlegm and expels pus.",
+    "shennong_grade": "lower",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/jie_geng.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "ma_huang",
+    "name_zh": "麻黃",
+    "name_pinyin": "Má Huáng",
+    "name_en": "Ephedra Herb",
+    "name_latin": "Ephedra sinica",
+    "nature": "溫",
+    "flavor": "辛、微苦",
+    "meridians": [
+      "肺",
+      "膀胱"
+    ],
+    "function_summary_zh": "發汗解表、宣肺平喘、利水消腫。藥性峻烈，須由合格中醫師評估使用。",
+    "function_summary_en": "Induces sweating to release the exterior, diffuses the lung and calms wheezing. Potent; use only under qualified supervision.",
+    "shennong_grade": "middle",
+    "unlock_tier": "intermediate",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam"
+    ],
+    "drop_weight": 1,
+    "is_toxic": true,
+    "toxicity_note": "藥性峻烈，不可自行使用。",
+    "emoji": "🌾",
+    "image": "herbs/ma_huang.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "da_huang",
+    "name_zh": "大黃",
+    "name_pinyin": "Dà Huáng",
+    "name_en": "Rhubarb Root and Rhizome",
+    "name_latin": "Rheum palmatum",
+    "nature": "寒",
+    "flavor": "苦",
+    "meridians": [
+      "脾",
+      "胃",
+      "大腸",
+      "肝",
+      "心包"
+    ],
+    "function_summary_zh": "瀉下攻積、清熱瀉火、涼血解毒、逐瘀通經。",
+    "function_summary_en": "Purges accumulation, clears heat and drains fire, cools blood and detoxifies, invigorates blood stasis.",
+    "shennong_grade": "lower",
+    "unlock_tier": "advanced",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "藥性峻烈，孕婦及體虛者須特別謹慎。",
+    "emoji": "🌿",
+    "image": "herbs/da_huang.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "fu_zi",
+    "name_zh": "附子",
+    "name_pinyin": "Fù Zǐ",
+    "name_en": "Aconite Lateral Root (Prepared)",
+    "name_latin": "Aconitum carmichaelii",
+    "nature": "大熱",
+    "flavor": "辛、甘",
+    "meridians": [
+      "心",
+      "腎",
+      "脾"
+    ],
+    "function_summary_zh": "回陽救逆、補火助陽、散寒止痛。有毒，須經炮製並由合格中醫師處方。",
+    "function_summary_en": "Restores yang and rescues from collapse, tonifies fire and assists yang, disperses cold and relieves pain. Toxic; must be processed and prescribed.",
+    "shennong_grade": "lower",
+    "unlock_tier": "advanced",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "exam"
+    ],
+    "drop_weight": 1,
+    "is_toxic": true,
+    "toxicity_note": "有毒，必須經過炮製，且只能由合格中醫師處方，絕不可自行服用。",
+    "emoji": "⚠️",
+    "image": "herbs/fu_zi.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "chuan_xiong",
+    "name_zh": "川芎",
+    "name_pinyin": "Chuān Xiōng",
+    "name_en": "Szechuan Lovage Rhizome",
+    "name_latin": "Ligusticum chuanxiong",
+    "nature": "溫",
+    "flavor": "辛",
+    "meridians": [
+      "肝",
+      "膽",
+      "心包"
+    ],
+    "function_summary_zh": "活血行氣、祛風止痛。",
+    "function_summary_en": "Invigorates blood, moves qi, dispels wind and relieves pain.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "speaking"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/chuan_xiong.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "chen_pi",
+    "name_zh": "陳皮",
+    "name_pinyin": "Chén Pí",
+    "name_en": "Tangerine Peel",
+    "name_latin": "Citrus reticulata",
+    "nature": "溫",
+    "flavor": "苦、辛",
+    "meridians": [
+      "脾",
+      "肺"
+    ],
+    "function_summary_zh": "理氣健脾、燥濕化痰。也是常見的藥食同源食材。",
+    "function_summary_en": "Regulates qi, strengthens the spleen, dries dampness and resolves phlegm.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "speaking"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/chen_pi.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "huang_qi",
+    "name_zh": "黃耆",
+    "name_pinyin": "Huáng Qí",
+    "name_en": "Astragalus Root",
+    "name_latin": "Astragalus membranaceus",
+    "nature": "微溫",
+    "flavor": "甘",
+    "meridians": [
+      "脾",
+      "肺"
+    ],
+    "function_summary_zh": "補氣升陽、固表止汗、利水消腫、托毒生肌。",
+    "function_summary_en": "Tonifies qi and lifts yang, consolidates the exterior, promotes urination and reduces edema.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "speaking"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/huang_qi.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "sheng_jiang",
+    "name_zh": "生薑",
+    "name_pinyin": "Shēng Jiāng",
+    "name_en": "Fresh Ginger",
+    "name_latin": "Zingiber officinale",
+    "nature": "微溫",
+    "flavor": "辛",
+    "meridians": [
+      "肺",
+      "脾",
+      "胃"
+    ],
+    "function_summary_zh": "解表散寒、溫中止嘔、化痰止咳。也是日常烹飪食材。",
+    "function_summary_en": "Releases the exterior and disperses cold, warms the middle and stops vomiting, resolves phlegm.",
+    "shennong_grade": "middle",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student",
+      "life"
+    ],
+    "drop_modules": [
+      "speaking"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🫚",
+    "image": "herbs/sheng_jiang.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "hou_po",
+    "name_zh": "厚朴",
+    "name_pinyin": "Hòu Pò",
+    "name_en": "Magnolia Bark",
+    "name_latin": "Magnolia officinalis",
+    "nature": "溫",
+    "flavor": "苦、辛",
+    "meridians": [
+      "脾",
+      "胃",
+      "肺",
+      "大腸"
+    ],
+    "function_summary_zh": "燥濕消痰、下氣除滿。",
+    "function_summary_en": "Dries dampness, resolves phlegm, directs qi downward and relieves distention.",
+    "shennong_grade": "middle",
+    "unlock_tier": "intermediate",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "speaking"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/hou_po.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "xing_ren",
+    "name_zh": "杏仁",
+    "name_pinyin": "Xìng Rén",
+    "name_en": "Apricot Kernel",
+    "name_latin": "Prunus armeniaca",
+    "nature": "微溫",
+    "flavor": "苦",
+    "meridians": [
+      "肺",
+      "大腸"
+    ],
+    "function_summary_zh": "降氣止咳平喘、潤腸通便。苦杏仁有小毒，不可過量。",
+    "function_summary_en": "Directs qi downward to relieve cough and wheezing, moistens the intestines. Bitter apricot kernel is mildly toxic.",
+    "shennong_grade": "lower",
+    "unlock_tier": "intermediate",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "speaking"
+    ],
+    "drop_weight": 1,
+    "is_toxic": true,
+    "toxicity_note": "苦杏仁有小毒，不可過量。",
+    "emoji": "🌿",
+    "image": "herbs/xing_ren.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "shu_di_huang",
+    "name_zh": "熟地黃",
+    "name_pinyin": "Shú Dì Huáng",
+    "name_en": "Prepared Rehmannia Root",
+    "name_latin": "Rehmannia glutinosa",
+    "nature": "微溫",
+    "flavor": "甘",
+    "meridians": [
+      "肝",
+      "腎"
+    ],
+    "function_summary_zh": "補血滋陰、益精填髓。",
+    "function_summary_en": "Tonifies blood, nourishes yin, replenishes essence and marrow.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "writing"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/shu_di_huang.webp",
+    "status": "needs_review",
+    "note": "三品：《神農本草經》載的是乾地黃，熟地黃為炮製品，待內容負責人確認。"
+  },
+  {
+    "id": "da_zao",
+    "name_zh": "大棗（紅棗）",
+    "name_pinyin": "Dà Zǎo",
+    "name_en": "Jujube (Chinese Date)",
+    "name_latin": "Ziziphus jujuba",
+    "nature": "溫",
+    "flavor": "甘",
+    "meridians": [
+      "脾",
+      "胃",
+      "心"
+    ],
+    "function_summary_zh": "補中益氣、養血安神。也是常見的藥食同源食材。",
+    "function_summary_en": "Tonifies the middle and qi, nourishes blood and calms the spirit. A common food-medicine ingredient.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student",
+      "life"
+    ],
+    "drop_modules": [
+      "writing"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🔴",
+    "image": "herbs/da_zao.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "rou_gui",
+    "name_zh": "肉桂",
+    "name_pinyin": "Ròu Guì",
+    "name_en": "Cinnamon Bark",
+    "name_latin": "Cinnamomum cassia",
+    "nature": "大熱",
+    "flavor": "辛、甘",
+    "meridians": [
+      "腎",
+      "脾",
+      "心",
+      "肝"
+    ],
+    "function_summary_zh": "補火助陽、引火歸元、散寒止痛、溫通經脈。",
+    "function_summary_en": "Tonifies fire and assists yang, leads fire back to its source, disperses cold and warms the channels.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "writing"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/rou_gui.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "gan_jiang",
+    "name_zh": "乾薑",
+    "name_pinyin": "Gān Jiāng",
+    "name_en": "Dried Ginger",
+    "name_latin": "Zingiber officinale",
+    "nature": "熱",
+    "flavor": "辛",
+    "meridians": [
+      "脾",
+      "胃",
+      "腎",
+      "心",
+      "肺"
+    ],
+    "function_summary_zh": "溫中散寒、回陽通脈、溫肺化飲。",
+    "function_summary_en": "Warms the middle and disperses cold, restores yang and frees the vessels, warms the lung to transform fluids.",
+    "shennong_grade": "middle",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "writing"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/gan_jiang.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "zhi_shi",
+    "name_zh": "枳實",
+    "name_pinyin": "Zhǐ Shí",
+    "name_en": "Immature Bitter Orange",
+    "name_latin": "Citrus aurantium",
+    "nature": "微寒",
+    "flavor": "苦、辛、酸",
+    "meridians": [
+      "脾",
+      "胃"
+    ],
+    "function_summary_zh": "破氣消積、化痰散痞。",
+    "function_summary_en": "Breaks up qi stagnation, eliminates accumulation, resolves phlegm and dissipates masses.",
+    "shennong_grade": "middle",
+    "unlock_tier": "intermediate",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "writing"
+    ],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌿",
+    "image": "herbs/zhi_shi.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "ban_xia",
+    "name_zh": "半夏",
+    "name_pinyin": "Bàn Xià",
+    "name_en": "Pinellia Rhizome (Processed)",
+    "name_latin": "Pinellia ternata",
+    "nature": "溫",
+    "flavor": "辛",
+    "meridians": [
+      "脾",
+      "胃",
+      "肺"
+    ],
+    "function_summary_zh": "燥濕化痰、降逆止嘔、消痞散結。生品有毒，須經炮製。",
+    "function_summary_en": "Dries dampness, resolves phlegm, directs rebellious qi downward and stops vomiting. Raw form is toxic; must be processed.",
+    "shennong_grade": "lower",
+    "unlock_tier": "advanced",
+    "tracks": [
+      "student"
+    ],
+    "drop_modules": [
+      "writing"
+    ],
+    "drop_weight": 1,
+    "is_toxic": true,
+    "toxicity_note": "生品有毒，必須經過炮製，且只能由合格中醫師處方。",
+    "emoji": "🌿",
+    "image": "herbs/ban_xia.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "gou_qi",
+    "name_zh": "枸杞",
+    "name_pinyin": "Gǒu Qǐ",
+    "name_en": "Goji Berry (Wolfberry)",
+    "name_latin": "Lycium barbarum",
+    "nature": "平",
+    "flavor": "甘",
+    "meridians": [
+      "肝",
+      "腎",
+      "肺"
+    ],
+    "function_summary_zh": "傳統上用於滋補肝腎、益精明目，也是常見的藥食同源食材。",
+    "function_summary_en": "Traditionally used to nourish the liver and kidney. A common food-medicine ingredient.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "life"
+    ],
+    "drop_modules": [],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🔴",
+    "image": "herbs/gou_qi.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "ju_hua",
+    "name_zh": "菊花",
+    "name_pinyin": "Jú Huā",
+    "name_en": "Chrysanthemum Flower",
+    "name_latin": "Chrysanthemum morifolium",
+    "nature": "微寒",
+    "flavor": "甘、苦",
+    "meridians": [
+      "肺",
+      "肝"
+    ],
+    "function_summary_zh": "傳統上用於疏散風熱、平抑肝陽、清肝明目，常作花草茶。",
+    "function_summary_en": "Traditionally used to disperse wind-heat and clear the liver. Commonly enjoyed as a flower tea.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "life"
+    ],
+    "drop_modules": [],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🌼",
+    "image": "herbs/ju_hua.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "shan_yao",
+    "name_zh": "山藥",
+    "name_pinyin": "Shān Yào",
+    "name_en": "Chinese Yam",
+    "name_latin": "Dioscorea oppositifolia",
+    "nature": "平",
+    "flavor": "甘",
+    "meridians": [
+      "脾",
+      "肺",
+      "腎"
+    ],
+    "function_summary_zh": "傳統上用於補脾養胃、生津益肺、補腎，常見於藥膳與湯品。",
+    "function_summary_en": "Traditionally used to tonify the spleen, stomach, lung and kidney. Common in medicinal soups.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "life"
+    ],
+    "drop_modules": [],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🥔",
+    "image": "herbs/shan_yao.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "lian_zi",
+    "name_zh": "蓮子",
+    "name_pinyin": "Lián Zǐ",
+    "name_en": "Lotus Seed",
+    "name_latin": "Nelumbo nucifera",
+    "nature": "平",
+    "flavor": "甘、澀",
+    "meridians": [
+      "脾",
+      "腎",
+      "心"
+    ],
+    "function_summary_zh": "傳統上用於補脾止瀉、益腎固精、養心安神，常見於甜湯與藥膳。",
+    "function_summary_en": "Traditionally used to tonify the spleen and kidney and calm the heart. Common in sweet soups.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "life"
+    ],
+    "drop_modules": [],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🪷",
+    "image": "herbs/lian_zi.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "qian_shi",
+    "name_zh": "芡實",
+    "name_pinyin": "Qiàn Shí",
+    "name_en": "Euryale Seed (Gorgon Fruit)",
+    "name_latin": "Euryale ferox",
+    "nature": "平",
+    "flavor": "甘、澀",
+    "meridians": [
+      "脾",
+      "腎"
+    ],
+    "function_summary_zh": "傳統上用於益腎固精、補脾止瀉、除濕，是四神湯的組成之一。",
+    "function_summary_en": "Traditionally used to tonify the kidney and spleen and drain dampness. One of the ingredients of Si Shen Soup.",
+    "shennong_grade": "upper",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "life"
+    ],
+    "drop_modules": [],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "⚪",
+    "image": "herbs/qian_shi.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "long_yan_rou",
+    "name_zh": "龍眼肉（桂圓）",
+    "name_pinyin": "Lóng Yǎn Ròu",
+    "name_en": "Longan Aril",
+    "name_latin": "Dimocarpus longan",
+    "nature": "溫",
+    "flavor": "甘",
+    "meridians": [
+      "心",
+      "脾"
+    ],
+    "function_summary_zh": "傳統上用於補益心脾、養血安神，常見於暖身茶飲與甜湯。",
+    "function_summary_en": "Traditionally used to tonify the heart and spleen and nourish blood. Common in warming teas and sweet soups.",
+    "shennong_grade": "middle",
+    "unlock_tier": "beginner",
+    "tracks": [
+      "life"
+    ],
+    "drop_modules": [],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🟤",
+    "image": "herbs/long_yan_rou.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "lu_dou",
+    "name_zh": "綠豆",
+    "name_pinyin": "Lǜ Dòu",
+    "name_en": "Mung Bean",
+    "name_latin": "Vigna radiata",
+    "nature": "寒",
+    "flavor": "甘",
+    "meridians": [
+      "心",
+      "胃"
+    ],
+    "function_summary_zh": "傳統飲食中常見的夏季食材，性味偏寒涼，常煮成綠豆湯。",
+    "function_summary_en": "A common summer food in traditional diets, regarded as cooling in nature; often cooked as mung bean soup.",
+    "shennong_grade": null,
+    "unlock_tier": "beginner",
+    "tracks": [
+      "life"
+    ],
+    "drop_modules": [],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "🫘",
+    "image": "herbs/lu_dou.webp",
+    "status": "needs_review",
+    "note": ""
+  },
+  {
+    "id": "bai_mu_er",
+    "name_zh": "白木耳（銀耳）",
+    "name_pinyin": "Bái Mù Ěr",
+    "name_en": "White Fungus (Snow Ear)",
+    "name_latin": "Tremella fuciformis",
+    "nature": "平",
+    "flavor": "甘、淡",
+    "meridians": [
+      "肺",
+      "胃",
+      "腎"
+    ],
+    "function_summary_zh": "傳統飲食中常見的滋潤型食材，常與蓮子、枸杞等燉成甜湯。",
+    "function_summary_en": "A moistening ingredient in traditional diets, often stewed into sweet soups with lotus seed or goji.",
+    "shennong_grade": null,
+    "unlock_tier": "beginner",
+    "tracks": [
+      "life"
+    ],
+    "drop_modules": [],
+    "drop_weight": 1,
+    "is_toxic": false,
+    "toxicity_note": "",
+    "emoji": "☁️",
+    "image": "herbs/bai_mu_er.webp",
+    "status": "needs_review",
+    "note": ""
+  }
+]

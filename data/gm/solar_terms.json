@@ -1,0 +1,290 @@
+[
+  {
+    "id": "term_01",
+    "order": 1,
+    "name_zh": "立春",
+    "name_en": "Start of Spring",
+    "season": "spring",
+    "dates": {
+      "2026": "2026-02-04",
+      "2027": "2027-02-04",
+      "2028": "2028-02-04"
+    }
+  },
+  {
+    "id": "term_02",
+    "order": 2,
+    "name_zh": "雨水",
+    "name_en": "Rain Water",
+    "season": "spring",
+    "dates": {
+      "2026": "2026-02-18",
+      "2027": "2027-02-19",
+      "2028": "2028-02-19"
+    }
+  },
+  {
+    "id": "term_03",
+    "order": 3,
+    "name_zh": "驚蟄",
+    "name_en": "Awakening of Insects",
+    "season": "spring",
+    "dates": {
+      "2026": "2026-03-05",
+      "2027": "2027-03-06",
+      "2028": "2028-03-05"
+    }
+  },
+  {
+    "id": "term_04",
+    "order": 4,
+    "name_zh": "春分",
+    "name_en": "Spring Equinox",
+    "season": "spring",
+    "dates": {
+      "2026": "2026-03-20",
+      "2027": "2027-03-21",
+      "2028": "2028-03-20"
+    }
+  },
+  {
+    "id": "term_05",
+    "order": 5,
+    "name_zh": "清明",
+    "name_en": "Clear and Bright",
+    "season": "spring",
+    "dates": {
+      "2026": "2026-04-05",
+      "2027": "2027-04-05",
+      "2028": "2028-04-04"
+    }
+  },
+  {
+    "id": "term_06",
+    "order": 6,
+    "name_zh": "穀雨",
+    "name_en": "Grain Rain",
+    "season": "spring",
+    "dates": {
+      "2026": "2026-04-20",
+      "2027": "2027-04-20",
+      "2028": "2028-04-19"
+    }
+  },
+  {
+    "id": "term_07",
+    "order": 7,
+    "name_zh": "立夏",
+    "name_en": "Start of Summer",
+    "season": "summer",
+    "dates": {
+      "2026": "2026-05-05",
+      "2027": "2027-05-06",
+      "2028": "2028-05-05"
+    }
+  },
+  {
+    "id": "term_08",
+    "order": 8,
+    "name_zh": "小滿",
+    "name_en": "Grain Buds",
+    "season": "summer",
+    "dates": {
+      "2026": "2026-05-21",
+      "2027": "2027-05-21",
+      "2028": "2028-05-20"
+    }
+  },
+  {
+    "id": "term_09",
+    "order": 9,
+    "name_zh": "芒種",
+    "name_en": "Grain in Ear",
+    "season": "summer",
+    "dates": {
+      "2026": "2026-06-05",
+      "2027": "2027-06-06",
+      "2028": "2028-06-05"
+    }
+  },
+  {
+    "id": "term_10",
+    "order": 10,
+    "name_zh": "夏至",
+    "name_en": "Summer Solstice",
+    "season": "summer",
+    "dates": {
+      "2026": "2026-06-21",
+      "2027": "2027-06-21",
+      "2028": "2028-06-21"
+    }
+  },
+  {
+    "id": "term_11",
+    "order": 11,
+    "name_zh": "小暑",
+    "name_en": "Minor Heat",
+    "season": "summer",
+    "dates": {
+      "2026": "2026-07-07",
+      "2027": "2027-07-07",
+      "2028": "2028-07-06"
+    }
+  },
+  {
+    "id": "term_12",
+    "order": 12,
+    "name_zh": "大暑",
+    "name_en": "Major Heat",
+    "season": "summer",
+    "dates": {
+      "2026": "2026-07-23",
+      "2027": "2027-07-23",
+      "2028": "2028-07-22"
+    }
+  },
+  {
+    "id": "term_13",
+    "order": 13,
+    "name_zh": "立秋",
+    "name_en": "Start of Autumn",
+    "season": "autumn",
+    "dates": {
+      "2026": "2026-08-07",
+      "2027": "2027-08-08",
+      "2028": "2028-08-07"
+    }
+  },
+  {
+    "id": "term_14",
+    "order": 14,
+    "name_zh": "處暑",
+    "name_en": "End of Heat",
+    "season": "autumn",
+    "dates": {
+      "2026": "2026-08-23",
+      "2027": "2027-08-23",
+      "2028": "2028-08-22"
+    }
+  },
+  {
+    "id": "term_15",
+    "order": 15,
+    "name_zh": "白露",
+    "name_en": "White Dew",
+    "season": "autumn",
+    "dates": {
+      "2026": "2026-09-07",
+      "2027": "2027-09-08",
+      "2028": "2028-09-07"
+    }
+  },
+  {
+    "id": "term_16",
+    "order": 16,
+    "name_zh": "秋分",
+    "name_en": "Autumn Equinox",
+    "season": "autumn",
+    "dates": {
+      "2026": "2026-09-23",
+      "2027": "2027-09-23",
+      "2028": "2028-09-22"
+    }
+  },
+  {
+    "id": "term_17",
+    "order": 17,
+    "name_zh": "寒露",
+    "name_en": "Cold Dew",
+    "season": "autumn",
+    "dates": {
+      "2026": "2026-10-08",
+      "2027": "2027-10-08",
+      "2028": "2028-10-08"
+    }
+  },
+  {
+    "id": "term_18",
+    "order": 18,
+    "name_zh": "霜降",
+    "name_en": "Frost's Descent",
+    "season": "autumn",
+    "dates": {
+      "2026": "2026-10-23",
+      "2027": "2027-10-23",
+      "2028": "2028-10-23"
+    }
+  },
+  {
+    "id": "term_19",
+    "order": 19,
+    "name_zh": "立冬",
+    "name_en": "Start of Winter",
+    "season": "winter",
+    "dates": {
+      "2026": "2026-11-07",
+      "2027": "2027-11-07",
+      "2028": "2028-11-07"
+    }
+  },
+  {
+    "id": "term_20",
+    "order": 20,
+    "name_zh": "小雪",
+    "name_en": "Minor Snow",
+    "season": "winter",
+    "dates": {
+      "2026": "2026-11-22",
+      "2027": "2027-11-22",
+      "2028": "2028-11-22"
+    }
+  },
+  {
+    "id": "term_21",
+    "order": 21,
+    "name_zh": "大雪",
+    "name_en": "Major Snow",
+    "season": "winter",
+    "dates": {
+      "2026": "2026-12-07",
+      "2027": "2027-12-07",
+      "2028": "2028-12-06"
+    }
+  },
+  {
+    "id": "term_22",
+    "order": 22,
+    "name_zh": "冬至",
+    "name_en": "Winter Solstice",
+    "season": "winter",
+    "dates": {
+      "2026": "2026-12-22",
+      "2027": "2027-12-22",
+      "2028": "2028-12-21"
+    }
+  },
+  {
+    "id": "term_23",
+    "order": 23,
+    "name_zh": "小寒",
+    "name_en": "Minor Cold",
+    "season": "winter",
+    "dates": {
+      "2026": "2026-01-05",
+      "2027": "2027-01-05",
+      "2028": "2028-01-06"
+    }
+  },
+  {
+    "id": "term_24",
+    "order": 24,
+    "name_zh": "大寒",
+    "name_en": "Major Cold",
+    "season": "winter",
+    "dates": {
+      "2026": "2026-01-20",
+      "2027": "2027-01-20",
+      "2028": "2028-01-20"
+    }
+  }
+]

@@ -1,0 +1,459 @@
+[
+  {
+    "id": "shao_yao_gan_cao_tang",
+    "name_zh": "芍藥甘草湯",
+    "name_en": "Peony and Licorice Decoction",
+    "source": "《傷寒論》",
+    "category": "緩急止痛",
+    "function_summary_zh": "柔肝緩急。傳統上用於筋脈拘攣類的證候（教學說明，非處方）。",
+    "function_summary_en": "Softens the liver and relieves spasm (educational description, not a prescription).",
+    "is_hidden": false,
+    "image": "formulas/shao_yao_gan_cao_tang.webp",
+    "components": [
+      {
+        "herb_id": "shao_yao",
+        "role": "jun",
+        "role_explanation": "芍藥酸甘斂陰，養血柔肝，為方中主藥。"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": "chen",
+        "role_explanation": "甘草甘緩，與芍藥酸甘化陰，共奏緩急之效。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "jie_geng_tang",
+    "name_zh": "桔梗湯",
+    "name_en": "Platycodon Decoction",
+    "source": "《傷寒論》",
+    "category": "利咽",
+    "function_summary_zh": "宣肺利咽。傳統上用於咽喉不利類的證候（教學說明，非處方）。",
+    "function_summary_en": "Diffuses the lung and soothes the throat (educational description, not a prescription).",
+    "is_hidden": false,
+    "image": "formulas/jie_geng_tang.webp",
+    "components": [
+      {
+        "herb_id": "jie_geng",
+        "role": "jun",
+        "role_explanation": "桔梗宣肺利咽，開提肺氣。"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": "chen",
+        "role_explanation": "甘草清熱解毒、調和藥性。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "gui_zhi_gan_cao_tang",
+    "name_zh": "桂枝甘草湯",
+    "name_en": "Cinnamon Twig and Licorice Decoction",
+    "source": "《傷寒論》",
+    "category": "溫陽",
+    "function_summary_zh": "辛甘化陽，溫通心陽（教學說明，非處方）。",
+    "function_summary_en": "Warms and assists heart yang through acrid-sweet combination (educational description).",
+    "is_hidden": false,
+    "image": "formulas/gui_zhi_gan_cao_tang.webp",
+    "components": [
+      {
+        "herb_id": "gui_zhi",
+        "role": "jun",
+        "role_explanation": "桂枝辛溫，溫通心陽。"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": "chen",
+        "role_explanation": "甘草甘溫，與桂枝辛甘化陽。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "gan_cao_gan_jiang_tang",
+    "name_zh": "甘草乾薑湯",
+    "name_en": "Licorice and Dried Ginger Decoction",
+    "source": "《傷寒論》",
+    "category": "溫裏",
+    "function_summary_zh": "溫中散寒（教學說明，非處方）。",
+    "function_summary_en": "Warms the middle and disperses cold (educational description).",
+    "is_hidden": false,
+    "image": "formulas/gan_cao_gan_jiang_tang.webp",
+    "components": [
+      {
+        "herb_id": "gan_cao",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "gan_jiang",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "gui_zhi_tang",
+    "name_zh": "桂枝湯",
+    "name_en": "Cinnamon Twig Decoction",
+    "source": "《傷寒論》",
+    "category": "解表",
+    "function_summary_zh": "解肌發表、調和營衛。為《傷寒論》群方之首（教學說明，非處方）。",
+    "function_summary_en": "Releases the muscle layer and harmonizes nutritive and defensive qi. First formula of the Shang Han Lun (educational description).",
+    "is_hidden": false,
+    "image": "formulas/gui_zhi_tang.webp",
+    "components": [
+      {
+        "herb_id": "gui_zhi",
+        "role": "jun",
+        "role_explanation": "桂枝辛溫，解肌發表、散外感風寒。"
+      },
+      {
+        "herb_id": "shao_yao",
+        "role": "chen",
+        "role_explanation": "芍藥益陰斂營，與桂枝一散一收，調和營衛。"
+      },
+      {
+        "herb_id": "sheng_jiang",
+        "role": "zuo",
+        "role_explanation": "生薑辛溫，助桂枝解肌，並溫胃止嘔。"
+      },
+      {
+        "herb_id": "da_zao",
+        "role": "zuo",
+        "role_explanation": "大棗甘平，補脾益氣、養血，與生薑相配調和脾胃。"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": "shi",
+        "role_explanation": "甘草調和諸藥，合桂枝辛甘化陽、合芍藥酸甘化陰。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "ma_huang_tang",
+    "name_zh": "麻黃湯",
+    "name_en": "Ephedra Decoction",
+    "source": "《傷寒論》",
+    "category": "解表",
+    "function_summary_zh": "發汗解表、宣肺平喘（教學說明，非處方）。",
+    "function_summary_en": "Induces sweating to release the exterior and diffuses the lung (educational description).",
+    "is_hidden": false,
+    "image": "formulas/ma_huang_tang.webp",
+    "components": [
+      {
+        "herb_id": "ma_huang",
+        "role": "jun",
+        "role_explanation": "麻黃辛溫，發汗解表、宣肺平喘。"
+      },
+      {
+        "herb_id": "gui_zhi",
+        "role": "chen",
+        "role_explanation": "桂枝溫通經脈，助麻黃發汗。"
+      },
+      {
+        "herb_id": "xing_ren",
+        "role": "zuo",
+        "role_explanation": "杏仁降氣止咳平喘，與麻黃一宣一降。"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": "shi",
+        "role_explanation": "甘草調和諸藥，緩和麻黃、桂枝之峻烈。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "si_jun_zi_tang",
+    "name_zh": "四君子湯",
+    "name_en": "Four Gentlemen Decoction",
+    "source": "《太平惠民和劑局方》",
+    "category": "補益",
+    "function_summary_zh": "益氣健脾。補氣名方，傳統上用於脾胃氣虛證（教學說明，非處方）。",
+    "function_summary_en": "Tonifies qi and strengthens the spleen. A foundational qi-tonifying formula (educational description).",
+    "is_hidden": false,
+    "image": "formulas/si_jun_zi_tang.webp",
+    "components": [
+      {
+        "herb_id": "ren_shen",
+        "role": "jun",
+        "role_explanation": "人參大補元氣、健脾養胃，為君藥。"
+      },
+      {
+        "herb_id": "bai_zhu",
+        "role": "chen",
+        "role_explanation": "白朮健脾燥濕，助人參益氣。"
+      },
+      {
+        "herb_id": "fu_ling",
+        "role": "zuo",
+        "role_explanation": "茯苓健脾滲濕，與白朮相配，使脾運得健。"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": "shi",
+        "role_explanation": "甘草益氣和中、調和諸藥。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "liu_jun_zi_tang",
+    "name_zh": "六君子湯",
+    "name_en": "Six Gentlemen Decoction",
+    "source": "《醫學正傳》",
+    "category": "補益",
+    "function_summary_zh": "益氣健脾、燥濕化痰。由四君子湯加陳皮、半夏而成（教學說明，非處方）。",
+    "function_summary_en": "Tonifies qi, strengthens the spleen, dries dampness and resolves phlegm. Si Jun Zi Tang plus Chen Pi and Ban Xia.",
+    "is_hidden": false,
+    "image": "formulas/liu_jun_zi_tang.webp",
+    "components": [
+      {
+        "herb_id": "ren_shen",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "bai_zhu",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "fu_ling",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "chen_pi",
+        "role": null,
+        "role_explanation": "加陳皮理氣化痰。"
+      },
+      {
+        "herb_id": "ban_xia",
+        "role": null,
+        "role_explanation": "加半夏燥濕化痰。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "si_wu_tang",
+    "name_zh": "四物湯",
+    "name_en": "Four Substances Decoction",
+    "source": "《太平惠民和劑局方》",
+    "category": "補益",
+    "function_summary_zh": "補血調血。補血名方（教學說明，非處方）。",
+    "function_summary_en": "Tonifies and regulates blood. A foundational blood-tonifying formula (educational description).",
+    "is_hidden": false,
+    "image": "formulas/si_wu_tang.webp",
+    "components": [
+      {
+        "herb_id": "shu_di_huang",
+        "role": "jun",
+        "role_explanation": "熟地黃滋陰補血，為君藥。"
+      },
+      {
+        "herb_id": "dang_gui",
+        "role": "chen",
+        "role_explanation": "當歸補血活血，助熟地黃養血。"
+      },
+      {
+        "herb_id": "shao_yao",
+        "role": "zuo",
+        "role_explanation": "白芍養血斂陰，柔肝緩急。"
+      },
+      {
+        "herb_id": "chuan_xiong",
+        "role": "shi",
+        "role_explanation": "川芎活血行氣，使補而不滯。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "ba_zhen_tang",
+    "name_zh": "八珍湯",
+    "name_en": "Eight Treasure Decoction",
+    "source": "《瑞竹堂經驗方》",
+    "category": "補益",
+    "function_summary_zh": "氣血雙補。由四君子湯合四物湯而成（教學說明，非處方）。",
+    "function_summary_en": "Tonifies both qi and blood. Combination of Si Jun Zi Tang and Si Wu Tang.",
+    "is_hidden": false,
+    "image": "formulas/ba_zhen_tang.webp",
+    "components": [
+      {
+        "herb_id": "ren_shen",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "bai_zhu",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "fu_ling",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "shu_di_huang",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "dang_gui",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "shao_yao",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "chuan_xiong",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "shi_quan_da_bu_tang",
+    "name_zh": "十全大補湯",
+    "name_en": "Ten Complete Great Tonification Decoction",
+    "source": "《太平惠民和劑局方》",
+    "category": "補益",
+    "function_summary_zh": "溫補氣血。由八珍湯加黃耆、肉桂而成（教學說明，非處方）。",
+    "function_summary_en": "Warms and tonifies qi and blood. Ba Zhen Tang plus Huang Qi and Rou Gui.",
+    "is_hidden": false,
+    "image": "formulas/shi_quan_da_bu_tang.webp",
+    "components": [
+      {
+        "herb_id": "ren_shen",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "bai_zhu",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "fu_ling",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "shu_di_huang",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "dang_gui",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "shao_yao",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "chuan_xiong",
+        "role": null,
+        "role_explanation": "TODO: 待內容負責人審核"
+      },
+      {
+        "herb_id": "huang_qi",
+        "role": null,
+        "role_explanation": "加黃耆補氣固表。"
+      },
+      {
+        "herb_id": "rou_gui",
+        "role": null,
+        "role_explanation": "加肉桂溫陽補火。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "si_ni_tang",
+    "name_zh": "四逆湯",
+    "name_en": "Cold Extremities Decoction",
+    "source": "《傷寒論》",
+    "category": "溫裏",
+    "function_summary_zh": "回陽救逆。屬回陽救逆的重要方劑；含附子，須由合格中醫師處方（教學說明，非處方）。",
+    "function_summary_en": "Restores yang and rescues from collapse. Contains aconite; must be prescribed by a qualified practitioner (educational description).",
+    "is_hidden": false,
+    "image": "formulas/si_ni_tang.webp",
+    "components": [
+      {
+        "herb_id": "fu_zi",
+        "role": "jun",
+        "role_explanation": "附子大辛大熱，回陽救逆，為君藥。"
+      },
+      {
+        "herb_id": "gan_jiang",
+        "role": "chen",
+        "role_explanation": "乾薑溫中散寒，助附子回陽。"
+      },
+      {
+        "herb_id": "gan_cao",
+        "role": "zuo",
+        "role_explanation": "甘草益氣和中，並緩和附子的毒性與峻烈。"
+      }
+    ],
+    "status": "needs_review"
+  },
+  {
+    "id": "xiao_cheng_qi_tang",
+    "name_zh": "小承氣湯",
+    "name_en": "Minor Purgative Decoction",
+    "source": "《傷寒論》",
+    "category": "瀉下",
+    "function_summary_zh": "輕下熱結（教學說明，非處方）。",
+    "function_summary_en": "Mildly purges heat accumulation (educational description).",
+    "is_hidden": false,
+    "image": "formulas/xiao_cheng_qi_tang.webp",
+    "components": [
+      {
+        "herb_id": "da_huang",
+        "role": "jun",
+        "role_explanation": "大黃苦寒，瀉熱通便、蕩滌腸胃。"
+      },
+      {
+        "herb_id": "hou_po",
+        "role": "chen",
+        "role_explanation": "厚朴行氣除滿，助大黃通腑。"
+      },
+      {
+        "herb_id": "zhi_shi",
+        "role": "zuo",
+        "role_explanation": "枳實破氣消積，與厚朴相配行氣導滯。"
+      }
+    ],
+    "status": "needs_review"
+  }
+]

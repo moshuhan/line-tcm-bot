@@ -175,6 +175,27 @@ def _expected_topics(mode_key, content):
     return content.get("expected_topics") if mode_key == "clinical" else content.get("discussion_questions")
 
 
+def _opening_hint_for(mode_key, content, topics):
+    """
+    開場提示的方向：前端連線後會直接送一個 response.create，把這段文字當作「你可以往這個
+    方向開場」的提示，塞進病人／教授角色自己的第一句話。
+
+    這裡曾經有個角色反轉的 bug：clinical 模式直接拿 `topics`（也就是 expected_topics）
+    的第一項當開場提示，但 expected_topics 是寫給「學生該問診到哪些方向」的檢核清單
+    （例如 "onset and duration of sleep trouble"、"caffeine and screen use habits"），
+    是問診者視角的語言，不是病人自己會講的話。把這種提示塞進「你是病人，要主動開場」的
+    instructions 裡，會讓模型在最關鍵的第一句話被帶偏成用問診口吻開場，實際上就變成
+    AI 自己在扮演醫生問診，而不是病人主動陳述主訴——這正是我們要的「病人主動開口」壞掉的
+    原因。修法：clinical 模式的開場提示要用病人自己的主訴（chief_complaint），不是
+    expected_topics；academic 模式維持用 discussion_questions（教授本來就該主動拋出
+    討論問題，用這個沒有角色反轉的問題）。
+    """
+    content = content or {}
+    if mode_key == "clinical":
+        return content.get("chief_complaint") or "Start the conversation naturally in English, describing why you came to the clinic today."
+    return (topics or [None])[0] or "Start the conversation naturally in English."
+
+
 def _full_context_text(mode_key, content):
     """給前端『提示下拉選單』顯示的完整情境說明（不截斷）：clinical 是完整主訴，
     academic 是題目標題＋背景，student 沒有固定情境所以回傳一句說明文字。"""
@@ -230,10 +251,10 @@ def mint_ephemeral_session(openai_client, redis_client, mode_key, difficulty=Non
         "character_zh": mode["character_zh"],
         "label_zh": mode["label_zh"],
         "content_id": content_id,
-        # 開場提示：case 沒抽到內容時（內容庫是空的）給通用提示，否則給第一個
-        # expected_topic/discussion_question 當開場方向；前端會在連線後直接送一個
-        # response.create 請角色主動開口，這個欄位就是那則開場的方向提示
-        "opening_hint": (topics or [None])[0] or "Start the conversation naturally in English.",
+        # 開場提示：前端會在連線後直接送一個 response.create 請角色主動開口，這個欄位
+        # 就是那則開場的方向提示（見 _opening_hint_for 註解——clinical 用病人自己的
+        # 主訴，不是學生問診檢核清單，避免角色反轉成 AI 自己在當醫生問診）
+        "opening_hint": _opening_hint_for(mode_key, content, topics),
         # 完整情境說明（不截斷），給前端提示下拉選單用，跟 char-complaint 疊字（會截斷）分開
         "full_context": _full_context_text(mode_key, content),
         # 角色照片與顯示名稱：clinical 是抽到的病例照片/假名，academic／student 是固定角色
