@@ -46,6 +46,8 @@ function cell(i, action) {
     return { bounds: { x: (i % 2) * CW, y: row.y, width: CW, height: row.h }, action };
 }
 
+// 注意：LINE 規定 richmenuswitch 一定要帶 data，所以每次切換分頁都會對 webhook 送一個 postback（data 以 tab= 開頭），
+// 後端 handle_postback 會靜默忽略這種 postback，否則使用者會收到「功能已經更新囉」的提示訊息
 function tabs() {
     return [
         { bounds: { x: 0, y: 0, width: CW, height: TAB_H },
@@ -78,20 +80,22 @@ const MENUS = {
     },
 };
 
-async function removeOld() {
-    const menus = await client.getRichMenuList();
-    for (const m of menus) {
-        if (m.name === NAME.life || m.name === NAME.student) {
-            console.log('刪除舊選單', m.name, m.richMenuId);
-            await client.deleteRichMenu(m.richMenuId);
-        }
+// 先「建立新的」成功了才刪舊的，避免中途失敗（例如 LINE 驗證不過）把正在使用的預設選單刪掉
+async function findOld() {
+    const menus = (await client.getRichMenuList()).filter(m => m.name === NAME.life || m.name === NAME.student);
+    const aliases = ((await client.getRichMenuAliasList()).aliases || [])
+        .filter(a => a.richMenuAliasId === ALIAS.life || a.richMenuAliasId === ALIAS.student);
+    return { menus, aliases };
+}
+
+async function removeOld(old) {
+    for (const a of old.aliases) {
+        console.log('刪除舊 alias', a.richMenuAliasId);
+        await client.deleteRichMenuAlias(a.richMenuAliasId);
     }
-    const aliases = await client.getRichMenuAliasList();
-    for (const a of (aliases.aliases || [])) {
-        if (a.richMenuAliasId === ALIAS.life || a.richMenuAliasId === ALIAS.student) {
-            console.log('刪除舊 alias', a.richMenuAliasId);
-            await client.deleteRichMenuAlias(a.richMenuAliasId);
-        }
+    for (const m of old.menus) {
+        console.log('刪除舊選單', m.name, m.richMenuId);
+        await client.deleteRichMenu(m.richMenuId);
     }
 }
 
@@ -121,15 +125,18 @@ async function main() {
         console.log('預設選單：', NAME.life);
         return;
     }
-    await removeOld();
+    const old = await findOld();
     const ids = {};
-    for (const [key, menu] of Object.entries(MENUS)) {
+    for (const [key, menu] of Object.entries(MENUS)) {            // 1. 先建立新選單並上傳圖片（失敗就整個中止，舊的完全沒動）
         ids[key] = await client.createRichMenu(menu);
         await client.setRichMenuImage(ids[key], fs.readFileSync(images[key]), images[key].endsWith('.jpg') ? 'image/jpeg' : 'image/png');
-        await client.createRichMenuAlias(ids[key], ALIAS[key]);
-        console.log(`已建立 ${menu.name} -> ${ids[key]}（alias ${ALIAS[key]}）`);
     }
-    await client.setDefaultRichMenu(ids.life);
+    await client.setDefaultRichMenu(ids.life);                    // 2. 預設先切到新的生活版
+    await removeOld(old);                                         // 3. 再刪舊的選單與 alias（alias 名稱不能重複）
+    for (const key of Object.keys(MENUS)) {                       // 4. 建立 alias（分頁切換用）
+        await client.createRichMenuAlias(ids[key], ALIAS[key]);
+        console.log(`已建立 ${MENUS[key].name} -> ${ids[key]}（alias ${ALIAS[key]}）`);
+    }
     console.log('預設選單已設為生活版：', ids.life);
 }
 
