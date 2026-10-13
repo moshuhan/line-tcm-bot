@@ -1603,6 +1603,9 @@ def handle_postback(event):
     uri 直連，不會觸發 Postback）。保留這個 handler 只是為了防呆：如果使用者
     裝置上還殘留舊版選單、誤觸發了 Postback，不要噴 500，給個友善提示。
     """
+    # Rich menu 分頁切換（richmenuswitch）若帶 data 會送 postback 進來，那不是舊功能，靜默忽略即可
+    if (getattr(event.postback, "data", "") or "").startswith("tab="):
+        return
     user_id = event.source.user_id
     try:
         line_bot_api.reply_message(
