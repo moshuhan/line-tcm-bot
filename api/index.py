@@ -999,7 +999,8 @@ def _liff_auth_user_id():
         return None
     debug_token = os.getenv("LIFF_DEBUG_TOKEN", "").strip()
     if debug_token and token == debug_token:
-        return "debug-user"
+        # 本機測試多人情境（例如求藥：A 向 B 求藥）時，可用 X-Debug-User 指定另一個測試使用者
+        return (request.headers.get("X-Debug-User") or "").strip()[:64] or "debug-user"
     result = verify_liff_id_token(token)
     return result["user_id"] if result else None
 

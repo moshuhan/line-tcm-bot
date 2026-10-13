@@ -23,8 +23,8 @@
   }
   function debug() { return new URLSearchParams(location.search).get("debug") === "1"; }
 
-  function openCodex(tab) {
-    var q = "page=codex&track=student" + (tab ? "&tab=" + tab : "");
+  function openCodex(tab, id) {
+    var q = "page=codex&track=student" + (tab ? "&tab=" + tab : "") + (id ? "&open=" + encodeURIComponent(id) : "");
     if (debug()) { location.href = "/liff/life?debug=1&" + q; return; }
     try { liff.openWindow({ url: LIFE_LIFF_URL + "?" + q, external: false }); } catch (e) { location.href = LIFE_LIFF_URL + "?" + q; }
   }
@@ -64,9 +64,9 @@
     if (!gm || (!gm.xp && gm.reason !== "too_short")) { box.innerHTML = ""; return; }
     var cards = (gm.cards || []).map(cardHtml).join("");
     var synth = (gm.new_formulas || []).map(function (f) {
-      return "<div class=\"gm-synth\"><span>✨ 合成成功：<b>" + esc(f.name_zh) + "</b></span><button type=\"button\" data-open=\"formula\">看方劑</button></div>";
+      return "<div class=\"gm-synth\"><span>✨ 合成成功：<b>" + esc(f.name_zh) + "</b></span><button type=\"button\" data-open=\"formula\" data-id=\"" + esc(f.id) + "\">看方劑並分享</button></div>";
     }).join("") + (gm.new_recipes || []).map(function (r) {
-      return "<div class=\"gm-synth\"><span>✨ 解鎖茶飲：<b>" + esc(r.name_zh) + "</b></span><button type=\"button\" data-open=\"recipe\">看圖鑑</button></div>";
+      return "<div class=\"gm-synth\"><span>✨ 解鎖茶飲：<b>" + esc(r.name_zh) + "</b></span><button type=\"button\" data-open=\"recipe\" data-id=\"" + esc(r.id) + "\">看圖鑑並分享</button></div>";
     }).join("");
     var note = noteFor(gm, kind);
     var head = gm.xp
@@ -75,7 +75,7 @@
     box.innerHTML = "<style>" + CSS + "</style><div class=\"gm-wrap\"><div class=\"gm-row\"><img src=\"/assets/mascot/" + ((gm.cards || []).length ? "celebrate" : "happy") + ".webp\" alt=\"\"><div>" + head + "</div></div>" +
       (cards ? "<div class=\"gm-cards\">" + cards + "</div>" : "") + synth + (note ? "<div class=\"gm-note\">" + esc(note) + "</div>" : "") +
       "<button type=\"button\" class=\"gm-open\" data-open=\"\">看我的藥材圖鑑</button></div>";
-    box.querySelectorAll("[data-open]").forEach(function (b) { b.onclick = function () { openCodex(b.getAttribute("data-open")); }; });
+    box.querySelectorAll("[data-open]").forEach(function (b) { b.onclick = function () { openCodex(b.getAttribute("data-open"), b.getAttribute("data-id")); }; });
   }
   window.GmRewards = { render: render, openCodex: openCodex };
 })();

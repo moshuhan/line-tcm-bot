@@ -213,7 +213,12 @@ def register(app, get_user_id, db):
         if kind in ("formula_unlocked", "recipe_unlocked"):
             if not service.owns(uid, "formula" if kind == "formula_unlocked" else "recipe", ref_id):
                 return jsonify({"error": "尚未解鎖，無法分享"}), 403
-        built = S.build_flex(kind, ref_id, _public_base(request), f"https://liff.line.me/{LIFE_LIFF_ID}")
+        ctx = None
+        if kind == "progress_card":
+            ctx = service.me(uid)
+        elif kind == "season_complete" and not service.season_done(uid, ref_id):
+            return jsonify({"error": "這一季還沒全部通關，無法分享"}), 403
+        built = S.build_flex(kind, ref_id, _public_base(request), f"https://liff.line.me/{LIFE_LIFF_ID}", ctx)
         if not built:
             return jsonify({"error": "找不到可分享的內容"}), 404
         alt, bubble = built
@@ -228,6 +233,54 @@ def register(app, get_user_id, db):
         store.log_event({"user_id": uid, "type": "share", "share_type": (data.get("share_type") or "")[:40],
                          "ref_id": (data.get("ref_id") or "")[:60], "target_platform": "line",
                          "status": (data.get("status") or "")[:20], "at": G.now_utc().isoformat()})
+        return jsonify({"ok": True})
+
+    # -------------------------------------------------------------- 求藥（向朋友求一味藥）
+    @bp.route("/api/liff/gm/request", methods=["POST"])
+    def gm_request_create():
+        uid, err = _auth()
+        if err:
+            return err
+        data = request.get_json(force=True, silent=True) or {}
+        try:
+            req = service.request_create(uid, (data.get("formula_id") or "").strip())
+        except G.GmError as e:
+            return _gm_error(e)
+        built = S.build_request_flex(req, _public_base(request), f"https://liff.line.me/{LIFE_LIFF_ID}")
+        if not built:
+            return jsonify({"error": "無法產生求藥卡"}), 500
+        alt, bubble = built
+        store.log_event({"user_id": uid, "type": "share", "share_type": "herb_request", "ref_id": req["id"],
+                         "target_platform": "line", "status": "created", "at": G.now_utc().isoformat()})
+        return jsonify({"request": {"id": req["id"], "expires_at": req["expires_at"]},
+                        "message": {"type": "flex", "altText": alt, "contents": bubble}})
+
+    @bp.route("/api/liff/gm/request/<req_id>", methods=["GET"])
+    def gm_request_view(req_id):
+        uid, err = _auth()
+        if err:
+            return err
+        try:
+            return jsonify(service.request_view(uid, req_id))
+        except G.GmError as e:
+            return _gm_error(e)
+
+    @bp.route("/api/liff/gm/request/<req_id>/fulfill", methods=["POST"])
+    def gm_request_fulfill(req_id):
+        uid, err = _auth()
+        if err:
+            return err
+        try:
+            return jsonify(service.request_fulfill(uid, req_id))
+        except G.GmError as e:
+            return _gm_error(e)
+
+    @bp.route("/api/liff/gm/notices/seen", methods=["POST"])
+    def gm_notices_seen():
+        uid, err = _auth()
+        if err:
+            return err
+        service.notices_seen(uid)
         return jsonify({"ok": True})
 
     # -------------------------------------------------------------- 開發開關（demo 用）

@@ -16,6 +16,7 @@ import threading
 
 COLL_USERS = "gm_users"
 COLL_EVENTS = "gm_events"
+COLL_REQUESTS = "gm_requests"
 
 MAX_RETRY = 6
 
@@ -40,7 +41,7 @@ class Store:
             with open(self.local_path, "r", encoding="utf-8") as f:
                 self._mem = json.load(f)
         except Exception:
-            self._mem = {"users": {}, "events": []}
+            self._mem = {"users": {}, "events": [], "requests": {}}
 
     def _flush_local(self):
         try:
@@ -128,6 +129,64 @@ class Store:
                     self._flush_local()
         except Exception:
             pass
+
+    # ---------------------------------------------------------- 求藥卡（HerbRequest）
+    def create_request(self, req):
+        if self.db is not None:
+            self.db[COLL_REQUESTS].insert_one(dict(req))
+            return
+        with self._lock:
+            self._mem.setdefault("requests", {})[req["id"]] = dict(req)
+            self._flush_local()
+
+    def get_request(self, req_id):
+        if self.db is not None:
+            d = self.db[COLL_REQUESTS].find_one({"id": req_id})
+            if d:
+                d.pop("_id", None)
+            return d
+        with self._lock:
+            d = self._mem.setdefault("requests", {}).get(req_id)
+            return dict(d) if d else None
+
+    def list_requests(self, requester, status=None):
+        q = {"requester": requester}
+        if status:
+            q["status"] = status
+        if self.db is not None:
+            return [{k: v for k, v in d.items() if k != "_id"} for d in self.db[COLL_REQUESTS].find(q).limit(100)]
+        with self._lock:
+            return [dict(d) for d in self._mem.setdefault("requests", {}).values()
+                    if d.get("requester") == requester and (not status or d.get("status") == status)]
+
+    def claim_request(self, req_id, fields):
+        """原子地把 open 的求藥卡改成 fulfilled（只有一個人能成功）。成功回傳更新後的文件，失敗回傳 None。"""
+        if self.db is not None:
+            from pymongo import ReturnDocument
+            d = self.db[COLL_REQUESTS].find_one_and_update(
+                {"id": req_id, "status": "open"}, {"$set": dict(fields, status="fulfilled")},
+                return_document=ReturnDocument.AFTER)
+            if d:
+                d.pop("_id", None)
+            return d
+        with self._lock:
+            d = self._mem.setdefault("requests", {}).get(req_id)
+            if not d or d.get("status") != "open":
+                return None
+            d.update(fields)
+            d["status"] = "fulfilled"
+            self._flush_local()
+            return dict(d)
+
+    def update_request(self, req_id, fields):
+        if self.db is not None:
+            self.db[COLL_REQUESTS].update_one({"id": req_id}, {"$set": dict(fields)})
+            return
+        with self._lock:
+            d = self._mem.setdefault("requests", {}).get(req_id)
+            if d:
+                d.update(fields)
+                self._flush_local()
 
     def list_users(self, limit=50):
         if self.db is not None:

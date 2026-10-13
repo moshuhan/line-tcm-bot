@@ -315,3 +315,155 @@ def test_primary_track():
     assert G.primary_track(doc, "2026-10-13") == "life"
     doc["activity"]["2026-10-12"] = {"student": 5}
     assert G.primary_track(doc, "2026-10-13") == "student"
+
+
+# ---------------------------------------------------------------- 求藥
+def _setup_only_one_missing(svc, uid, now):
+    """讓 uid 的四君子湯只差白朮。"""
+    svc.dev(uid, "give", {"herb_ids": ["ren_shen", "fu_ling", "gan_cao"]}, now=now)
+
+
+def test_request_only_when_exactly_one_missing_and_reuses_open_card():
+    svc = make_service()
+    now = at(2026, 10, 13)
+    svc.dev("a", "give", {"herb_ids": ["ren_shen"]}, now=now)
+    try:
+        svc.request_create("a", "si_jun_zi_tang", now=now)       # 還差三味
+        assert False
+    except G.GmError as e:
+        assert e.code == "not_one_missing"
+    _setup_only_one_missing(svc, "a", now)
+    r1 = svc.request_create("a", "si_jun_zi_tang", now=now)
+    r2 = svc.request_create("a", "si_jun_zi_tang", now=now)
+    assert r1["herb_id"] == "bai_zhu" and r1["id"] == r2["id"]    # 同一方劑沿用同一張
+
+
+def test_request_limit_open_cards():
+    svc = make_service()
+    now = at(2026, 10, 13)
+    # 讓 a 同時只差一味的方劑有 4 個：桂枝湯缺芍藥、麻黃湯缺杏仁… 用 give 組出來
+    svc.dev("a", "give", {"herb_ids": ["gui_zhi", "sheng_jiang", "da_zao", "gan_cao"]}, now=now)   # 桂枝湯缺芍藥
+    svc.dev("a", "give", {"herb_ids": ["ma_huang"]}, now=now)                                        # 麻黃湯缺杏仁
+    svc.dev("a", "give", {"herb_ids": ["ren_shen", "fu_ling"]}, now=now)                            # 四君子湯缺白朮
+    svc.dev("a", "give", {"herb_ids": ["jie_geng"]}, now=now)                                        # 桔梗湯已合成（不算）
+    cfg = C.config()["request"]
+    made = []
+    for fid in ("gui_zhi_tang", "ma_huang_tang", "si_jun_zi_tang"):
+        made.append(svc.request_create("a", fid, now=now)["id"])
+    assert len(set(made)) == 3 and cfg["max_open"] == 3
+    # 再造一個只差一味的（四物湯：給三味，缺川芎）→ 超過上限
+    svc.dev("a", "give", {"herb_ids": ["shu_di_huang", "dang_gui", "shao_yao"]}, now=now)
+    try:
+        svc.request_create("a", "si_wu_tang", now=now)
+        assert False
+    except G.GmError as e:
+        assert e.code == "too_many"
+
+
+def test_gift_requires_spare_card_and_moves_one_card():
+    svc = make_service()
+    now = at(2026, 10, 13)
+    _setup_only_one_missing(svc, "a", now)
+    req = svc.request_create("a", "si_jun_zi_tang", now=now)
+    # b 只有 1 張白朮 → 不能送（只能送重複的）
+    svc.dev("b", "give", {"herb_ids": ["bai_zhu"]}, now=now)
+    v = svc.request_view("b", req["id"], now=now)
+    assert not v["can_give"] and v["reason"] == "no_spare"
+    try:
+        svc.request_fulfill("b", req["id"], now=now)
+        assert False
+    except G.GmError as e:
+        assert e.code == "no_spare"
+    assert svc.codex("b")["herbs"][0] is not None
+    # b 再得一張 → 可以送
+    svc.dev("b", "give", {"herb_ids": ["bai_zhu"]}, now=now)
+    assert svc.request_view("b", req["id"], now=now)["can_give"]
+    res = svc.request_fulfill("b", req["id"], now=now, rng=random.Random(1))
+    assert res["gave"]["id"] == "bai_zhu" and [f["id"] for f in res["requester_unlocked"]] == ["si_jun_zi_tang"]
+    # a 收到並自動合成、留下通知；b 扣 1 並拿到感謝禮
+    me_a = svc.me("a", now=now)
+    assert me_a["formulas_unlocked"] >= 1 and me_a["notices"][0]["herb_name"] == "白朮"
+    assert res["reward"] is not None
+    qty_b = [h for h in svc.codex("b")["herbs"] if h["id"] == "bai_zhu"][0]["quantity"]
+    assert qty_b == 1
+    svc.notices_seen("a")
+    assert svc.me("a", now=now)["notices"] == []
+
+
+def test_gift_cannot_be_claimed_twice_or_by_self_or_after_expiry():
+    svc = make_service()
+    now = at(2026, 10, 13)
+    _setup_only_one_missing(svc, "a", now)
+    req = svc.request_create("a", "si_jun_zi_tang", now=now)
+    for u in ("b", "c"):
+        svc.dev(u, "give", {"herb_ids": ["bai_zhu", "bai_zhu"]}, now=now)
+    try:
+        svc.request_fulfill("a", req["id"], now=now)
+        assert False
+    except G.GmError as e:
+        assert e.code == "self"
+    svc.request_fulfill("b", req["id"], now=now, rng=random.Random(1))
+    try:
+        svc.request_fulfill("c", req["id"], now=now)
+        assert False
+    except G.GmError as e:
+        assert e.code == "closed"
+    # c 的藥沒有被扣
+    assert [h for h in svc.codex("c")["herbs"] if h["id"] == "bai_zhu"][0]["quantity"] == 2
+    # 過期
+    svc2 = make_service()
+    _setup_only_one_missing(svc2, "a", now)
+    req2 = svc2.request_create("a", "si_jun_zi_tang", now=now)
+    svc2.dev("b", "give", {"herb_ids": ["bai_zhu", "bai_zhu"]}, now=now)
+    try:
+        svc2.request_fulfill("b", req2["id"], now=now + timedelta(hours=73))
+        assert False
+    except G.GmError as e:
+        assert e.code == "expired"
+
+
+def test_claim_race_refunds_the_loser(monkeypatch=None):
+    svc = make_service()
+    now = at(2026, 10, 13)
+    _setup_only_one_missing(svc, "a", now)
+    req = svc.request_create("a", "si_jun_zi_tang", now=now)
+    svc.dev("b", "give", {"herb_ids": ["bai_zhu", "bai_zhu"]}, now=now)
+    real = svc.store.claim_request
+    svc.store.claim_request = lambda *a, **k: None           # 模擬被別人搶先
+    try:
+        svc.request_fulfill("b", req["id"], now=now)
+        assert False
+    except G.GmError as e:
+        assert e.code == "closed"
+    finally:
+        svc.store.claim_request = real
+    assert [h for h in svc.codex("b")["herbs"] if h["id"] == "bai_zhu"][0]["quantity"] == 2     # 已退還
+
+
+def test_gift_reward_has_daily_cap():
+    svc = make_service()
+    now = at(2026, 10, 13)
+    cap = C.config()["request"]["gift_reward_daily_cap"]
+    svc.dev("b", "give", {"herb_ids": ["bai_zhu"] * 6}, now=now)
+    got = 0
+    for i in range(4):
+        uid = f"a{i}"
+        _setup_only_one_missing(svc, uid, now)
+        req = svc.request_create(uid, "si_jun_zi_tang", now=now)
+        res = svc.request_fulfill("b", req["id"], now=now, rng=random.Random(i))
+        got += 1 if res["reward"] else 0
+    assert got == cap
+
+
+def test_share_cards_progress_and_season():
+    from api import gm_share as S
+    me = {"level": 3, "level_name": "藥櫃夥計", "herbs_owned": 5, "herbs_total": 31, "formulas_unlocked": 1,
+          "recipes_unlocked": 0, "formulas_total": 13, "recipes_total": 6, "levels_cleared": 2, "levels_total": 24, "streak_days": 4}
+    alt, b = S.build_flex("progress_card", "", "https://x.test", "https://liff.line.me/1", me)
+    assert "藥櫃夥計" in alt and "5/31" in str(b)
+    alt, b = S.build_flex("season_complete", "spring", "https://x.test", "https://liff.line.me/1")
+    assert "春" in alt
+    assert S.build_flex("season_complete", "nope", "https://x.test", "u") is None
+    req = {"id": "abc", "herb_id": "bai_zhu", "formula_id": "si_jun_zi_tang"}
+    alt, b = S.build_request_flex(req, "https://x.test", "https://liff.line.me/1")
+    assert "白朮" in alt and "page=gift&req=abc" in str(b) and "非處方" in str(b)
